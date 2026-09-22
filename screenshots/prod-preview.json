@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "다윗과 골리앗 · 모두애침례교회",
+      "hasCanvas": true,
+      "bodyTextLen": 58,
+      "bodyTextHash": "64e91d6ab24cb5c07d3c47a8770ee85d589e3776ba962dd8674643e63c985d22",
+      "bodyTextPrefix": "내 모습 상반신을 보여 주세요 모두애침례교회 다윗과 골리앗 ALL LOVE CHURCH 화면을 눌러 시작",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/prod-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "다윗과 골리앗 · 모두애침례교회",
+      "hasCanvas": true,
+      "bodyTextLen": 58,
+      "bodyTextHash": "64e91d6ab24cb5c07d3c47a8770ee85d589e3776ba962dd8674643e63c985d22",
+      "bodyTextPrefix": "내 모습 상반신을 보여 주세요 모두애침례교회 다윗과 골리앗 ALL LOVE CHURCH 화면을 눌러 시작",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/prod-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/prod-preview.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}
