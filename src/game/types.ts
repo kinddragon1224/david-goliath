@@ -1,8 +1,9 @@
 import type { Verse } from "./verses";
 import type { ScoreRecord } from "./scores";
 
-export type Phase = "boot" | "attract" | "start" | "countdown" | "play" | "result";
+export type Phase = "boot" | "attract" | "start" | "practice" | "countdown" | "play" | "result";
 export type CameraState = "off" | "loading" | "live" | "denied";
+export type ModelState = "off" | "loading" | "ready" | "failed";
 
 export type Stone = {
   x: number;
@@ -84,9 +85,15 @@ export type UiSnap = {
   banner: string | null;
   motionHint: string;
   poseReady: boolean;
+  modelState: ModelState;
+  modelError: string | null;
   armed: boolean;
   cameraError: string | null;
   foreheadHits: number;
   comboLeft: number;
   bestScore: number;
+  freezeLeft: number;
+  freezeCd: number;
+  freezeFound: boolean;
+  inputVia: "webcam" | "pointer";
 };

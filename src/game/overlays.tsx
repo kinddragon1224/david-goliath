@@ -1,5 +1,5 @@
 import { Volume2, VolumeX } from "lucide-react";
-import { CHURCH_NAME, CHURCH_NAME_EN, GAME_TITLE, LEADERBOARD_SHOW } from "./constants";
+import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW } from "./constants";
 import { formatScoreDate } from "./scores";
 import type { UiSnap } from "./types";
 
@@ -13,7 +13,9 @@ type Props = {
   onConfirmReset: () => void;
   onCancelReset: () => void;
   onRetryCamera: () => void;
+  onRetryMotion: () => void;
   onOpenWindow: () => void;
+  onSkipPractice: () => void;
 };
 
 export function Overlays({
@@ -26,7 +28,9 @@ export function Overlays({
   onConfirmReset,
   onCancelReset,
   onRetryCamera,
+  onRetryMotion,
   onOpenWindow,
+  onSkipPractice,
 }: Props) {
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col text-fg">
@@ -39,19 +43,21 @@ export function Overlays({
         {ui.muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
       </button>
 
-      {ui.phase === "boot" && <Boot onBegin={onBegin} />}
+      {ui.phase === "boot" && <Boot ui={ui} onBegin={onBegin} />}
       {ui.phase === "attract" && (
         <Attract
           ui={ui}
           onStart={onStart}
           onAskReset={onAskReset}
           onRetryCamera={onRetryCamera}
+          onRetryMotion={onRetryMotion}
           onOpenWindow={onOpenWindow}
         />
       )}
       {ui.phase === "start" && (
-        <Start ui={ui} onStart={onStart} onRetryCamera={onRetryCamera} onOpenWindow={onOpenWindow} />
+        <Start ui={ui} onStart={onStart} onRetryCamera={onRetryCamera} onRetryMotion={onRetryMotion} onOpenWindow={onOpenWindow} />
       )}
+      {ui.phase === "practice" && <Practice ui={ui} onSkip={onSkipPractice} />}
       {ui.phase === "countdown" && <Countdown n={ui.countdown} />}
       {ui.phase === "play" && <Hud ui={ui} />}
       {ui.phase === "result" && <Result ui={ui} onNext={onNext} />}
@@ -84,26 +90,32 @@ export function Overlays({
   );
 }
 
-function Boot({ onBegin }: { onBegin: () => void }) {
+function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
+  return (
+    <div className="px-6 text-center">
+      <p className="text-xs tracking-[0.22em] text-fg-muted">말씀 · 발췌</p>
+      <blockquote className={`mt-3 font-display leading-snug text-balance ${large ? "text-4xl" : "text-2xl"}`}>
+        {ui.verse.text}
+      </blockquote>
+      <p className="mt-3 text-sm tracking-wide text-fg-muted">{ui.verse.ref}</p>
+    </div>
+  );
+}
+
+function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
   return (
     <button
       type="button"
       onClick={onBegin}
-      className="pointer-events-auto flex h-full w-full flex-col items-center justify-center gap-8 bg-bg px-10 text-center"
+      className="pointer-events-auto flex h-full w-full flex-col items-center justify-center gap-8 bg-bg px-8 text-center"
     >
-      <img
-        src="/logo-alllove.jpg"
-        alt={CHURCH_NAME}
-        className="h-44 w-44 object-contain"
-      />
+      <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="h-28 w-28 object-contain" />
       <div>
         <p className="text-sm tracking-[0.18em] text-fg-muted">{CHURCH_NAME}</p>
-        <h1 className="mt-3 font-display text-5xl leading-tight text-balance">{GAME_TITLE}</h1>
-        <p className="mt-4 text-fg-muted">{CHURCH_NAME_EN}</p>
+        <h1 className="mt-2 font-display text-4xl leading-tight text-balance">{GAME_TITLE}</h1>
       </div>
-      <p className="rounded-full border border-border-strong px-5 py-3 text-sm tracking-wide">
-        화면을 눌러 시작
-      </p>
+      <VerseBlock ui={ui} large />
+      <p className="rounded-full border border-border-strong px-5 py-3 text-sm tracking-wide">화면을 눌러 시작</p>
     </button>
   );
 }
@@ -113,22 +125,26 @@ function Attract({
   onStart,
   onAskReset,
   onRetryCamera,
+  onRetryMotion,
   onOpenWindow,
 }: {
   ui: UiSnap;
   onStart: () => void;
   onAskReset: () => void;
   onRetryCamera: () => void;
+  onRetryMotion: () => void;
   onOpenWindow: () => void;
 }) {
   const top = ui.scores.slice(0, LEADERBOARD_SHOW);
   return (
     <>
-      <header className="pointer-events-none flex flex-col items-center pt-8">
-        <img src="/logo-alllove.jpg" alt="" className="h-16 w-16 object-contain" />
-        <h1 className="mt-3 font-display text-4xl text-balance">{GAME_TITLE}</h1>
+      <header className="pointer-events-none flex flex-col items-center px-4 pt-6">
+        <img src="/logo-alllove.jpg" alt="" className="h-12 w-12 object-contain" />
+        <h1 className="mt-2 font-display text-3xl text-balance">{GAME_TITLE}</h1>
         <p className="mt-1 text-xs tracking-[0.2em] text-fg-muted">{CHURCH_NAME}</p>
-        <p className="mt-3 text-sm text-fg-muted">30초 · 카메라 앞에서 팔을 휘두르세요</p>
+        <div className="mt-4">
+          <VerseBlock ui={ui} />
+        </div>
       </header>
       <div className="flex-1" />
       <section className="pointer-events-auto mx-5 mb-6 rounded-xl border border-border bg-bg/78 p-5 backdrop-blur-[2px]">
@@ -158,17 +174,22 @@ function Attract({
         </ol>
         {ui.cameraState === "denied" ? (
           <CameraHelp ui={ui} onRetry={onRetryCamera} onOpenWindow={onOpenWindow} />
+        ) : ui.modelState === "failed" ? (
+          <ModelHelp ui={ui} onRetry={onRetryMotion} />
         ) : (
           <>
             <button
               type="button"
               onClick={onStart}
-              className="mt-5 h-14 w-full rounded-lg bg-fg text-base font-medium text-accent-fg"
+              disabled={!ui.poseReady}
+              className="mt-5 h-14 w-full rounded-lg bg-fg text-base font-medium text-accent-fg disabled:opacity-60"
             >
-              {ui.personPresent
-                ? "사람이 보입니다 · 양손을 드세요"
-                : ui.cameraState === "loading"
-                  ? "카메라를 켜는 중…"
+              {ui.poseReady
+                ? "시작하기"
+                : ui.modelState === "loading" || ui.cameraState === "loading"
+                  ? ui.cameraState === "loading"
+                    ? "카메라를 켜는 중…"
+                    : "모션을 준비하는 중…"
                   : "카메라 앞에 서 주세요"}
             </button>
             <p className="mt-3 text-center text-xs text-fg-subtle">{ui.motionHint}</p>
@@ -181,12 +202,15 @@ function Attract({
 
 function Start({
   ui,
+  onStart,
   onRetryCamera,
+  onRetryMotion,
   onOpenWindow,
 }: {
   ui: UiSnap;
   onStart: () => void;
   onRetryCamera: () => void;
+  onRetryMotion: () => void;
   onOpenWindow: () => void;
 }) {
   return (
@@ -196,16 +220,23 @@ function Start({
         alt={CHURCH_NAME}
         className="h-28 w-28 object-contain"
       />
-      <blockquote className="mt-8 max-w-[22ch] font-display text-2xl leading-snug text-balance">
-        {ui.verse.text}
-      </blockquote>
-      <p className="mt-3 text-sm tracking-wide text-fg-muted">{ui.verse.ref}</p>
-      <HandsUpMark />
-      <p className="mt-2 text-lg font-medium">양손을 머리 위로 들어 시작</p>
-      <p className="mt-3 text-sm text-fg-muted">시작 후 골리앗이 있는 쪽으로 팔을 휘두르세요. 흰 점이 크리티컬입니다.</p>
-      <p className="mt-2 text-sm text-fg-muted">{ui.motionHint}</p>
+      <VerseBlock ui={ui} />
+      <p className="mt-6 text-lg font-medium">양손을 들거나 연습으로</p>
+      <button
+        type="button"
+        onClick={onStart}
+        disabled={!ui.poseReady}
+        className="mt-4 h-14 w-full max-w-xs rounded-lg bg-fg text-base font-medium text-accent-fg disabled:opacity-60"
+      >
+        연습 던지기
+      </button>
+      <p className="mt-3 text-sm text-fg-muted">{ui.motionHint}</p>
       {ui.cameraState === "denied" && (
         <CameraHelp ui={ui} onRetry={onRetryCamera} onOpenWindow={onOpenWindow} />
+      )}
+      {ui.cameraState === "live" && ui.modelState === "failed" && <ModelHelp ui={ui} onRetry={onRetryMotion} />}
+      {ui.cameraState === "live" && ui.modelState !== "ready" && ui.modelState !== "failed" && (
+        <p className="mt-6 text-sm text-fg-muted">모션이 준비되기 전에는 시작되지 않습니다</p>
       )}
     </div>
   );
@@ -251,6 +282,25 @@ function CameraHelp({
   );
 }
 
+function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
+  return (
+    <div className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
+      <p className="font-medium">모션을 준비하지 못했습니다</p>
+      <p className="mt-2 text-sm text-pretty text-fg-muted">
+        {ui.modelError || "카메라는 켜져 있지만 동작 인식을 불러오지 못했습니다."}
+      </p>
+      <p className="mt-2 text-xs text-fg-subtle">카메라는 그대로 두고, 모션만 다시 불러옵니다.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 h-12 w-full rounded-lg bg-fg text-sm font-medium text-accent-fg"
+      >
+        모션 다시 준비
+      </button>
+    </div>
+  );
+}
+
 function HandsUpMark() {
   return (
     <svg viewBox="0 0 120 140" className="mt-8 h-28 w-24 text-fg" aria-hidden="true">
@@ -270,6 +320,22 @@ function HandsUpMark() {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
+  return (
+    <div className="pointer-events-none flex h-full flex-col">
+      <div className="flex-1" />
+      <div className="pointer-events-auto mb-8 px-6 text-center">
+        <p className="font-display text-3xl">연습</p>
+        <p className="mt-2 text-sm text-fg-muted">점수는 오르지 않습니다. 한 번 던지면 시작합니다.</p>
+        <p className="mt-2 text-sm text-fg">{ui.motionHint}</p>
+        <button type="button" onClick={onSkip} className="mt-4 h-12 rounded-lg border border-border-strong px-5 text-sm">
+          건너뛰고 시작
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -295,7 +361,10 @@ function Hud({ ui }: { ui: UiSnap }) {
         <div className="rounded-md border border-border bg-bg/70 px-3 py-2 text-right">
           <p className="text-xs tracking-[0.16em] text-fg-muted">점수</p>
           <p className="font-display text-3xl tabular-nums leading-none">{ui.score.toLocaleString("ko-KR")}</p>
-          <p className="mt-1 text-xs text-fg-subtle">크리티컬 {ui.foreheadHits}</p>
+          <p className="mt-1 text-xs text-fg-subtle">
+            크리티컬 {ui.foreheadHits}
+            {ui.combo > 1 ? ` · 연속 ${ui.combo}` : ""}
+          </p>
         </div>
         <div className={`rounded-md border px-3 py-2 text-right ${urgent ? "border-danger bg-bg/80 text-danger" : "border-border bg-bg/70"}`}>
           <p className="text-xs tracking-[0.16em] text-fg-muted">시간</p>
@@ -305,24 +374,10 @@ function Hud({ ui }: { ui: UiSnap }) {
           </p>
         </div>
       </div>
-      {ui.combo > 1 && (
-        <div className="mx-auto mt-3 w-40">
-          <p className="text-center text-sm tracking-[0.2em] text-fg">COMBO {ui.combo}</p>
-          <div className="mt-1 h-1 overflow-hidden rounded-full bg-bg-subtle">
-            <div className="h-full bg-fg" style={{ width: `${Math.max(8, ui.comboLeft * 100)}%` }} />
-          </div>
-        </div>
-      )}
-      {ui.armed && (
-        <p className="mt-3 text-center text-sm tracking-[0.18em] text-fg">장전 · 점선 방향으로 던짐</p>
-      )}
-      {ui.banner && (
-        <p className="mt-4 text-center font-display text-2xl text-balance">{ui.banner}</p>
-      )}
+      {ui.freezeLeft > 0 && <p className="mt-2 text-center text-sm text-fg">프리징</p>}
+      {ui.banner && <p className="mt-2 text-center text-sm text-fg">{ui.banner}</p>}
       <div className="flex-1" />
-      <p className="mb-8 px-6 text-center text-sm text-fg-muted">
-        {ui.motionHint || "골리앗 쪽으로 팔을 휘두르세요"} · 흰 점 맞으면 x2
-      </p>
+      <p className="mb-6 px-6 text-center text-sm text-fg-muted">{ui.motionHint}</p>
     </>
   );
 }
@@ -335,7 +390,11 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
       <p className="text-sm tracking-[0.2em] text-fg-muted">{isBest ? "최고 기록" : "기록"}</p>
       <p className="mt-3 font-display text-7xl tabular-nums leading-none">{ui.score.toLocaleString("ko-KR")}</p>
       <p className="mt-4 text-fg-muted">
-        {ui.resultRank > 0 ? `${ui.resultRank}위 · ${formatScoreDate(Date.now())}` : CHURCH_NAME}
+        {ui.resultRank > 0 ? `${ui.resultRank}위` : "순위권 밖"}
+        {" · "}
+        {ui.inputVia === "pointer" ? "화면 조작" : "웹캠"}
+        {" · "}
+        {formatScoreDate(Date.now())}
       </p>
       <dl className="mt-8 grid w-full max-w-xs grid-cols-2 gap-3 text-sm">
         <div className="rounded-md border border-border bg-bg/50 px-3 py-3">
@@ -350,7 +409,8 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
       {best > 0 && (
         <p className="mt-4 text-xs text-fg-subtle">최고 {best.toLocaleString("ko-KR")}</p>
       )}
-      <blockquote className="mt-8 max-w-[22ch] font-display text-xl leading-snug text-balance">
+      {ui.freezeFound && <p className="mt-3 text-sm text-fg">다윗의 프리징을 발견했습니다</p>}
+      <blockquote className="mt-6 max-w-[22ch] font-display text-2xl leading-snug text-balance">
         {ui.verse.text}
       </blockquote>
       <p className="mt-2 text-xs tracking-wide text-fg-muted">{ui.verse.ref}</p>

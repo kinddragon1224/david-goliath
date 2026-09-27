@@ -1,4 +1,4 @@
-type SfxName = "throw" | "hitSoft" | "hitShield" | "hitHead" | "stagger" | "tick" | "start" | "end" | "combo";
+type SfxName = "throw" | "hitSoft" | "hitShield" | "hitHead" | "stagger" | "tick" | "start" | "end" | "combo" | "freeze";
 
 export class GameAudio {
   private ctx: AudioContext | null = null;
@@ -59,6 +59,10 @@ export class GameAudio {
       case "combo":
         this.chime(t, 660, 0.18);
         this.chime(t + 0.05, 880, 0.16);
+        break;
+      case "freeze":
+        this.chime(t, 311, 0.35);
+        this.chime(t + 0.08, 247, 0.4);
         break;
     }
   }

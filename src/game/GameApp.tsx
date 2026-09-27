@@ -6,7 +6,22 @@ import { Game } from "./engine";
 import { Overlays } from "./overlays";
 import { PoseController } from "./pose";
 import type { UiSnap } from "./types";
-import { randomVerse } from "./verses";
+import { VERSES } from "./verses";
+
+function syncPose(g: Game | null | undefined, pose: PoseController): void {
+  if (!g) return;
+  if (pose.status === "denied") {
+    g.setReadiness("denied", pose.error, "off", null);
+    return;
+  }
+  if (pose.status !== "live") {
+    g.setReadiness(pose.status === "loading" ? "loading" : "off", null, "off", null);
+    return;
+  }
+  if (pose.poseReady) g.setReadiness("live", null, "ready", null);
+  else if (pose.modelError) g.setReadiness("live", null, "failed", pose.modelError);
+  else g.setReadiness("live", null, "loading", null);
+}
 
 const initialUi = (): UiSnap => ({
   phase: "boot",
@@ -15,7 +30,7 @@ const initialUi = (): UiSnap => ({
   maxCombo: 0,
   timeLeft: ROUND_SECONDS,
   countdown: 3,
-  verse: randomVerse(),
+  verse: VERSES[0],
   personPresent: false,
   cameraState: "off",
   lastHit: null,
@@ -26,11 +41,17 @@ const initialUi = (): UiSnap => ({
   banner: null,
   motionHint: "",
   poseReady: false,
+  modelState: "off",
+  modelError: null,
   armed: false,
   cameraError: null,
   foreheadHits: 0,
   comboLeft: 0,
   bestScore: 0,
+  freezeLeft: 0,
+  freezeCd: 0,
+  freezeFound: false,
+  inputVia: "webcam",
 });
 
 export function GameApp() {
@@ -74,11 +95,9 @@ export function GameApp() {
     ro.observe(wrap);
 
     let raf = 0;
-    let last = performance.now();
+    let lastPhase = game.phase;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
       const video = videoRef.current;
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
@@ -89,7 +108,11 @@ export function GameApp() {
           if (pctx) drawPip(pctx, video, frame.skeleton, frame.present);
         }
       }
-      game.update(dt);
+      if (game.phase !== lastPhase) {
+        if (game.phase === "play" || game.phase === "practice" || game.phase === "attract") pose.resetMotion();
+        lastPhase = game.phase;
+      }
+      game.update(now);
       const r = wrap.getBoundingClientRect();
       ctx.setTransform(dprScale(canvas), 0, 0, dprScale(canvas), 0, 0);
       ctx.clearRect(0, 0, r.width, r.height);
@@ -157,19 +180,33 @@ export function GameApp() {
     const video = videoRef.current;
     if (!pose || !video || startingRef.current) return;
     startingRef.current = true;
-    g?.setCameraState("loading");
+    g?.setReadiness("loading", null, "off", null);
     try {
       await pose.start(video, () => {
-        g?.setCameraState("live");
+        g?.setReadiness("live", null, "loading", null);
       });
-      if (pose.status === "denied") g?.setCameraState("denied", pose.error);
-      else {
-        g?.setCameraState("live");
-        g?.setPoseReady(pose.poseReady);
-      }
+      syncPose(g, pose);
     } catch {
       pose.status = "denied";
-      g?.setCameraState("denied", "카메라를 켜지 못했습니다. 다시 시도해 주세요.");
+      g?.setReadiness("denied", "카메라를 켜지 못했습니다. 다시 시도해 주세요.", "off", null);
+    } finally {
+      startingRef.current = false;
+    }
+  };
+
+  const retryMotion = async () => {
+    const g = gameRef.current;
+    const pose = poseRef.current;
+    if (!pose || pose.status !== "live") {
+      await startCamera();
+      return;
+    }
+    if (startingRef.current) return;
+    startingRef.current = true;
+    g?.setReadiness("live", null, "loading", null);
+    try {
+      await pose.loadModel();
+      syncPose(g, pose);
     } finally {
       startingRef.current = false;
     }
@@ -185,9 +222,14 @@ export function GameApp() {
     window.open(window.location.href, "_blank", "noopener,noreferrer");
   };
 
+  const pipLow = ui.phase === "play" || ui.phase === "practice" || ui.phase === "countdown";
   const showPip =
     ui.cameraState === "live" || ui.cameraState === "loading"
-      ? ui.phase === "attract" || ui.phase === "start" || ui.phase === "countdown" || ui.phase === "play"
+      ? ui.phase === "attract" ||
+        ui.phase === "start" ||
+        ui.phase === "practice" ||
+        ui.phase === "countdown" ||
+        ui.phase === "play"
       : false;
 
   return (
@@ -203,7 +245,7 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full" />
         <div
-          className={`pointer-events-none absolute top-20 left-3 z-10 w-36 ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-10 w-28 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
           <p className="mb-1 text-center text-xs tracking-[0.16em] text-fg-muted">내 모습</p>
           <div className="relative h-28 w-36">
@@ -223,7 +265,13 @@ export function GameApp() {
             />
           </div>
           <p className="mt-1 text-center text-xs text-fg-subtle">
-            {ui.personPresent ? "인식됨" : "상반신을 보여 주세요"}
+            {ui.modelState === "failed"
+              ? "모션 실패"
+              : ui.modelState === "loading"
+                ? "모션 준비 중"
+                : ui.personPresent
+                  ? "인식됨"
+                  : "상반신을 보여 주세요"}
           </p>
         </div>
         <Overlays
@@ -234,7 +282,9 @@ export function GameApp() {
             else gameRef.current?.uiAdvance();
           }}
           onRetryCamera={() => void startCamera()}
+          onRetryMotion={() => void retryMotion()}
           onOpenWindow={openNewWindow}
+          onSkipPractice={() => gameRef.current?.skipPractice()}
           onNext={() => gameRef.current?.nextPlayer()}
           onMute={() => gameRef.current?.toggleMute()}
           onAskReset={() => gameRef.current?.askReset()}

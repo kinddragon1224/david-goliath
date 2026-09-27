@@ -1,4 +1,5 @@
-import { GRAVITY, WORLD_H, WORLD_W, stoneFlight } from "./constants";
+import { GRAVITY, WORLD_H, WORLD_W } from "./constants";
+import { goliathAngle, stoneFlight } from "./rules";
 import type { GameSim } from "./types";
 
 function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number): void {
@@ -102,7 +103,7 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   const down = sim.downed ? 1 : 0;
   ctx.save();
   ctx.translate(gx, gy);
-  ctx.rotate((-0.08 * Math.min(1, sim.stagger) - 0.12 * down) * (sim.stagger > 0 || down ? 1 : 0));
+  ctx.rotate(goliathAngle(sim.stagger, sim.downed));
   if (down) ctx.translate(40, 80);
 
   ctx.fillStyle = "rgba(20,16,12,0.4)";
@@ -284,7 +285,7 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   if (sim.phase !== "play" && sim.phase !== "countdown") return;
   const power = sim.armed || sim.charge > 0.15 ? Math.max(0.7, sim.charge) : 0.78;
-  const flight = stoneFlight(sim.goliathX, sim.goliathBob, sim.aimX, power);
+  const flight = stoneFlight(sim.goliathX, sim.goliathBob, sim.aimX, power, sim.stagger, sim.downed);
   ctx.save();
   ctx.setLineDash(sim.armed ? [14, 10] : [8, 14]);
   ctx.strokeStyle = sim.armed ? "rgba(239,232,220,0.78)" : "rgba(239,232,220,0.32)";

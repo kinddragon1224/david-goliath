@@ -11,6 +11,7 @@ export type PoseFrame = {
   throwEvent: ThrowEvent | null;
   skeleton: Landmark[] | null;
   armed: boolean;
+  chestStill: boolean;
 };
 
 type Sample = {
@@ -18,9 +19,11 @@ type Sample = {
   lx: number;
   ly: number;
   lz: number;
+  lv: number;
   rx: number;
   ry: number;
   rz: number;
+  rv: number;
 };
 
 const LS = 11;
@@ -35,10 +38,11 @@ export class PoseController {
   video: HTMLVideoElement | null = null;
   status: "off" | "loading" | "live" | "denied" = "off";
   poseReady = false;
+  modelError: string | null = null;
   error: string | null = null;
   private landmarker: {
     detectForVideo: (
-      video: HTMLVideoElement,
+      image: HTMLVideoElement | HTMLCanvasElement,
       ts: number,
     ) => {
       landmarks: { x: number; y: number; z?: number; visibility?: number }[][];
@@ -52,6 +56,8 @@ export class PoseController {
   private presentFrames = 0;
   private absentFrames = 0;
   private lastTs = 0;
+  private lastInfer = 0;
+  private inferCanvas: HTMLCanvasElement | null = null;
   present = false;
   lastFrame: PoseFrame = {
     present: false,
@@ -59,7 +65,13 @@ export class PoseController {
     throwEvent: null,
     skeleton: null,
     armed: false,
+    chestStill: false,
   };
+
+  resetMotion(): void {
+    this.history = [];
+    this.throwCooldownUntil = 0;
+  }
 
   hasStream(): boolean {
     return Boolean(this.stream);
@@ -76,9 +88,48 @@ export class PoseController {
     } catch (err) {
       this.status = "denied";
       this.error = explainCameraError(err);
+      this.poseReady = false;
+      this.modelError = null;
       return;
     }
-    if (!this.landmarker) await this.ensureModel();
+    await this.loadModel();
+  }
+
+  async loadModel(): Promise<void> {
+    if (this.status !== "live") return;
+    this.poseReady = false;
+    this.modelError = null;
+    this.landmarker?.close?.();
+    this.landmarker = null;
+    try {
+      const vision = await import("@mediapipe/tasks-vision");
+      const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
+      const opts = {
+        baseOptions: {
+          modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
+          delegate: "GPU" as const,
+        },
+        runningMode: "VIDEO" as const,
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.4,
+        minPosePresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4,
+      };
+      try {
+        this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
+      } catch {
+        this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+          ...opts,
+          baseOptions: { ...opts.baseOptions, delegate: "CPU" },
+        });
+      }
+      this.poseReady = true;
+      this.modelError = null;
+    } catch {
+      this.landmarker = null;
+      this.poseReady = false;
+      this.modelError = "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
+    }
   }
 
   private async openCamera(video: HTMLVideoElement): Promise<void> {
@@ -119,40 +170,6 @@ export class PoseController {
     throw lastErr ?? Object.assign(new Error("camera"), { name: "NotFoundError" });
   }
 
-  private async ensureModel(): Promise<void> {
-    if (this.landmarker) {
-      this.poseReady = true;
-      return;
-    }
-    try {
-      const vision = await import("@mediapipe/tasks-vision");
-      const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      const opts = {
-        baseOptions: {
-          modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
-          delegate: "GPU" as const,
-        },
-        runningMode: "VIDEO" as const,
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.4,
-        minPosePresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
-      };
-      try {
-        this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
-      } catch {
-        this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
-          ...opts,
-          baseOptions: { ...opts.baseOptions, delegate: "CPU" },
-        });
-      }
-      this.poseReady = true;
-    } catch {
-      this.error = "카메라는 켜졌지만 모션 엔진을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.";
-      this.poseReady = false;
-    }
-  }
-
   private stopStream(): void {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
@@ -165,6 +182,7 @@ export class PoseController {
     this.stopStream();
     this.status = "off";
     this.poseReady = false;
+    this.modelError = null;
   }
 
   tick(now: number): PoseFrame {
@@ -174,12 +192,20 @@ export class PoseController {
       throwEvent: null,
       skeleton: null,
       armed: false,
+      chestStill: false,
     };
     const video = this.video;
     if (!video || video.readyState < 2 || !this.landmarker) {
-      this.lastFrame = { ...empty, present: this.present };
+      this.history = [];
+      this.lastFrame = { ...empty, present: false };
+      this.present = false;
       return this.lastFrame;
     }
+
+    if (now - this.lastInfer < 70 && this.lastFrame.skeleton) {
+      return { ...this.lastFrame, throwEvent: null };
+    }
+    this.lastInfer = now;
 
     const ts = now <= this.lastTs ? this.lastTs + 1 : now;
     this.lastTs = ts;
@@ -187,7 +213,7 @@ export class PoseController {
     let pose: { x: number; y: number; z?: number; visibility?: number }[] | undefined;
     let world: { x: number; y: number; z: number }[] | undefined;
     try {
-      const result = this.landmarker.detectForVideo(video, ts);
+      const result = this.landmarker.detectForVideo(this.inferSource(video), ts);
       pose = result.landmarks[0];
       world = result.worldLandmarks?.[0];
     } catch {
@@ -199,6 +225,7 @@ export class PoseController {
       this.absentFrames += 1;
       this.presentFrames = 0;
       if (this.absentFrames > 12) this.present = false;
+      if (!this.present) this.history = [];
       this.lastFrame = { ...empty, present: this.present };
       return this.lastFrame;
     }
@@ -239,22 +266,50 @@ export class PoseController {
       lx: lWrist.x,
       ly: lWrist.y,
       lz: zAt(LW),
+      lv: lWrist.v,
       rx: rWrist.x,
       ry: rWrist.y,
       rz: zAt(RW),
+      rv: rWrist.v,
     });
     if (this.history.length > 22) this.history.shift();
+    if (!this.present) this.history = [];
 
-    const armed = this.isArmed();
+    const armed = this.present && this.isArmed();
     let throwEvent: ThrowEvent | null = null;
-    if (!handsUp && this.present && now > this.throwCooldownUntil) {
+    if (!handsUp && this.present) {
       throwEvent = this.detectThrow(now);
-      if (throwEvent) this.throwCooldownUntil = now + 520;
     }
 
+    const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const chestStill =
+      this.present &&
+      lWrist.v > 0.5 &&
+      rWrist.v > 0.5 &&
+      lShoulder.v > 0.45 &&
+      rShoulder.v > 0.45 &&
+      Math.abs(lWrist.x - rWrist.x) < 0.14 &&
+      Math.abs(lWrist.y - rWrist.y) < 0.12 &&
+      lWrist.y > shoulderY + 0.02 &&
+      lWrist.y < shoulderY + 0.32 &&
+      rWrist.y > shoulderY + 0.02 &&
+      rWrist.y < shoulderY + 0.32;
+
     const skeleton = [0, 11, 12, 13, 14, 15, 16, 23, 24].map((i) => mirror(i));
-    this.lastFrame = { present: this.present, handsUp, throwEvent, skeleton, armed };
+    this.lastFrame = { present: this.present, handsUp, throwEvent, skeleton, armed, chestStill };
     return this.lastFrame;
+  }
+
+  private inferSource(video: HTMLVideoElement): HTMLVideoElement | HTMLCanvasElement {
+    if (!this.inferCanvas) {
+      this.inferCanvas = document.createElement("canvas");
+      this.inferCanvas.width = 256;
+      this.inferCanvas.height = 192;
+    }
+    const ctx = this.inferCanvas.getContext("2d");
+    if (!ctx || video.videoWidth < 2) return video;
+    ctx.drawImage(video, 0, 0, 256, 192);
+    return this.inferCanvas;
   }
 
   private isArmed(): boolean {
@@ -284,6 +339,7 @@ export class PoseController {
         y: cur.ly,
         dy: wind.ly - cur.ly,
         dx: Math.abs(cur.lx - wind.lx),
+        v: Math.min(cur.lv, wind.lv),
       },
       {
         vx: (cur.rx - prev.rx) / dt,
@@ -293,6 +349,7 @@ export class PoseController {
         y: cur.ry,
         dy: wind.ry - cur.ry,
         dx: Math.abs(cur.rx - wind.rx),
+        v: Math.min(cur.rv, wind.rv),
       },
     ];
 
@@ -300,13 +357,11 @@ export class PoseController {
     let bestScore = 0;
     for (const hand of hands) {
       const speed = Math.hypot(hand.vx, hand.vy);
-      const towardCamera = hand.vz < -0.35;
-      const upward = hand.vy < -0.7;
-      const across = Math.abs(hand.vx) > 0.9;
-      const traveled = hand.dy > 0.045 || hand.dx > 0.06;
-      const bigSwing = speed > 1.45;
-      const throwLike = speed > 0.95 && (upward || towardCamera || across) && traveled;
-      if (!(bigSwing || throwLike)) continue;
+      const towardCamera = hand.vz < -0.45;
+      const upward = hand.vy < -0.85;
+      const windup = hand.dy > 0.07;
+      const traveled = hand.dy > 0.05 || hand.dx > 0.08;
+      if (!(hand.v > 0.45 && windup && traveled && speed > 1.05 && (upward || towardCamera))) continue;
       const score = speed + (upward ? 0.4 : 0) + (towardCamera ? 0.35 : 0);
       if (score > bestScore) {
         bestScore = score;
