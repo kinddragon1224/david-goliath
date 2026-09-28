@@ -51,7 +51,6 @@ export function Overlays({
           onAskReset={onAskReset}
           onRetryCamera={onRetryCamera}
           onRetryMotion={onRetryMotion}
-          onOpenWindow={onOpenWindow}
         />
       )}
       {ui.phase === "start" && (
@@ -91,11 +90,20 @@ export function Overlays({
 }
 
 function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
+  const words = ui.verse.text.trim().split(/\s+/);
   return (
-    <div className="px-6 text-center">
+    <div className="w-full px-6 text-center">
       <p className="text-xs tracking-[0.22em] text-fg-muted">말씀 · 발췌</p>
-      <blockquote className={`mt-3 font-display leading-snug text-balance ${large ? "text-4xl" : "text-2xl"}`}>
-        {ui.verse.text}
+      <blockquote
+        className={`mt-3 font-display leading-relaxed ${large ? "text-3xl" : "text-2xl"}`}
+        style={{ wordBreak: "keep-all", lineBreak: "strict" }}
+      >
+        {words.map((word, i) => (
+          <span key={`${i}-${word}`}>
+            {i > 0 ? " " : null}
+            <span className="whitespace-nowrap">{word}</span>
+          </span>
+        ))}
       </blockquote>
       <p className="mt-3 text-sm tracking-wide text-fg-muted">{ui.verse.ref}</p>
     </div>
@@ -126,14 +134,12 @@ function Attract({
   onAskReset,
   onRetryCamera,
   onRetryMotion,
-  onOpenWindow,
 }: {
   ui: UiSnap;
   onStart: () => void;
   onAskReset: () => void;
   onRetryCamera: () => void;
   onRetryMotion: () => void;
-  onOpenWindow: () => void;
 }) {
   const top = ui.scores.slice(0, LEADERBOARD_SHOW);
   return (
@@ -142,12 +148,27 @@ function Attract({
         <img src="/logo-alllove.jpg" alt="" className="h-12 w-12 object-contain" />
         <h1 className="mt-2 font-display text-3xl text-balance">{GAME_TITLE}</h1>
         <p className="mt-1 text-xs tracking-[0.2em] text-fg-muted">{CHURCH_NAME}</p>
-        <div className="mt-4">
+        <div className="mt-4 w-full rounded-xl border border-border bg-bg px-2 py-4">
           <VerseBlock ui={ui} />
         </div>
       </header>
       <div className="flex-1" />
-      <section className="pointer-events-auto mx-5 mb-6 rounded-xl border border-border bg-bg/78 p-5 backdrop-blur-[2px]">
+      <section className="pointer-events-auto mx-5 mb-5 shrink-0 rounded-xl border border-border bg-bg/78 p-4 backdrop-blur-[2px]">
+        <button
+          type="button"
+          onClick={onStart}
+          className="h-14 w-full rounded-lg bg-fg text-base font-medium text-accent-fg"
+        >
+          시작하기
+        </button>
+        <p className="mt-2 text-center text-xs text-fg-subtle">{ui.motionHint}</p>
+        {ui.checkMode ? (
+          <p className="mt-2 text-center text-xs text-fg-muted">화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다.</p>
+        ) : (
+          ui.cameraState === "denied" && (
+            <p className="mt-2 text-center text-xs text-fg-muted">웹캠이 없어도 화면을 밀어 던질 수 있습니다.</p>
+          )
+        )}
         <button
           type="button"
           onPointerDown={(e) => {
@@ -157,12 +178,12 @@ function Attract({
             const started = Number(e.currentTarget.dataset.t ?? 0);
             if (performance.now() - started > 1400) onAskReset();
           }}
-          className="flex w-full items-baseline justify-between"
+          className="mt-3 flex w-full items-baseline justify-between"
         >
           <h2 className="text-sm tracking-[0.16em] text-fg-muted">최고 기록</h2>
           <span className="text-[11px] text-fg-subtle">길게 눌러 초기화</span>
         </button>
-        <ol className="mt-3 space-y-2">
+        <ol className="mt-2 space-y-1">
           {top.length === 0 && <li className="text-sm text-fg-subtle">아직 기록이 없습니다</li>}
           {top.map((row, i) => (
             <li key={`${row.at}-${i}`} className="flex items-baseline justify-between gap-3 text-sm">
@@ -172,28 +193,15 @@ function Attract({
             </li>
           ))}
         </ol>
-        {ui.cameraState === "denied" ? (
-          <CameraHelp ui={ui} onRetry={onRetryCamera} onOpenWindow={onOpenWindow} />
-        ) : ui.modelState === "failed" ? (
-          <ModelHelp ui={ui} onRetry={onRetryMotion} />
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onStart}
-              disabled={!ui.poseReady}
-              className="mt-5 h-14 w-full rounded-lg bg-fg text-base font-medium text-accent-fg disabled:opacity-60"
-            >
-              {ui.poseReady
-                ? "시작하기"
-                : ui.modelState === "loading" || ui.cameraState === "loading"
-                  ? ui.cameraState === "loading"
-                    ? "카메라를 켜는 중…"
-                    : "모션을 준비하는 중…"
-                  : "카메라 앞에 서 주세요"}
-            </button>
-            <p className="mt-3 text-center text-xs text-fg-subtle">{ui.motionHint}</p>
-          </>
+        {!ui.checkMode && ui.cameraState === "denied" && (
+          <button type="button" onClick={onRetryCamera} className="mt-3 h-10 w-full text-xs text-fg-muted">
+            카메라 다시 시도
+          </button>
+        )}
+        {ui.modelState === "failed" && (
+          <button type="button" onClick={onRetryMotion} className="mt-2 h-10 w-full text-xs text-fg-muted">
+            모션 다시 준비
+          </button>
         )}
       </section>
     </>
@@ -214,29 +222,31 @@ function Start({
   onOpenWindow: () => void;
 }) {
   return (
-    <div className="pointer-events-auto flex h-full flex-col items-center justify-center bg-bg/55 px-8 text-center">
+    <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center">
       <img
         src="/logo-alllove.jpg"
         alt={CHURCH_NAME}
-        className="h-28 w-28 object-contain"
+        className="h-24 w-24 object-contain"
       />
-      <VerseBlock ui={ui} />
-      <p className="mt-6 text-lg font-medium">양손을 들거나 연습으로</p>
+      <div className="mt-4 w-full">
+        <VerseBlock ui={ui} />
+      </div>
+      <p className="mt-6 text-lg font-medium">한 번 던지면 경기가 시작됩니다</p>
       <button
         type="button"
         onClick={onStart}
-        disabled={!ui.poseReady}
-        className="mt-4 h-14 w-full max-w-xs rounded-lg bg-fg text-base font-medium text-accent-fg disabled:opacity-60"
+        className="mt-4 h-14 w-full max-w-xs rounded-lg bg-fg text-base font-medium text-accent-fg"
       >
         연습 던지기
       </button>
-      <p className="mt-3 text-sm text-fg-muted">{ui.motionHint}</p>
-      {ui.cameraState === "denied" && (
+      <p className="mt-3 text-sm text-fg-muted">
+        {ui.checkMode ? "화면을 밀어 던지는 중입니다" : ui.motionHint}
+      </p>
+      {!ui.checkMode && ui.cameraState === "denied" && (
         <CameraHelp ui={ui} onRetry={onRetryCamera} onOpenWindow={onOpenWindow} />
       )}
-      {ui.cameraState === "live" && ui.modelState === "failed" && <ModelHelp ui={ui} onRetry={onRetryMotion} />}
-      {ui.cameraState === "live" && ui.modelState !== "ready" && ui.modelState !== "failed" && (
-        <p className="mt-6 text-sm text-fg-muted">모션이 준비되기 전에는 시작되지 않습니다</p>
+      {!ui.checkMode && ui.cameraState === "live" && ui.modelState === "failed" && (
+        <ModelHelp ui={ui} onRetry={onRetryMotion} />
       )}
     </div>
   );
@@ -327,7 +337,7 @@ function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
   return (
     <div className="pointer-events-none flex h-full flex-col">
       <div className="flex-1" />
-      <div className="pointer-events-auto mb-8 px-6 text-center">
+      <div className="pointer-events-auto mx-5 mb-8 rounded-xl border border-border bg-bg px-5 py-4 text-center">
         <p className="font-display text-3xl">연습</p>
         <p className="mt-2 text-sm text-fg-muted">점수는 오르지 않습니다. 한 번 던지면 시작합니다.</p>
         <p className="mt-2 text-sm text-fg">{ui.motionHint}</p>
@@ -374,7 +384,9 @@ function Hud({ ui }: { ui: UiSnap }) {
           </p>
         </div>
       </div>
-      {ui.freezeLeft > 0 && <p className="mt-2 text-center text-sm text-fg">프리징</p>}
+      {ui.freezeLeft > 0 && (
+        <p className="mt-2 text-center text-sm tracking-wide text-fg">집중 {ui.freezeLeft.toFixed(1)}</p>
+      )}
       {ui.banner && <p className="mt-2 text-center text-sm text-fg">{ui.banner}</p>}
       <div className="flex-1" />
       <p className="mb-6 px-6 text-center text-sm text-fg-muted">{ui.motionHint}</p>
@@ -386,15 +398,15 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
   const best = ui.bestScore;
   const isBest = ui.resultRank === 1 && ui.score > 0;
   return (
-    <div className="pointer-events-auto flex h-full flex-col items-center justify-center bg-bg/62 px-8 text-center">
+    <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center">
       <p className="text-sm tracking-[0.2em] text-fg-muted">{isBest ? "최고 기록" : "기록"}</p>
       <p className="mt-3 font-display text-7xl tabular-nums leading-none">{ui.score.toLocaleString("ko-KR")}</p>
       <p className="mt-4 text-fg-muted">
-        {ui.resultRank > 0 ? `${ui.resultRank}위` : "순위권 밖"}
-        {" · "}
-        {ui.inputVia === "pointer" ? "화면 조작" : "웹캠"}
-        {" · "}
-        {formatScoreDate(Date.now())}
+        {ui.checkMode
+          ? "점검은 기록되지 않습니다"
+          : ui.resultRank > 0
+            ? `${ui.resultRank}위 · 웹캠`
+            : "순위권 밖 · 웹캠"}
       </p>
       <dl className="mt-8 grid w-full max-w-xs grid-cols-2 gap-3 text-sm">
         <div className="rounded-md border border-border bg-bg/50 px-3 py-3">
@@ -410,10 +422,9 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
         <p className="mt-4 text-xs text-fg-subtle">최고 {best.toLocaleString("ko-KR")}</p>
       )}
       {ui.freezeFound && <p className="mt-3 text-sm text-fg">다윗의 프리징을 발견했습니다</p>}
-      <blockquote className="mt-6 max-w-[22ch] font-display text-2xl leading-snug text-balance">
-        {ui.verse.text}
-      </blockquote>
-      <p className="mt-2 text-xs tracking-wide text-fg-muted">{ui.verse.ref}</p>
+      <div className="mt-6 w-full">
+        <VerseBlock ui={ui} />
+      </div>
       <button
         type="button"
         onClick={onNext}

@@ -1,3 +1,4 @@
+import { DAVID_CHEST_PX, DAVID_FOOT_WORLD, DAVID_SLING_PX, davidMotion, davidSprite, davidWorld, drawSprite, GOLIATH_LOCAL, GOLIATH_SPRITES, shieldLocal } from "./art";
 import { GRAVITY, WORLD_H, WORLD_W } from "./constants";
 import { goliathAngle, stoneFlight } from "./rules";
 import type { GameSim } from "./types";
@@ -102,18 +103,24 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   const flash = sim.hitFlash;
   const down = sim.downed ? 1 : 0;
   ctx.save();
-  ctx.translate(gx, gy);
-  ctx.rotate(goliathAngle(sim.stagger, sim.downed));
+  ctx.translate(gx, gy + GOLIATH_LOCAL.foot.y);
+  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp));
   if (down) ctx.translate(40, 80);
+  ctx.translate(-GOLIATH_LOCAL.foot.x, -GOLIATH_LOCAL.foot.y);
 
   ctx.fillStyle = "rgba(20,16,12,0.4)";
-  ellipse(ctx, 0, 1320, 180, 32);
+  ellipse(ctx, 0, 1320, 250, 28);
   ctx.fill();
 
   const metal = flash > 0.4 ? "#efe8dc" : "#8a6d42";
   const metalDark = flash > 0.4 ? "#d7d0c3" : "#4a3820";
   const cloth = sim.damage >= 2 ? "#4e2422" : "#6a2f2c";
   const skin = "#c4a07a";
+  const frozen = sim.freezeLeft > 0;
+  if (frozen) ctx.filter = "saturate(0.42) brightness(0.94)";
+  const slot = GOLIATH_SPRITES[sim.goliathPose];
+  const posed = drawSprite(ctx, slot, GOLIATH_LOCAL.foot.x, GOLIATH_LOCAL.foot.y);
+  if (!posed && !slot.src) {
 
   ctx.fillStyle = metalDark;
   ctx.fillRect(-74, 980, 54, 320);
@@ -175,9 +182,9 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.fill();
   ctx.restore();
 
-  const shieldLift = sim.shieldUp ? 390 : sim.shieldWarn ? 470 : 560;
+  const sh = shieldLocal(sim.shieldUp, sim.shieldWarn);
   ctx.save();
-  ctx.translate(-150, shieldLift);
+  ctx.translate(sh.x, sh.y);
   if (sim.shieldWarn) {
     ctx.strokeStyle = "rgba(239,232,220,0.45)";
     ctx.lineWidth = 6;
@@ -261,22 +268,51 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
     ctx.fillStyle = "rgba(18,14,10,0.35)";
     ctx.fillRect(-20, 150, 50, 8);
   }
+  }
+
+  if (posed && flash > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.55, flash);
+    ctx.filter = "brightness(2.6)";
+    drawSprite(ctx, slot, GOLIATH_LOCAL.foot.x, GOLIATH_LOCAL.foot.y);
+    ctx.restore();
+  }
+
+  ctx.filter = "none";
+  if (posed && (sim.shieldWarn || sim.shieldUp)) {
+    const sh = shieldLocal(sim.shieldUp, sim.shieldWarn);
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.strokeStyle = sim.shieldUp ? "rgba(232,196,120,0.92)" : "rgba(239,232,220,0.7)";
+    ctx.lineWidth = sim.shieldUp ? 8 : 5;
+    ctx.beginPath();
+    ctx.arc(0, 0, sh.r + (sim.shieldWarn ? 22 : 12), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (frozen) {
+    ctx.strokeStyle = "rgba(186,214,228,0.9)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(32, 780, 300, 430, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   if (sim.phase === "play" || sim.phase === "countdown") {
     const pulse = 16 + Math.sin(sim.time * 7) * 5;
     ctx.strokeStyle = `rgba(239,232,220,${0.55 + Math.sin(sim.time * 7) * 0.3})`;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(8, 198, pulse + 10, 0, Math.PI * 2);
+    ctx.arc(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y, pulse + 10, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = "rgba(239,232,220,0.92)";
     ctx.beginPath();
-    ctx.arc(8, 198, 12, 0, Math.PI * 2);
+    ctx.arc(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y, 12, 0, Math.PI * 2);
     ctx.fill();
     ctx.font = "700 28px 'Noto Sans KR', sans-serif";
     ctx.textAlign = "center";
     ctx.fillStyle = "#efe8dc";
-    ctx.fillText("급소 x2", 8, 168);
+    ctx.fillText("급소 x2", GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y - 30);
   }
 
   ctx.restore();
@@ -285,7 +321,18 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   if (sim.phase !== "play" && sim.phase !== "countdown") return;
   const power = sim.armed || sim.charge > 0.15 ? Math.max(0.7, sim.charge) : 0.78;
-  const flight = stoneFlight(sim.goliathX, sim.goliathBob, sim.aimX, power, sim.stagger, sim.downed);
+  const flight = stoneFlight(
+    sim.goliathX,
+    sim.goliathBob,
+    sim.aimX,
+    power,
+    sim.stagger,
+    sim.downed,
+    sim.davidPose,
+    sim.charge,
+    sim.time,
+    sim.shieldUp,
+  );
   ctx.save();
   ctx.setLineDash(sim.armed ? [14, 10] : [8, 14]);
   ctx.strokeStyle = sim.armed ? "rgba(239,232,220,0.78)" : "rgba(239,232,220,0.32)";
@@ -301,23 +348,50 @@ function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   }
   ctx.stroke();
   ctx.setLineDash([]);
-  const hx = sim.goliathX + 8;
-  const hy = 70 + sim.goliathBob + 198;
   ctx.strokeStyle = "rgba(239,232,220,0.9)";
   ctx.lineWidth = 3;
-  ctx.strokeRect(flight.targetX - 26, hy - 26, 52, 52);
+  ctx.strokeRect(flight.targetX - 26, flight.targetY - 26, 52, 52);
   ctx.beginPath();
-  ctx.moveTo(hx, hy + 36);
-  ctx.lineTo(flight.targetX, hy);
-  ctx.stroke();
+  ctx.arc(flight.targetX, flight.targetY, 6, 0, Math.PI * 2);
   ctx.fillStyle = "#efe8dc";
-  ctx.beginPath();
-  ctx.arc(flight.targetX, hy, 6, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
 
 function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
+  const pose = sim.davidPose;
+  const slot = davidSprite(pose);
+  const motion = davidMotion(pose, sim.aimX, sim.charge, sim.time);
+  const sling = davidWorld(DAVID_SLING_PX.x, DAVID_SLING_PX.y);
+  const slingX = sling.x - DAVID_FOOT_WORLD.x;
+  const slingY = sling.y - DAVID_FOOT_WORLD.y;
+  ctx.save();
+  ctx.translate(DAVID_FOOT_WORLD.x + motion.x, DAVID_FOOT_WORLD.y + motion.y);
+  ctx.rotate(motion.rot);
+  ctx.fillStyle = "rgba(20,16,12,0.35)";
+  ellipse(ctx, 0, 8, 120, 16);
+  ctx.fill();
+  if (pose === "spin" || pose === "throw") {
+    ctx.strokeStyle = pose === "throw" ? "rgba(239,232,220,0.8)" : "rgba(239,232,220,0.35)";
+    ctx.lineWidth = pose === "throw" ? 4 : 2;
+    ctx.beginPath();
+    ctx.arc(slingX, slingY, pose === "throw" ? 46 : 28, -0.8, 0.9);
+    ctx.stroke();
+  }
+  if (drawSprite(ctx, slot, 0, 0)) {
+    if (pose === "focus") {
+      const chest = davidWorld(DAVID_CHEST_PX.x, DAVID_CHEST_PX.y);
+      ctx.strokeStyle = "rgba(186,214,228,0.85)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(chest.x - DAVID_FOOT_WORLD.x, chest.y - DAVID_FOOT_WORLD.y, 54, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  ctx.restore();
+
   const x = WORLD_W / 2;
   const y = 1630;
   ctx.save();
@@ -359,11 +433,12 @@ function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.ellipse(0, -28, 22, 16, 0, Math.PI, 0);
   ctx.fill();
 
-  const swing = sim.throwAnim;
-  const pull = sim.armed || sim.charge > 0.2 ? Math.max(sim.charge, sim.armed ? 0.85 : 0) : 0;
+  const poseArm = sim.davidPose;
+  const swing = poseArm === "spin" ? 1 : poseArm === "throw" ? 0.45 : poseArm === "recover" ? 0.2 : sim.throwAnim;
+  const pull = poseArm === "ready" || poseArm === "spin" ? 0.9 : poseArm === "focus" ? 0.15 : sim.charge;
   ctx.save();
   ctx.translate(28, 22);
-  ctx.rotate(-0.35 - pull * 1.15 - swing * 2.5);
+  ctx.rotate(poseArm === "throw" ? 0.85 : poseArm === "focus" ? 0.95 : -0.35 - pull * 1.15 - swing * 2.2);
   ctx.strokeStyle = "#3a2c1c";
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
@@ -386,10 +461,18 @@ function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 
   ctx.save();
   ctx.translate(-26, 24);
-  ctx.rotate(0.4 + pull * 0.5);
+  ctx.rotate(poseArm === "focus" ? -0.95 : 0.4 + pull * 0.5);
   ctx.fillStyle = "#c9a57a";
   ctx.fillRect(-6, 0, 12, 52);
   ctx.restore();
+
+  if (poseArm === "focus") {
+    ctx.strokeStyle = "rgba(186,214,228,0.85)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(4, 28, 36, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   ctx.restore();
 }

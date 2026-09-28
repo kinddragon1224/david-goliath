@@ -52,6 +52,7 @@ const initialUi = (): UiSnap => ({
   freezeCd: 0,
   freezeFound: false,
   inputVia: "webcam",
+  checkMode: false,
 });
 
 export function GameApp() {
@@ -99,6 +100,9 @@ export function GameApp() {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const video = videoRef.current;
+      if (pose.takeDisconnect()) {
+        game.setReadiness("off", null, "off", null);
+      }
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
         if (pose.poseReady) game.notePose(frame);
@@ -278,8 +282,22 @@ export function GameApp() {
           ui={ui}
           onBegin={begin}
           onStart={() => {
-            if (ui.cameraState !== "live") void startCamera();
-            else gameRef.current?.uiAdvance();
+            const g = gameRef.current;
+            if (!g) return;
+            const snap = g.ui();
+            if (snap.checkMode) {
+              g.uiAdvance();
+              if (g.phase === "start") g.uiAdvance();
+              return;
+            }
+            const cameraReady = snap.poseReady && snap.cameraState === "live";
+            if (!cameraReady) {
+              if (snap.cameraState === "off" || snap.cameraState === "loading") void startCamera();
+              g.enterCheckMode();
+              if (g.phase === "start") g.uiAdvance();
+              return;
+            }
+            g.uiAdvance();
           }}
           onRetryCamera={() => void startCamera()}
           onRetryMotion={() => void retryMotion()}

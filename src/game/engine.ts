@@ -1,3 +1,4 @@
+import { GOLIATH_LOCAL, shieldLocal, type DavidPose, type GoliathPose } from "./art";
 import { GameAudio } from "./audio";
 import {
   GRAVITY,
@@ -94,6 +95,10 @@ export class Game {
   private pointerX0 = 0;
   private pointerY0 = 0;
   private calm = false;
+  checkMode = false;
+  private absentHold = 0;
+  private motionTime = 0;
+  private queued: { ev: ThrowEvent; demo: boolean } | null = null;
 
   constructor(
     private audio: GameAudio,
@@ -127,8 +132,9 @@ export class Game {
     this.modelError = model === "failed" ? modelError : null;
     this.poseReady = model === "ready";
     const liveRound = this.phase === "play" || this.phase === "countdown" || this.phase === "practice";
-    if (liveRound && (camera !== "live" || model === "failed")) {
-      this.abortRound("카메라가 끊겨 이번 경기는 기록하지 않습니다");
+    if (liveRound && !this.checkMode && (camera !== "live" || model === "failed")) {
+      const why = camera !== "live" ? "카메라가 끊겨" : "모션이 멈춰";
+      this.abortRound(`${why} 이번 경기는 기록하지 않습니다`);
       return;
     }
     this.pushUi(true);
@@ -152,8 +158,39 @@ export class Game {
     this.personPresent = present;
   }
 
+  enterCheckMode(): void {
+    this.checkMode = true;
+    this.inputVia = "pointer";
+    this.banner = "점검 모드";
+    this.bannerLife = 2.2;
+    if (this.phase === "boot") this.begin();
+    if (this.phase === "attract") this.goStart();
+    else this.pushUi(true);
+  }
+
   notePose(frame: PoseFrame): void {
     this.personPresent = frame.present;
+    if (!frame.present) {
+      this.armed = false;
+      this.chestStill = false;
+      this.freezeHold = 0;
+      const live = this.phase === "play" || this.phase === "countdown" || this.phase === "practice";
+      if (live && !this.checkMode && this.cameraState === "live") {
+        const t = performance.now();
+        if (this.absentHold === 0) this.absentHold = t;
+        if (t - this.absentHold > 1200) {
+          this.abortRound("사람이 화면에서 벗어나 이번 경기는 기록하지 않습니다");
+          return;
+        }
+      }
+      if (this.phase === "result") {
+        const now = performance.now();
+        if (this.vacantHold === 0) this.vacantHold = now;
+        if (now - this.vacantHold > 2500) this.goAttract();
+      }
+      return;
+    }
+    this.absentHold = 0;
     this.armed = frame.armed;
     this.chestStill = frame.present && frame.chestStill;
     if (frame.skeleton && frame.skeleton.length > 6) {
@@ -179,17 +216,10 @@ export class Game {
       this.handsHold = 0;
     }
     if ((this.phase === "play" || this.phase === "practice") && frame.throwEvent) {
-      if (this.launch(frame.throwEvent)) {
-        this.banner = "던짐!";
-        this.bannerLife = 0.45;
-      }
+      if (!this.checkMode) this.inputVia = "webcam";
+      this.launch(frame.throwEvent);
     }
-    if (this.phase === "result" && !frame.present) {
-      if (this.vacantHold === 0) this.vacantHold = now;
-      if (now - this.vacantHold > 2500) this.goAttract();
-    } else if (this.phase === "result" && frame.present) {
-      this.vacantHold = 0;
-    }
+    if (this.phase === "result" && frame.present) this.vacantHold = 0;
   }
 
   pointerDown(x: number, y: number, id: number): void {
@@ -205,7 +235,7 @@ export class Game {
       return;
     }
     if (this.phase === "attract") {
-      if (this.cameraState === "live") this.goStart();
+      if (this.checkMode || this.cameraState === "live") this.goStart();
       return;
     }
     if (this.phase === "result") this.goAttract();
@@ -230,16 +260,13 @@ export class Game {
     if ((this.phase === "play" || this.phase === "practice") && dy > 90 && Math.abs(dx) < 460) {
       this.inputVia = "pointer";
       const aim = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
-      if (this.launch({ power: Math.max(0.45, Math.min(1, dy / 520)), aimX: aim })) {
-        this.banner = "던짐!";
-        this.bannerLife = 0.45;
-      }
+      this.launch({ power: Math.max(0.45, Math.min(1, dy / 520)), aimX: aim });
     }
   }
 
-  throwStone(power = 0.78, aimX?: number): void {
+  throwStone(power = 0.78, aimX?: number): boolean {
     const x = aimX ?? Math.max(-1, Math.min(1, (this.goliathX - WORLD_W / 2) / 220));
-    this.launch({ power, aimX: x });
+    return this.launch({ power, aimX: x });
   }
 
   startPractice(): void {
@@ -299,6 +326,7 @@ export class Game {
     }
 
     if (this.freezeLeft > 0) this.freezeLeft = Math.max(0, this.freezeLeft - real);
+    else this.motionTime += real;
     if (this.freezeCd > 0) this.freezeCd = Math.max(0, this.freezeCd - real);
     if (this.phase === "play" && this.freezeCd <= 0 && this.freezeLeft <= 0 && (this.chestStill || this.pointerHolding)) {
       this.freezeHold += real;
@@ -311,7 +339,8 @@ export class Game {
     this.stepGoliath(phys || 0.0001);
     this.hitFlash = Math.max(0, this.hitFlash - real * 4);
     this.stagger = Math.max(0, this.stagger - real);
-    this.throwAnim = Math.max(0, this.throwAnim - real * 3.2);
+    this.throwAnim = this.hitStop > 0 ? this.throwAnim : Math.max(0, this.throwAnim - real * 1.45);
+    if (this.hitStop <= 0) this.releaseQueued();
     this.throwCool = Math.max(0, this.throwCool - real);
     this.comboTimer = Math.max(0, this.comboTimer - real);
     if (this.comboTimer <= 0) this.combo = 0;
@@ -393,7 +422,10 @@ export class Game {
       armed: this.armed,
       aimX: this.aimX,
       downed: this.downed,
-      sightX: this.goliathX + 8 + Math.max(-1, Math.min(1, this.aimX)) * 170,
+      sightX: this.goliathX + GOLIATH_LOCAL.forehead.x + Math.max(-1, Math.min(1, this.aimX)) * 170,
+      freezeLeft: this.freezeLeft,
+      goliathPose: this.goliathPose(),
+      davidPose: this.davidPose(),
     };
   }
 
@@ -404,6 +436,7 @@ export class Game {
     this.verse = randomVerse(this.verse.ref);
     this.handsHold = 0;
     this.confirmReset = false;
+    this.queued = null;
     this.pushUi(true);
   }
 
@@ -412,7 +445,9 @@ export class Game {
     if (!this.readyToStart()) return;
     this.phase = "practice";
     this.stones = [];
+    this.queued = null;
     this.practiceLeft = 0;
+    this.absentHold = 0;
     this.score = 0;
     this.combo = 0;
     this.banner = "한 번 던져 보세요";
@@ -427,6 +462,7 @@ export class Game {
     this.countdown = 3;
     this.countdownAcc = 0;
     this.stones = [];
+    this.queued = null;
     this.practiceLeft = 0;
     this.audio.play("tick");
     this.pushUi(true);
@@ -453,19 +489,32 @@ export class Game {
     this.freezeCd = 0;
     this.freezeHold = 0;
     this.freezeFound = false;
-    this.inputVia = "webcam";
+    this.inputVia = this.checkMode ? "pointer" : "webcam";
     this.stones = [];
+    this.queued = null;
     this.throwCool = 0;
     this.hitStop = 0;
+    this.absentHold = 0;
     this.audio.play("start");
   }
 
   private abortRound(message: string): void {
     this.roundOpen = false;
     this.playStart = 0;
-    this.stones = [];
     this.phase = "attract";
+    this.stones = [];
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.freezeLeft = 0;
+    this.freezeHold = 0;
+    this.freezeCd = 0;
+    this.absentHold = 0;
     this.personHold = 0;
+    this.handsHold = 0;
+    this.throwCool = 0;
+    this.hitStop = 0;
+    this.armed = false;
+    this.queued = null;
     this.banner = message;
     this.bannerLife = 3.2;
     this.pushUi(true);
@@ -487,6 +536,7 @@ export class Game {
   }
 
   private readyToStart(): boolean {
+    if (this.checkMode) return true;
     if (this.cameraState === "live" && this.poseReady) return true;
     this.banner = this.readinessHint();
     this.bannerLife = 2.4;
@@ -516,7 +566,9 @@ export class Game {
     this.throwCool = 0;
     this.combo = 0;
     this.comboTimer = 0;
+    this.absentHold = 0;
     this.banner = null;
+    this.queued = null;
     this.pushUi(true);
   }
 
@@ -526,12 +578,17 @@ export class Game {
     this.resultAcc = 0;
     this.vacantHold = 0;
     this.stones = [];
+    this.queued = null;
     this.timeLeft = 0;
     if (this.roundOpen) {
       this.roundOpen = false;
-      const saved = addScore(this.score, this.inputVia);
-      this.scores = saved.list;
-      this.resultRank = saved.rank;
+      if (this.checkMode) {
+        this.resultRank = 0;
+      } else {
+        const saved = addScore(this.score, "webcam");
+        this.scores = saved.list;
+        this.resultRank = saved.rank;
+      }
     }
     this.audio.play("end");
     this.pushUi(true);
@@ -540,9 +597,33 @@ export class Game {
   private launch(ev: ThrowEvent, demo = false): boolean {
     const live = this.phase === "play" || this.phase === "practice";
     if (!demo && !live) return false;
-    if (!demo && this.throwCool > 0) return false;
+    if (!demo && (this.throwCool > 0 || this.queued)) return false;
     if (this.stones.length >= MAX_STONES) return false;
-    const flight = stoneFlight(this.goliathX, this.goliathBob, ev.aimX, ev.power, this.stagger, this.downed);
+    this.aimX = ev.aimX;
+    this.throwAnim = 1;
+    this.charge = 0;
+    this.throwCool = demo ? 0.35 : THROW_COOLDOWN;
+    this.queued = { ev, demo };
+    if (!demo && this.phase === "practice") this.practiceLeft = 1.2;
+    return true;
+  }
+
+  private releaseQueued(): void {
+    if (!this.queued || this.throwAnim > 0.72) return;
+    const { ev, demo } = this.queued;
+    this.queued = null;
+    const flight = stoneFlight(
+      this.goliathX,
+      this.goliathBob,
+      ev.aimX,
+      ev.power,
+      this.stagger,
+      this.downed,
+      "throw",
+      0,
+      this.time,
+      this.shieldUp,
+    );
     this.stones.push({
       x: flight.originX,
       y: flight.originY,
@@ -552,13 +633,11 @@ export class Game {
       spin: (Math.random() - 0.5) * 10,
       live: true,
     });
-    this.aimX = ev.aimX;
-    this.throwAnim = 1;
-    this.charge = 0;
-    this.throwCool = demo ? 0.2 : THROW_COOLDOWN;
-    if (!demo) this.audio.play("throw");
-    if (!demo && this.phase === "practice") this.practiceLeft = 0.9;
-    return true;
+    if (!demo) {
+      this.audio.play("throw");
+      this.banner = "던짐!";
+      this.bannerLife = 0.45;
+    }
   }
 
   private breakCombo(): void {
@@ -585,12 +664,14 @@ export class Game {
 
   private collide(s: Stone): void {
     const gy = 70 + this.goliathBob;
-    const at = (lx: number, ly: number) => worldFromGoliath(this.goliathX, gy, this.stagger, this.downed, lx, ly);
-    const forehead = { ...at(8, 198), r: 72 };
-    const head = { ...at(8, 278), r: 54 };
-    const shield = { ...at(-150, this.shieldUp ? 390 : 560), r: 112 };
-    const torso = at(0, 560);
-    const legs = at(0, 1080);
+    const at = (lx: number, ly: number) =>
+      worldFromGoliath(this.goliathX, gy, this.stagger, this.downed, lx, ly, this.shieldUp);
+    const forehead = { ...at(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y), r: GOLIATH_LOCAL.forehead.r };
+    const head = { ...at(GOLIATH_LOCAL.helmet.x, GOLIATH_LOCAL.helmet.y), r: GOLIATH_LOCAL.helmet.r };
+    const sh = shieldLocal(this.shieldUp, this.shieldWarn);
+    const shield = { ...at(sh.x, sh.y), r: sh.r };
+    const torso = at(GOLIATH_LOCAL.torso.x, GOLIATH_LOCAL.torso.y);
+    const legs = at(GOLIATH_LOCAL.legs.x, GOLIATH_LOCAL.legs.y);
     const hitCirc = (c: { x: number; y: number; r: number }) => Math.hypot(s.x - c.x, s.y - c.y) < c.r + 14;
     const hitBox = (c: { x: number; y: number }, w: number, h: number) =>
       s.x > c.x - w / 2 && s.x < c.x + w / 2 && s.y > c.y - h / 2 && s.y < c.y + h / 2;
@@ -605,12 +686,12 @@ export class Game {
       s.live = false;
       return;
     }
-    if (s.x < torso.x - 40 && hitCirc(shield)) {
+    if (hitCirc(shield)) {
       this.registerHit("방패", s.x, s.y, "hitShield");
       s.live = false;
       return;
     }
-    if (!rising && (hitBox(torso, 240, 320) || hitBox(legs, 190, 260))) {
+    if (!rising && (hitBox(torso, GOLIATH_LOCAL.torso.w, GOLIATH_LOCAL.torso.h) || hitBox(legs, GOLIATH_LOCAL.legs.w, GOLIATH_LOCAL.legs.h))) {
       this.registerHit("몸통", s.x, s.y, "hitSoft");
       s.live = false;
     }
@@ -707,8 +788,8 @@ export class Game {
     }
     const haste = this.phase === "play" && this.timeLeft < 10 ? 1.35 : 1;
     const sway = this.downed ? 28 : 108;
-    this.goliathX = WORLD_W / 2 + Math.sin(this.time * 0.55 * haste) * sway;
-    this.goliathBob = Math.sin(this.time * (this.downed ? 2.4 : 1.7)) * (this.downed ? 14 : 8);
+    this.goliathX = WORLD_W / 2 + Math.sin(this.motionTime * 0.55 * haste) * sway;
+    this.goliathBob = Math.sin(this.motionTime * (this.downed ? 2.4 : 1.7)) * (this.downed ? 14 : 8);
     if (this.downed) {
       this.downedLife = Math.max(0, this.downedLife - dt);
       if (this.downedLife <= 0) this.downed = false;
@@ -718,7 +799,7 @@ export class Game {
       return;
     }
     if (this.phase !== "play") {
-      this.shieldUp = Math.sin(this.time * 0.55) > 0.55;
+      this.shieldUp = Math.sin(this.motionTime * 0.55) > 0.55;
       this.shieldWarn = false;
       return;
     }
@@ -765,6 +846,10 @@ export class Game {
       snap.modelError ?? "",
       snap.armed ? 1 : 0,
       snap.cameraError ?? "",
+      snap.freezeFound ? 1 : 0,
+      snap.checkMode ? 1 : 0,
+      Math.ceil(snap.freezeLeft * 5),
+      snap.inputVia,
       snap.verse.ref,
       snap.scores.length,
     ].join("|");
@@ -803,10 +888,36 @@ export class Game {
       freezeCd: this.freezeCd,
       freezeFound: this.freezeFound,
       inputVia: this.inputVia,
+      checkMode: this.checkMode,
     };
   }
 
+  private goliathPose(): GoliathPose {
+    if (this.hitFlash > 0.05 || this.stagger > 0.15) return "hit";
+    if (this.shieldUp) return "guard";
+    if (this.shieldWarn) return "warn";
+    return "idle";
+  }
+
+  private davidPose(): DavidPose {
+    if (this.freezeLeft > 0 && (this.phase === "play" || this.phase === "practice")) return "focus";
+    if (this.throwAnim > 0.72) return "spin";
+    if (this.throwAnim > 0.38) return "throw";
+    if (this.throwAnim > 0) return "recover";
+    if (this.armed || this.charge > 0.18) return "ready";
+    return "idle";
+  }
+
   private motionHint(): string {
+    if (this.checkMode && this.cameraState !== "live") {
+      if (this.phase === "practice") return "화면을 위로 밀어 던지세요";
+      if (this.phase === "play") {
+        if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
+        return "위로 밀어 던지고, 길게 누르면 집중";
+      }
+      if (this.phase === "start") return "연습 던지기를 누르세요";
+      if (this.phase === "countdown") return "";
+    }
     if (this.cameraState === "loading") return "카메라를 켜는 중";
     if (this.cameraState === "denied") return this.cameraError || "카메라 권한을 허용해 주세요";
     if (this.cameraState !== "live") return "카메라를 켜 주세요";

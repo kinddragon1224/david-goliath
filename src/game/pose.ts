@@ -51,6 +51,7 @@ export class PoseController {
     close?: () => void;
   } | null = null;
   private stream: MediaStream | null = null;
+  private disconnected = false;
   private history: Sample[] = [];
   private throwCooldownUntil = 0;
   private presentFrames = 0;
@@ -75,6 +76,24 @@ export class PoseController {
 
   hasStream(): boolean {
     return Boolean(this.stream);
+  }
+
+  trackLive(): boolean {
+    const track = this.stream?.getVideoTracks()[0];
+    return Boolean(track && track.readyState === "live");
+  }
+
+  takeDisconnect(): boolean {
+    const track = this.stream?.getVideoTracks()[0];
+    if (this.status === "live" && track && track.readyState === "ended") this.disconnected = true;
+    if (!this.disconnected) return false;
+    this.disconnected = false;
+    this.status = "off";
+    this.poseReady = false;
+    this.present = false;
+    this.history = [];
+    this.lastFrame = { ...this.lastFrame, present: false, throwEvent: null, armed: false, chestStill: false };
+    return true;
   }
 
   async start(video: HTMLVideoElement, onCamera?: () => void): Promise<void> {
@@ -157,6 +176,11 @@ export class PoseController {
         );
         this.stream = stream;
         video.srcObject = stream;
+        stream.getVideoTracks().forEach((track) => {
+          track.onended = () => {
+            this.disconnected = true;
+          };
+        });
         await playVideo(video);
         return;
       } catch (err) {
@@ -171,7 +195,10 @@ export class PoseController {
   }
 
   private stopStream(): void {
-    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream?.getTracks().forEach((t) => {
+      t.onended = null;
+      t.stop();
+    });
     this.stream = null;
     if (this.video) this.video.srcObject = null;
   }

@@ -1,3 +1,4 @@
+import type { DavidPose, GoliathPose } from "./art";
 import type { Verse } from "./verses";
 import type { ScoreRecord } from "./scores";
 
@@ -65,6 +66,9 @@ export type GameSim = {
   aimX: number;
   downed: boolean;
   sightX: number;
+  freezeLeft: number;
+  goliathPose: GoliathPose;
+  davidPose: DavidPose;
 };
 
 export type UiSnap = {
@@ -96,4 +100,5 @@ export type UiSnap = {
   freezeCd: number;
   freezeFound: boolean;
   inputVia: "webcam" | "pointer";
+  checkMode: boolean;
 };

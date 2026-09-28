@@ -14,7 +14,7 @@ export function loadScores(): ScoreRecord[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed
+    const rows = parsed
       .filter(
         (row): row is ScoreRecord =>
           !!row &&
@@ -22,8 +22,11 @@ export function loadScores(): ScoreRecord[] {
           typeof (row as ScoreRecord).score === "number" &&
           typeof (row as ScoreRecord).at === "number",
       )
+      .filter((row) => row.via !== "pointer")
       .sort((a, b) => b.score - a.score || b.at - a.at)
       .slice(0, LEADERBOARD_KEEP);
+    if (rows.length !== (parsed as unknown[]).length) saveScores(rows);
+    return rows;
   } catch {
     return [];
   }
