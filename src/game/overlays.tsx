@@ -114,8 +114,17 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
   return (
     <button
       type="button"
-      onClick={onBegin}
-      className="pointer-events-auto flex h-full w-full flex-col items-center justify-center gap-8 bg-bg px-8 text-center"
+      onPointerUp={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onBegin();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onBegin();
+      }}
+      className="pointer-events-auto flex h-full w-full touch-manipulation flex-col items-center justify-center gap-8 bg-bg px-8 text-center"
     >
       <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="h-28 w-28 object-contain" />
       <div>
@@ -156,8 +165,17 @@ function Attract({
       <section className="pointer-events-auto mx-5 mb-5 shrink-0 rounded-xl border border-border bg-bg/78 p-4 backdrop-blur-[2px]">
         <button
           type="button"
-          onClick={onStart}
-          className="h-14 w-full rounded-lg bg-fg text-base font-medium text-accent-fg"
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onStart();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onStart();
+          }}
+          className="h-14 w-full touch-manipulation rounded-lg bg-fg text-base font-medium text-accent-fg"
         >
           시작하기
         </button>
@@ -222,7 +240,14 @@ function Start({
   onOpenWindow: () => void;
 }) {
   return (
-    <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center">
+    <div
+      className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center"
+      onPointerUp={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest("[data-keep-click]")) return;
+        onStart();
+      }}
+    >
       <img
         src="/logo-alllove.jpg"
         alt={CHURCH_NAME}
@@ -234,8 +259,17 @@ function Start({
       <p className="mt-6 text-lg font-medium">한 번 던지면 경기가 시작됩니다</p>
       <button
         type="button"
-        onClick={onStart}
-        className="mt-4 h-14 w-full max-w-xs rounded-lg bg-fg text-base font-medium text-accent-fg"
+        onPointerUp={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onStart();
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onStart();
+        }}
+        className="mt-4 h-14 w-full max-w-xs touch-manipulation rounded-lg bg-fg text-base font-medium text-accent-fg"
       >
         연습 던지기
       </button>
@@ -262,7 +296,7 @@ function CameraHelp({
   onOpenWindow: () => void;
 }) {
   return (
-    <div className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
+    <div data-keep-click className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
       <p className="font-medium">카메라가 꺼져 있습니다</p>
       <p className="mt-2 text-sm text-pretty text-fg-muted">
         {ui.cameraError || "브라우저가 카메라를 막았습니다."}
@@ -294,7 +328,7 @@ function CameraHelp({
 
 function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
   return (
-    <div className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
+    <div data-keep-click className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
       <p className="font-medium">모션을 준비하지 못했습니다</p>
       <p className="mt-2 text-sm text-pretty text-fg-muted">
         {ui.modelError || "카메라는 켜져 있지만 동작 인식을 불러오지 못했습니다."}
@@ -339,7 +373,7 @@ function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
       <div className="flex-1" />
       <div className="pointer-events-auto mx-5 mb-8 rounded-xl border border-border bg-bg px-5 py-4 text-center">
         <p className="font-display text-3xl">연습</p>
-        <p className="mt-2 text-sm text-fg-muted">점수는 오르지 않습니다. 한 번 던지면 시작합니다.</p>
+        <p className="mt-2 text-sm text-fg-muted">점수는 오르지 않습니다. 금빛이 보일 때 이마를 노려요.</p>
         <p className="mt-2 text-sm text-fg">{ui.motionHint}</p>
         <button type="button" onClick={onSkip} className="mt-4 h-12 rounded-lg border border-border-strong px-5 text-sm">
           건너뛰고 시작
@@ -353,7 +387,7 @@ function Countdown({ n }: { n: number }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5">
       <p className="font-display text-8xl tabular-nums">{n}</p>
-      <p className="text-lg text-fg">흰 점 = 크리티컬 x2</p>
+      <p className="text-lg text-fg">금빛이 보일 때만 이마가 크리티컬</p>
       <p className="max-w-[22ch] text-center text-sm text-fg-muted">
         점선이 가는 곳으로 돌이 날아갑니다. 골리앗 쪽으로 팔을 휘두르세요.
       </p>

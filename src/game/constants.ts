@@ -15,7 +15,7 @@ export const CRIT_MULT = 2;
 
 export const LEADERBOARD_KEEP = 30;
 export const LEADERBOARD_SHOW = 8;
-export const SCORES_KEY = "alllove-david-goliath-scores-v1";
+export const SCORES_KEY = "alllove-david-goliath-scores-v2";
 
 export const CHURCH_NAME = "모두애침례교회";
 export const CHURCH_NAME_SHORT = "모두애교회";

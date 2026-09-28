@@ -104,7 +104,7 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   const down = sim.downed ? 1 : 0;
   ctx.save();
   ctx.translate(gx, gy + GOLIATH_LOCAL.foot.y);
-  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp));
+  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean));
   if (down) ctx.translate(40, 80);
   ctx.translate(-GOLIATH_LOCAL.foot.x, -GOLIATH_LOCAL.foot.y);
 
@@ -283,11 +283,26 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
     const sh = shieldLocal(sim.shieldUp, sim.shieldWarn);
     ctx.save();
     ctx.translate(sh.x, sh.y);
-    ctx.strokeStyle = sim.shieldUp ? "rgba(232,196,120,0.92)" : "rgba(239,232,220,0.7)";
-    ctx.lineWidth = sim.shieldUp ? 8 : 5;
-    ctx.beginPath();
-    ctx.arc(0, 0, sh.r + (sim.shieldWarn ? 22 : 12), 0, Math.PI * 2);
-    ctx.stroke();
+    if (sim.shieldUp) {
+      ctx.fillStyle = "#8a6a3e";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, sh.r, sh.r * 1.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#3a2c18";
+      ctx.lineWidth = 10;
+      ctx.stroke();
+      ctx.strokeStyle = "#d7c48a";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, sh.r * 0.72, sh.r * 0.84, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "rgba(232,196,120,0.9)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(0, 0, sh.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
   if (frozen) {
@@ -298,21 +313,12 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
     ctx.stroke();
   }
 
-  if (sim.phase === "play" || sim.phase === "countdown") {
-    const pulse = 16 + Math.sin(sim.time * 7) * 5;
-    ctx.strokeStyle = `rgba(239,232,220,${0.55 + Math.sin(sim.time * 7) * 0.3})`;
+  if (sim.critOpen && (sim.phase === "play" || sim.phase === "countdown" || sim.phase === "practice")) {
+    ctx.strokeStyle = "rgba(232,196,120,0.95)";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y, pulse + 10, 0, Math.PI * 2);
+    ctx.ellipse(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y, GOLIATH_LOCAL.forehead.rx + 8, GOLIATH_LOCAL.forehead.ry + 6, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = "rgba(239,232,220,0.92)";
-    ctx.beginPath();
-    ctx.arc(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.font = "700 28px 'Noto Sans KR', sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#efe8dc";
-    ctx.fillText("급소 x2", GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y - 30);
   }
 
   ctx.restore();
@@ -321,18 +327,7 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   if (sim.phase !== "play" && sim.phase !== "countdown") return;
   const power = sim.armed || sim.charge > 0.15 ? Math.max(0.7, sim.charge) : 0.78;
-  const flight = stoneFlight(
-    sim.goliathX,
-    sim.goliathBob,
-    sim.aimX,
-    power,
-    sim.stagger,
-    sim.downed,
-    sim.davidPose,
-    sim.charge,
-    sim.time,
-    sim.shieldUp,
-  );
+  const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time);
   ctx.save();
   ctx.setLineDash(sim.armed ? [14, 10] : [8, 14]);
   ctx.strokeStyle = sim.armed ? "rgba(239,232,220,0.78)" : "rgba(239,232,220,0.32)";

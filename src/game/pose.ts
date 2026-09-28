@@ -1,8 +1,16 @@
+export function aimFromWrist(handX: number, handY: number, shoulderY: number, vx = 0): { aimX: number; aimY: number } {
+  return {
+    aimX: Math.max(-1, Math.min(1, (handX - 0.5) * 1.8 + vx * 0.12)),
+    aimY: Math.max(-1, Math.min(1, (handY - shoulderY) / 0.22)),
+  };
+}
+
 export type Landmark = { x: number; y: number; v: number };
 
 export type ThrowEvent = {
   power: number;
   aimX: number;
+  aimY: number;
 };
 
 export type PoseFrame = {
@@ -304,8 +312,14 @@ export class PoseController {
 
     const armed = this.present && this.isArmed();
     let throwEvent: ThrowEvent | null = null;
-    if (!handsUp && this.present) {
+    if (!handsUp && this.present && now >= this.throwCooldownUntil) {
       throwEvent = this.detectThrow(now);
+      if (throwEvent) {
+        const handY = Math.min(lWrist.y, rWrist.y);
+        const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+        throwEvent.aimY = aimFromWrist(0.5, handY, shoulderY, 0).aimY;
+        this.throwCooldownUntil = now + 520;
+      }
     }
 
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
@@ -394,7 +408,7 @@ export class PoseController {
         bestScore = score;
         best = {
           power: Math.max(0.42, Math.min(1, (speed - 0.6) / 2.4)),
-          aimX: Math.max(-1, Math.min(1, (hand.x - 0.5) * 1.8 + hand.vx * 0.12)),
+          ...aimFromWrist(hand.x, hand.y, 0.45, hand.vx),
         };
       }
     }

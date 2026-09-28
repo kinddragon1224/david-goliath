@@ -22,25 +22,24 @@ export type SpriteSlot = {
  * 이미지 발 (506,1493), 표시 높이 1240 → 축척 1240/1536.
  */
 export const GOLIATH_LOCAL = {
-  forehead: { x: -15, y: 213, r: 46 },
-  helmet: { x: -19, y: 253, r: 74 },
-  shieldX: 249,
-  shieldOpenY: 704,
-  shieldWarnY: 704,
-  shieldGuardY: 704,
-  shieldR: 141,
-  torso: { x: -29, y: 648, w: 226, h: 339 },
+  /** 투구 틈의 이마. 머리 너비의 약 32%, 높이는 노출된 이마 띠. */
+  forehead: { x: -16, y: 260, rx: 38, ry: 26 },
+  helmet: { x: -4, y: 290, r: 100 },
+  shieldX: 240,
+  shieldOpenY: 730,
+  shieldR: 120,
+  torso: { x: 10, y: 600, w: 230, h: 320 },
   legs: { x: -5, y: 1092, w: 210, h: 291 },
   foot: { x: 0, y: 1320 },
 };
 
-/** 방패는 그림에 고정되어 있다. 올라가는 별도 방패는 그리지 않는다. */
-export function shieldLocal(_up: boolean, _warn: boolean): { x: number; y: number; r: number } {
-  return {
-    x: GOLIATH_LOCAL.shieldX,
-    y: GOLIATH_LOCAL.shieldOpenY,
-    r: GOLIATH_LOCAL.shieldR,
-  };
+/** 대기 방패는 그림의 팔 위치. 방어 중에는 얼굴 앞을 가리는 판으로 옮긴다.
+ * 판은 아직 별도 PNG가 아니라 판정과 같은 자리에 그린 임시 방패다.
+ */
+export function shieldLocal(up: boolean, warn: boolean): { x: number; y: number; r: number } {
+  if (up) return { x: GOLIATH_LOCAL.forehead.x, y: GOLIATH_LOCAL.forehead.y + 70, r: 156 };
+  if (warn) return { x: 120, y: 460, r: 72 };
+  return { x: GOLIATH_LOCAL.shieldX, y: GOLIATH_LOCAL.shieldOpenY, r: GOLIATH_LOCAL.shieldR };
 }
 
 const goliathSlot = (): SpriteSlot => ({
@@ -109,13 +108,13 @@ export function davidSprite(pose: DavidPose): SpriteSlot {
 }
 
 export function davidMotion(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number; rot: number } {
-  const aim = Math.max(-1, Math.min(1, aimX)) * 0.14;
-  if (pose === "ready") return { x: -8, y: -8 - charge * 10, rot: aim - 0.22 - charge * 0.1 };
-  if (pose === "spin") return { x: -18, y: -30, rot: aim - 0.58 };
-  if (pose === "throw") return { x: 26, y: 8, rot: aim + 0.36 };
-  if (pose === "recover") return { x: 12, y: 14, rot: aim + 0.08 };
-  if (pose === "focus") return { x: 0, y: 8, rot: aim * 0.2 };
-  return { x: 0, y: Math.sin(time * 2.4) * 5, rot: aim };
+  const aim = Math.max(-1, Math.min(1, aimX)) * 0.04;
+  if (pose === "ready") return { x: 0, y: 0, rot: aim - 0.06 - charge * 0.04 };
+  if (pose === "spin") return { x: -4, y: 0, rot: aim - 0.1 };
+  if (pose === "throw") return { x: 8, y: 0, rot: aim + 0.08 };
+  if (pose === "recover") return { x: 3, y: 0, rot: aim + 0.03 };
+  if (pose === "focus") return { x: 0, y: 0, rot: 0 };
+  return { x: 0, y: Math.sin(time * 2.4) * 4, rot: aim };
 }
 
 export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number } {

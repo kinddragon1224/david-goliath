@@ -14,6 +14,10 @@ export type Stone = {
   rot: number;
   spin: number;
   live: boolean;
+  age: number;
+  flightT: number;
+  aimX: number;
+  aimY: number;
 };
 
 export type Particle = {
@@ -64,6 +68,9 @@ export type GameSim = {
   damage: number;
   armed: boolean;
   aimX: number;
+  aimY: number;
+  lean: number;
+  critOpen: boolean;
   downed: boolean;
   sightX: number;
   freezeLeft: number;

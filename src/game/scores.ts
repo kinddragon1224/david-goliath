@@ -1,4 +1,5 @@
 import { LEADERBOARD_KEEP, SCORES_KEY } from "./constants";
+import { RULESET_VERSION } from "./rules";
 
 export type InputVia = "webcam" | "pointer";
 
@@ -6,6 +7,7 @@ export type ScoreRecord = {
   score: number;
   at: number;
   via?: InputVia;
+  ruleset?: number;
 };
 
 export function loadScores(): ScoreRecord[] {
@@ -43,7 +45,7 @@ export function saveScores(rows: ScoreRecord[]): void {
 export function addScore(score: number, via: InputVia): { list: ScoreRecord[]; rank: number } {
   const at = Date.now();
   try {
-    const all = [...loadScores(), { score, at, via }].sort((a, b) => b.score - a.score || b.at - a.at);
+    const all = [...loadScores(), { score, at, via, ruleset: RULESET_VERSION }].sort((a, b) => b.score - a.score || b.at - a.at);
     const rank = all.findIndex((r) => r.at === at) + 1;
     const list = all.slice(0, LEADERBOARD_KEEP);
     saveScores(list);

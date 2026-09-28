@@ -4,13 +4,26 @@ import {
   GRAVITY,
   MAX_STONES,
   ROUND_SECONDS,
-  THROW_COOLDOWN,
   WORLD_H,
   WORLD_W,
 } from "./constants";
 import { drawWorld } from "./draw";
-import type { PoseFrame, ThrowEvent } from "./pose";
-import { hitPoints, stoneFlight, worldFromGoliath, type HitPart } from "./rules";
+import { aimFromWrist, type PoseFrame, type ThrowEvent } from "./pose";
+import {
+  AIM_Y_ORIGIN,
+  AIM_Y_SPAN,
+  aimPoint,
+  combatBand,
+  goliathAngle,
+  hitPoints,
+  segmentHitsBox,
+  segmentHitsCircle,
+  segmentHitsEllipse,
+  STONE_R,
+  stoneFlight,
+  type GoliathAct,
+  type HitPart,
+} from "./rules";
 import { addScore, clearScores, loadScores, type InputVia, type ScoreRecord } from "./scores";
 import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, Stone, UiSnap } from "./types";
 import { VERSES, randomVerse, type Verse } from "./verses";
@@ -43,6 +56,8 @@ export class Game {
   shieldWarn = false;
   downed = false;
   aimX = 0;
+  aimY = 0.15;
+  lean = 0;
   damage = 0;
   rings: Ring[] = [];
 
@@ -75,7 +90,22 @@ export class Game {
   private hitStop = 0;
   private trauma = 0;
   private aiT = 0;
-  private aiMode: "open" | "warn" | "guard" = "open";
+  private aiPhase: "rest" | "tell" | "act" | "open" = "rest";
+  private aiAct: GoliathAct = "idle";
+  rngState = 0x51a7;
+  aiPhaseName: "rest" | "tell" | "act" | "open" = "rest";
+  aiActName: GoliathAct = "idle";
+  private interruptStreak = 0;
+  private lastInterrupt: GoliathAct | null = null;
+  private dodgeFrom = WORLD_W / 2;
+  private dodgeTo = WORLD_W / 2;
+  private restFrom = WORLD_W / 2;
+  private openCritUsed = false;
+  private freezeCritUsed = false;
+  private wasFrozen = false;
+  private releaseLeft = 0;
+  private followLeft = 0;
+  private recoverLeft = 0;
   private lastUrgentTick = 11;
   private downedLife = 0;
   private playStart = 0;
@@ -99,6 +129,9 @@ export class Game {
   private absentHold = 0;
   private motionTime = 0;
   private queued: { ev: ThrowEvent; demo: boolean } | null = null;
+  private combatAcc = 0;
+  private stoneAcc = 0;
+  hitLog: { part: HitPart; gained: number }[] = [];
 
   constructor(
     private audio: GameAudio,
@@ -147,6 +180,31 @@ export class Game {
     this.pushUi(true);
   }
 
+  /** 첫 화면·대기·준비 화면의 아무 곳이나 누르면 다음으로 간다. */
+  pressStart(): void {
+    this.audio.unlock();
+    if (this.phase === "boot") {
+      this.begin();
+      return;
+    }
+    if (this.phase === "result") {
+      this.goAttract();
+      return;
+    }
+    if (this.phase !== "attract" && this.phase !== "start") return;
+    const cameraReady = this.poseReady && this.cameraState === "live";
+    if (!this.checkMode && !cameraReady) {
+      this.checkMode = true;
+      this.inputVia = "pointer";
+    }
+    if (this.phase === "attract") {
+      this.goStart();
+      if (!cameraReady) this.goPractice();
+      return;
+    }
+    this.goPractice();
+  }
+
   uiAdvance(): void {
     if (this.phase === "boot") this.begin();
     else if (this.phase === "attract") this.goStart();
@@ -193,11 +251,16 @@ export class Game {
     this.absentHold = 0;
     this.armed = frame.armed;
     this.chestStill = frame.present && frame.chestStill;
-    if (frame.skeleton && frame.skeleton.length > 6) {
+    if (frame.skeleton && frame.skeleton.length > 6 && !this.queued) {
+      const shoulderY = ((frame.skeleton[1]?.y ?? 0.45) + (frame.skeleton[2]?.y ?? 0.45)) / 2;
       const lw = frame.skeleton[5];
       const rw = frame.skeleton[6];
       const hand = lw && rw ? (lw.y < rw.y ? lw : rw) : lw ?? rw;
-      if (hand) this.aimX += ((hand.x - 0.5) * 2 - this.aimX) * 0.28;
+      if (hand && !this.pointerHolding) {
+        const aimed = aimFromWrist(hand.x, hand.y, shoulderY, 0);
+        this.aimX += (aimed.aimX - this.aimX) * 0.35;
+        this.aimY += (aimed.aimY - this.aimY) * 0.35;
+      }
     }
     if ((this.phase === "play" || this.phase === "practice") && frame.armed) {
       this.charge = Math.max(this.charge, 0.82);
@@ -230,12 +293,9 @@ export class Game {
     this.pointerY = y;
     this.pointerX0 = x;
     this.pointerY0 = y;
-    if (this.phase === "boot") {
-      this.begin();
-      return;
-    }
-    if (this.phase === "attract") {
-      if (this.checkMode || this.cameraState === "live") this.goStart();
+    if (this.phase === "boot" || this.phase === "attract" || this.phase === "start") {
+      this.pointerHolding = false;
+      this.pressStart();
       return;
     }
     if (this.phase === "result") this.goAttract();
@@ -246,6 +306,10 @@ export class Game {
     if (Math.hypot(x - this.pointerX0, y - this.pointerY0) > 36) this.pointerHolding = false;
     this.pointerX = x;
     this.pointerY = y;
+    if (this.pointerHolding && (this.phase === "play" || this.phase === "practice")) {
+      this.aimX = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
+      this.aimY = Math.max(-1, Math.min(1, (y - AIM_Y_ORIGIN) / AIM_Y_SPAN));
+    }
   }
 
   pointerUp(x: number, y: number, id: number): void {
@@ -259,14 +323,14 @@ export class Game {
     this.charge = 0;
     if ((this.phase === "play" || this.phase === "practice") && dy > 90 && Math.abs(dx) < 460) {
       this.inputVia = "pointer";
-      const aim = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
-      this.launch({ power: Math.max(0.45, Math.min(1, dy / 520)), aimX: aim });
+      const aimX = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
+      const aimY = Math.max(-1, Math.min(1, (y - AIM_Y_ORIGIN) / AIM_Y_SPAN));
+      this.launch({ power: Math.max(0.45, Math.min(1, dy / 520)), aimX, aimY });
     }
   }
 
-  throwStone(power = 0.78, aimX?: number): boolean {
-    const x = aimX ?? Math.max(-1, Math.min(1, (this.goliathX - WORLD_W / 2) / 220));
-    return this.launch({ power, aimX: x });
+  throwStone(power = 0.78, aimX = 0, aimY = 0.2): boolean {
+    return this.launch({ power, aimX, aimY }, false, true);
   }
 
   startPractice(): void {
@@ -335,13 +399,24 @@ export class Game {
       this.freezeHold = 0;
     }
 
-    const phys = this.hitStop > 0 ? 0 : real;
-    this.stepGoliath(phys || 0.0001);
+    const STEP = 1 / 60;
+    this.combatAcc = Math.min(0.25, this.combatAcc + real);
+    this.stoneAcc = Math.min(0.25, this.stoneAcc + (this.hitStop > 0 ? 0 : real));
+    while (this.combatAcc >= STEP || this.stoneAcc >= STEP) {
+      if (this.combatAcc >= STEP) {
+        this.stepGoliath(STEP);
+        this.decayThrow(STEP);
+        this.releaseQueued(STEP);
+        this.combatAcc -= STEP;
+      }
+      if (this.stoneAcc >= STEP) {
+        this.stepStones(STEP);
+        this.stoneAcc -= STEP;
+      }
+    }
     this.hitFlash = Math.max(0, this.hitFlash - real * 4);
     this.stagger = Math.max(0, this.stagger - real);
-    this.throwAnim = this.hitStop > 0 ? this.throwAnim : Math.max(0, this.throwAnim - real * 1.45);
-    if (this.hitStop <= 0) this.releaseQueued();
-    this.throwCool = Math.max(0, this.throwCool - real);
+    this.throwAnim = 0;
     this.comboTimer = Math.max(0, this.comboTimer - real);
     if (this.comboTimer <= 0) this.combo = 0;
     this.bannerLife = Math.max(0, this.bannerLife - real);
@@ -350,11 +425,9 @@ export class Game {
     const amp = this.calm ? 0 : this.trauma * this.trauma;
     this.shakeX = (Math.random() - 0.5) * 10 * amp;
     this.shakeY = (Math.random() - 0.5) * 6 * amp;
-    if ((this.phase === "play" || this.phase === "practice") && this.armed) {
-      this.charge = Math.min(1, this.charge + real * 2.4);
-    } else {
-      this.charge = Math.max(0, this.charge - real * 2);
-    }
+    const winding = (this.phase === "play" || this.phase === "practice") && (this.armed || this.pointerHolding);
+    if (winding) this.charge = Math.min(1, this.charge + real * 2.4);
+    else this.charge = Math.max(0, this.charge - real * 2);
 
     if (this.phase === "attract") {
       this.demoAcc += real;
@@ -363,7 +436,8 @@ export class Game {
         this.launch(
           {
             power: Math.random() > 0.28 ? 0.92 : 0.55 + Math.random() * 0.25,
-            aimX: (Math.random() - 0.5) * 0.35,
+            aimX: (Math.random() - 0.5) * 0.4,
+            aimY: 0.25,
           },
           true,
         );
@@ -391,7 +465,6 @@ export class Game {
       if (this.resultAcc > 18) this.goAttract();
     }
 
-    if (phys > 0) this.stepStones(phys);
     this.stepFx(real);
     this.pushUi();
   }
@@ -421,8 +494,11 @@ export class Game {
       damage: this.damage,
       armed: this.armed,
       aimX: this.aimX,
+      aimY: this.aimY,
+      lean: this.lean,
+      critOpen: this.critOpen(),
       downed: this.downed,
-      sightX: this.goliathX + GOLIATH_LOCAL.forehead.x + Math.max(-1, Math.min(1, this.aimX)) * 170,
+      sightX: this.aimX * 300 + WORLD_W / 2,
       freezeLeft: this.freezeLeft,
       goliathPose: this.goliathPose(),
       davidPose: this.davidPose(),
@@ -482,8 +558,27 @@ export class Game {
     this.downedLife = 0;
     this.damage = 0;
     this.lastHit = null;
-    this.aiMode = "open";
+    this.aiPhase = "rest";
+    this.aiAct = "idle";
+    this.aiPhaseName = "rest";
+    this.aiActName = "idle";
     this.aiT = 0;
+    this.rngState = 0x51a7;
+    this.interruptStreak = 0;
+    this.lastInterrupt = null;
+    this.openCritUsed = false;
+    this.freezeCritUsed = false;
+    this.wasFrozen = false;
+    this.goliathX = WORLD_W / 2;
+    this.dodgeFrom = WORLD_W / 2;
+    this.dodgeTo = WORLD_W / 2;
+    this.restFrom = WORLD_W / 2;
+    this.lean = 0;
+    this.releaseLeft = 0;
+    this.followLeft = 0;
+    this.recoverLeft = 0;
+    this.aimX = 0;
+    this.aimY = 0.15;
     this.lastUrgentTick = 11;
     this.freezeLeft = 0;
     this.freezeCd = 0;
@@ -491,6 +586,7 @@ export class Game {
     this.freezeFound = false;
     this.inputVia = this.checkMode ? "pointer" : "webcam";
     this.stones = [];
+    this.hitLog = [];
     this.queued = null;
     this.throwCool = 0;
     this.hitStop = 0;
@@ -525,6 +621,7 @@ export class Game {
     this.freezeLeft = 2;
     this.freezeCd = 8;
     this.freezeHold = 0;
+    this.freezeCritUsed = false;
     this.pointerHold = 0;
     this.shieldUp = false;
     this.shieldWarn = false;
@@ -594,36 +691,39 @@ export class Game {
     this.pushUi(true);
   }
 
-  private launch(ev: ThrowEvent, demo = false): boolean {
+  private launch(ev: ThrowEvent, demo = false, immediate = false): boolean {
     const live = this.phase === "play" || this.phase === "practice";
     if (!demo && !live) return false;
-    if (!demo && (this.throwCool > 0 || this.queued)) return false;
+    if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0)) return false;
     if (this.stones.length >= MAX_STONES) return false;
     this.aimX = ev.aimX;
-    this.throwAnim = 1;
+    this.aimY = ev.aimY;
     this.charge = 0;
-    this.throwCool = demo ? 0.35 : THROW_COOLDOWN;
+    this.throwCool = demo ? 0.35 : 0.36;
     this.queued = { ev, demo };
+    this.releaseLeft = demo || immediate ? 0 : 0.08;
+    if (this.releaseLeft <= 0) this.releaseQueued(0);
     if (!demo && this.phase === "practice") this.practiceLeft = 1.2;
     return true;
   }
 
-  private releaseQueued(): void {
-    if (!this.queued || this.throwAnim > 0.72) return;
+  private decayThrow(dt: number): void {
+    if (this.followLeft > 0) {
+      this.followLeft = Math.max(0, this.followLeft - dt);
+      if (this.followLeft === 0) this.recoverLeft = 0.18;
+    } else if (this.recoverLeft > 0) {
+      this.recoverLeft = Math.max(0, this.recoverLeft - dt);
+    }
+    this.throwCool = Math.max(0, this.throwCool - dt);
+  }
+
+  private releaseQueued(dt: number): void {
+    if (!this.queued) return;
+    this.releaseLeft -= dt;
+    if (this.releaseLeft > 0) return;
     const { ev, demo } = this.queued;
     this.queued = null;
-    const flight = stoneFlight(
-      this.goliathX,
-      this.goliathBob,
-      ev.aimX,
-      ev.power,
-      this.stagger,
-      this.downed,
-      "throw",
-      0,
-      this.time,
-      this.shieldUp,
-    );
+    const flight = stoneFlight(ev.aimX, ev.aimY, ev.power, "throw", 0, this.time);
     this.stones.push({
       x: flight.originX,
       y: flight.originY,
@@ -632,7 +732,13 @@ export class Game {
       rot: 0,
       spin: (Math.random() - 0.5) * 10,
       live: true,
+      age: 0,
+      flightT: flight.t,
+      aimX: ev.aimX,
+      aimY: ev.aimY,
     });
+    this.followLeft = 0.15;
+    this.recoverLeft = 0;
     if (!demo) {
       this.audio.play("throw");
       this.banner = "던짐!";
@@ -648,59 +754,102 @@ export class Game {
   private stepStones(dt: number): void {
     for (const s of this.stones) {
       if (!s.live) continue;
-      s.vy += GRAVITY * dt;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
+      const x0 = s.x;
+      const y0 = s.y;
+      const vy0 = s.vy;
+      s.vy = vy0 + GRAVITY * dt;
+      s.x = x0 + s.vx * dt;
+      s.y = y0 + vy0 * dt + 0.5 * GRAVITY * dt * dt;
+      s.age += dt;
       s.rot += s.spin * dt;
       if (s.y > WORLD_H + 40 || s.x < -80 || s.x > WORLD_W + 80 || s.y < -120) {
         s.live = false;
         if (this.phase === "play") this.breakCombo();
         continue;
       }
-      this.collide(s);
+      this.collide(s, x0, y0, dt);
     }
     this.stones = this.stones.filter((s) => s.live);
   }
 
-  private collide(s: Stone): void {
+  /** 화면 좌표를 골리앗 그림과 같은 로컬 좌표로 되돌린다. */
+  private worldToLocal(wx: number, wy: number): { x: number; y: number } {
+    const angle = goliathAngle(this.stagger, this.downed, this.shieldUp, this.lean);
+    const fy = GOLIATH_LOCAL.foot.y;
     const gy = 70 + this.goliathBob;
-    const at = (lx: number, ly: number) =>
-      worldFromGoliath(this.goliathX, gy, this.stagger, this.downed, lx, ly, this.shieldUp);
-    const forehead = { ...at(GOLIATH_LOCAL.forehead.x, GOLIATH_LOCAL.forehead.y), r: GOLIATH_LOCAL.forehead.r };
-    const head = { ...at(GOLIATH_LOCAL.helmet.x, GOLIATH_LOCAL.helmet.y), r: GOLIATH_LOCAL.helmet.r };
+    const vx = wx - this.goliathX;
+    const vy = wy - (gy + fy);
+    const ca = Math.cos(angle);
+    const sa = Math.sin(angle);
+    const px = ca * vx + sa * vy;
+    const py = -sa * vx + ca * vy;
+    return {
+      x: px - (this.downed ? 40 : 0),
+      y: py + fy - (this.downed ? 80 : 0),
+    };
+  }
+
+  private collide(s: Stone, x0: number, y0: number, dt: number): void {
+    const a0 = this.worldToLocal(x0, y0);
+    const a1 = this.worldToLocal(s.x, s.y);
+    const aimW = aimPoint(s.aimX, s.aimY);
+    const aim = this.worldToLocal(aimW.x, aimW.y);
+    const F = GOLIATH_LOCAL.forehead;
+    const H = GOLIATH_LOCAL.helmet;
     const sh = shieldLocal(this.shieldUp, this.shieldWarn);
-    const shield = { ...at(sh.x, sh.y), r: sh.r };
-    const torso = at(GOLIATH_LOCAL.torso.x, GOLIATH_LOCAL.torso.y);
-    const legs = at(GOLIATH_LOCAL.legs.x, GOLIATH_LOCAL.legs.y);
-    const hitCirc = (c: { x: number; y: number; r: number }) => Math.hypot(s.x - c.x, s.y - c.y) < c.r + 14;
-    const hitBox = (c: { x: number; y: number }, w: number, h: number) =>
-      s.x > c.x - w / 2 && s.x < c.x + w / 2 && s.y > c.y - h / 2 && s.y < c.y + h / 2;
-    const rising = s.vy < 0;
-    if (hitCirc(forehead)) {
-      this.registerHit("이마", s.x, s.y, "hitHead");
-      s.live = false;
-      return;
+    const T = GOLIATH_LOCAL.torso;
+    const L = GOLIATH_LOCAL.legs;
+    const age0 = s.age - dt;
+    const inEll = (x: number, y: number, cx: number, cy: number, erx: number, ery: number) => {
+      const nx = (x - cx) / erx;
+      const ny = (y - cy) / ery;
+      return nx * nx + ny * ny <= 1;
+    };
+    const aimedFore = inEll(aim.x, aim.y, F.x, F.y, F.rx + 16, F.ry + 12);
+    const aimedHead = Math.hypot(aim.x - H.x, aim.y - H.y) <= H.r;
+    const aimedTorso = Math.abs(aim.x - T.x) <= T.w / 2 && Math.abs(aim.y - T.y) <= T.h / 2;
+    const aimedLegs = Math.abs(aim.x - L.x) <= L.w / 2 && Math.abs(aim.y - L.y) <= L.h / 2;
+    const aimedShield = Math.hypot(aim.x - sh.x, aim.y - sh.y) <= sh.r + STONE_R;
+    const falling = s.vy > 80 && s.age > s.flightT;
+    const hits: { t: number; part: HitPart }[] = [];
+    const add = (t: number | null, part: HitPart, aimed: boolean) => {
+      if (t === null) return;
+      const hitAge = age0 + t * dt;
+      const raised = part === "방패" && this.shieldUp;
+      if (!raised) {
+        if (!aimed && !falling) return;
+        if (!falling && hitAge < s.flightT * 0.55) return;
+      }
+      hits.push({ t, part });
+    };
+    add(segmentHitsCircle(a0.x, a0.y, a1.x, a1.y, sh.x, sh.y, sh.r + STONE_R), "방패", aimedShield);
+    add(segmentHitsEllipse(a0.x, a0.y, a1.x, a1.y, F.x, F.y, F.rx + 16, F.ry + 12), "이마", aimedFore || aimedHead);
+    add(segmentHitsCircle(a0.x, a0.y, a1.x, a1.y, H.x, H.y, H.r + STONE_R), "투구", aimedFore || aimedHead);
+    add(segmentHitsBox(a0.x, a0.y, a1.x, a1.y, T.x, T.y, T.w, T.h, 16, 12), "몸통", aimedTorso);
+    add(segmentHitsBox(a0.x, a0.y, a1.x, a1.y, L.x, L.y, L.w, L.h, 16, 12), "몸통", aimedLegs);
+    if (hits.length === 0) return;
+    hits.sort((a, b) => a.t - b.t);
+    const hit = hits[0];
+    let part = hit.part;
+    if ((part === "투구" || part === "이마") && aimedFore) part = this.critOpen() ? "이마" : "투구";
+    else if (part === "이마") part = this.critOpen() ? "이마" : "투구";
+    if (part === "이마") {
+      if (this.freezeLeft > 0) this.freezeCritUsed = true;
+      else this.openCritUsed = true;
     }
-    if (!rising && hitCirc(head)) {
-      this.registerHit("투구", s.x, s.y, "hitHead");
-      s.live = false;
-      return;
-    }
-    if (hitCirc(shield)) {
-      this.registerHit("방패", s.x, s.y, "hitShield");
-      s.live = false;
-      return;
-    }
-    if (!rising && (hitBox(torso, GOLIATH_LOCAL.torso.w, GOLIATH_LOCAL.torso.h) || hitBox(legs, GOLIATH_LOCAL.legs.w, GOLIATH_LOCAL.legs.h))) {
-      this.registerHit("몸통", s.x, s.y, "hitSoft");
-      s.live = false;
-    }
+    const wx = x0 + (s.x - x0) * hit.t;
+    const wy = y0 + (s.y - y0) * hit.t;
+    const sfx = part === "방패" ? "hitShield" : part === "몸통" ? "hitSoft" : "hitHead";
+    this.registerHit(part, wx, wy, sfx);
+    s.live = false;
   }
 
   private registerHit(part: HitPart, x: number, y: number, sfx: "hitSoft" | "hitShield" | "hitHead"): void {
+    const label = part === "이마" ? "크리티컬" : part === "투구" ? "머리 명중" : part === "방패" ? "막힘" : "몸통";
     if (this.phase === "practice") {
       this.hitFlash = 0.45;
-      this.floaters.push({ x, y, life: 0.8, maxLife: 0.8, text: part, color: "#efe8dc" });
+      this.hitLog.push({ part, gained: 0 });
+      this.floaters.push({ x, y, life: 0.8, maxLife: 0.8, text: label, color: "#efe8dc" });
       this.audio.play(sfx);
       return;
     }
@@ -717,6 +866,7 @@ export class Game {
     }
     const gained = hitPoints(part, blocked ? 1 : this.combo);
     this.score += gained;
+    this.hitLog.push({ part, gained });
     this.lastHit = part;
     this.hitFlash = 0.65;
     const crit = part === "이마";
@@ -729,7 +879,7 @@ export class Game {
       y,
       life: 0.9,
       maxLife: 0.9,
-      text: crit ? `크리티컬 ${gained}` : blocked ? `막힘 ${gained}` : this.combo > 1 ? `${gained} 연속${this.combo}` : `${gained}`,
+      text: part === "이마" ? `크리티컬 ${gained}` : part === "투구" ? `머리 명중 ${gained}` : blocked ? `막힘 ${gained}` : this.combo > 1 ? `${gained} 연속${this.combo}` : `${gained}`,
       color: crit ? "#efe8dc" : blocked ? "#8a8074" : "#d7cbb8",
     });
     this.burst(x, y, crit ? "#efe8dc" : "#c4b49a");
@@ -780,48 +930,193 @@ export class Game {
   }
 
   private stepGoliath(dt: number): void {
+    this.goliathBob = Math.sin(this.time * 1.7) * 6;
     if (this.freezeLeft > 0) {
+      this.wasFrozen = true;
       this.shieldUp = false;
       this.shieldWarn = false;
-      this.aiMode = "open";
+      this.lean = 0;
       return;
     }
-    const haste = this.phase === "play" && this.timeLeft < 10 ? 1.35 : 1;
-    const sway = this.downed ? 28 : 108;
-    this.goliathX = WORLD_W / 2 + Math.sin(this.motionTime * 0.55 * haste) * sway;
-    this.goliathBob = Math.sin(this.motionTime * (this.downed ? 2.4 : 1.7)) * (this.downed ? 14 : 8);
+    if (this.wasFrozen) {
+      this.wasFrozen = false;
+      this.aiPhase = "rest";
+      this.aiT = 0;
+      this.restFrom = this.goliathX;
+      this.shieldUp = false;
+      this.shieldWarn = false;
+      this.openCritUsed = true;
+    }
     if (this.downed) {
       this.downedLife = Math.max(0, this.downedLife - dt);
       if (this.downedLife <= 0) this.downed = false;
       this.shieldUp = false;
       this.shieldWarn = false;
-      this.aiMode = "open";
       return;
     }
-    if (this.phase !== "play") {
-      this.shieldUp = Math.sin(this.motionTime * 0.55) > 0.55;
-      this.shieldWarn = false;
-      return;
-    }
-    if (this.stagger > 0.55) {
+    if (this.phase !== "play" && this.phase !== "practice") {
       this.shieldUp = false;
       this.shieldWarn = false;
-      this.aiMode = "open";
+      this.lean = Math.sin(this.time * 0.6) * 0.02;
       return;
     }
-    this.aiT += dt;
-    if (this.aiMode === "open" && this.aiT > 1.55 / haste) {
-      this.aiMode = "warn";
-      this.aiT = 0;
-    } else if (this.aiMode === "warn" && this.aiT > 0.42) {
-      this.aiMode = "guard";
-      this.aiT = 0;
-    } else if (this.aiMode === "guard" && this.aiT > 1.15 / haste) {
-      this.aiMode = "open";
-      this.aiT = 0;
+    const elapsed = this.phase === "practice" ? 4 : Math.max(0, ROUND_SECONDS - this.timeLeft);
+    let left = dt;
+    let guard = 0;
+    while (left > 0.0001 && guard < 6) {
+      guard += 1;
+      const need = Math.max(0.0001, this.phaseSeconds(elapsed) - this.aiT);
+      const step = Math.min(left, need);
+      this.aiT += step;
+      left -= step;
+      if (this.aiT >= this.phaseSeconds(elapsed) - 0.0001) {
+        this.advanceAct(elapsed);
+        this.aiT = 0;
+      }
     }
-    this.shieldWarn = this.aiMode === "warn";
-    this.shieldUp = this.aiMode === "guard";
+    this.applyActPose(elapsed);
+    this.aiPhaseName = this.aiPhase;
+    this.aiActName = this.aiAct;
+  }
+
+  private phaseSeconds(elapsed: number): number {
+    const band = combatBand(elapsed);
+    if (this.aiPhase === "rest") return 0.35;
+    if (this.aiPhase === "tell") return band.tell;
+    if (this.aiPhase === "act") {
+      if (this.aiAct === "guard") return 0.85;
+      if (this.aiAct === "left" || this.aiAct === "right") return 0.35;
+      return 0.75;
+    }
+    return band.open;
+  }
+
+  private advanceAct(elapsed: number): void {
+    if (this.aiPhase === "rest") {
+      this.aiAct = this.pickAct(elapsed);
+      this.aiPhase = "tell";
+      this.dodgeFrom = this.goliathX;
+      const band = combatBand(elapsed);
+      const dir = this.aiAct === "left" ? -1 : this.aiAct === "right" ? 1 : 0;
+      this.dodgeTo = Math.max(180, Math.min(WORLD_W - 180, this.goliathX + dir * band.dodgeDist));
+      return;
+    }
+    if (this.aiPhase === "tell") {
+      this.aiPhase = "act";
+      return;
+    }
+    if (this.aiPhase === "act") {
+      if (this.aiAct === "left" || this.aiAct === "right") this.goliathX = this.dodgeTo;
+      if (this.aiAct === "idle") {
+        this.aiPhase = "rest";
+        this.restFrom = this.goliathX;
+        return;
+      }
+      this.aiPhase = "open";
+      this.openCritUsed = false;
+      return;
+    }
+    this.aiPhase = "rest";
+    this.restFrom = this.goliathX;
+    this.shieldUp = false;
+    this.shieldWarn = false;
+  }
+
+  private pickAct(elapsed: number): GoliathAct {
+    if (this.phase === "play" && elapsed < 2) return "idle";
+    const band = combatBand(elapsed);
+    let idle = band.idle;
+    let guard = band.guard;
+    let left = band.dodge / 2;
+    let right = band.dodge / 2;
+    if (this.goliathX - band.dodgeDist < 180) {
+      idle += left;
+      left = 0;
+    }
+    if (this.goliathX + band.dodgeDist > WORLD_W - 180) {
+      idle += right;
+      right = 0;
+    }
+    if (this.interruptStreak >= 2 && this.lastInterrupt === "guard") {
+      idle += guard;
+      guard = 0;
+    }
+    if (this.interruptStreak >= 2 && this.lastInterrupt === "left") {
+      idle += left;
+      left = 0;
+    }
+    if (this.interruptStreak >= 2 && this.lastInterrupt === "right") {
+      idle += right;
+      right = 0;
+    }
+    const bag: [GoliathAct, number][] = [
+      ["idle", idle],
+      ["guard", guard],
+      ["left", left],
+      ["right", right],
+    ];
+    const sum = bag.reduce((acc, [, w]) => acc + Math.max(0, w), 0);
+    let r = this.nextRand() * Math.max(0.0001, sum);
+    let act: GoliathAct = "idle";
+    for (const [name, w] of bag) {
+      if (w <= 0) continue;
+      r -= w;
+      if (r < 0) {
+        act = name;
+        break;
+      }
+    }
+    if (act === "idle") this.interruptStreak = 0;
+    else if (act === this.lastInterrupt) this.interruptStreak += 1;
+    else this.interruptStreak = 1;
+    if (act !== "idle") this.lastInterrupt = act;
+    return act;
+  }
+
+  private applyActPose(elapsed: number): void {
+    const u = Math.max(0, Math.min(1, this.aiT / Math.max(0.01, this.phaseSeconds(elapsed))));
+    this.shieldUp = false;
+    this.shieldWarn = false;
+    this.lean = 0;
+    if (this.aiAct === "guard" && this.aiPhase === "tell") {
+      this.shieldWarn = true;
+      this.lean = -0.03 * u;
+    }
+    if (this.aiAct === "guard" && this.aiPhase === "act") {
+      this.shieldUp = true;
+      this.lean = -0.04;
+    }
+    if (this.aiAct === "left" || this.aiAct === "right") {
+      const dir = this.aiAct === "left" ? -1 : 1;
+      if (this.aiPhase === "tell") {
+        this.lean = dir * 0.045 * u;
+        this.goliathX = this.dodgeFrom + dir * 18 * u;
+      } else if (this.aiPhase === "act") {
+        this.lean = dir * 0.03;
+        this.goliathX = this.dodgeFrom + (this.dodgeTo - this.dodgeFrom) * u;
+      } else if (this.aiPhase === "open") {
+        this.lean = dir * 0.015;
+        this.goliathX = this.dodgeTo;
+      }
+    }
+    if (this.aiPhase === "rest") {
+      this.goliathX = this.restFrom + (WORLD_W / 2 - this.restFrom) * u;
+    }
+    if (this.aiPhase === "open") this.shieldUp = false;
+  }
+
+  private nextRand(): number {
+    let s = this.rngState | 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    this.rngState = s;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  private critOpen(): boolean {
+    if (this.freezeLeft > 0) return !this.freezeCritUsed;
+    return this.aiPhase === "open" && !this.openCritUsed;
   }
 
   private pushUi(force = false): void {
@@ -901,10 +1196,10 @@ export class Game {
 
   private davidPose(): DavidPose {
     if (this.freezeLeft > 0 && (this.phase === "play" || this.phase === "practice")) return "focus";
-    if (this.throwAnim > 0.72) return "spin";
-    if (this.throwAnim > 0.38) return "throw";
-    if (this.throwAnim > 0) return "recover";
-    if (this.armed || this.charge > 0.18) return "ready";
+    if (this.followLeft > 0 || this.queued) return "throw";
+    if (this.recoverLeft > 0) return "recover";
+    if ((this.armed || this.pointerHolding) && this.charge > 0.55) return "spin";
+    if (this.armed || this.pointerHolding || this.charge > 0.18) return "ready";
     return "idle";
   }
 
@@ -929,10 +1224,12 @@ export class Game {
     if (this.phase === "practice") return "팔을 뒤로 젖혔다가 앞으로 휘두르세요";
     if (this.phase === "play") {
       if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
+      if (this.critOpen()) return "금빛이 보일 때 이마를 노려요";
       if (this.shieldWarn) return "방패가 올라옵니다";
       if (this.shieldUp) return "방패를 피하세요";
-      const side = this.goliathX < WORLD_W / 2 - 36 ? "왼쪽으로" : this.goliathX > WORLD_W / 2 + 36 ? "오른쪽으로" : "정면으로";
-      return `${side} 휘두르세요`;
+      if (this.aiAct === "left") return "왼쪽으로 피합니다";
+      if (this.aiAct === "right") return "오른쪽으로 피합니다";
+      return "조준한 곳으로 돌이 날아갑니다";
     }
     if (this.phase === "attract") return "카메라 앞에 서면 시작합니다";
     return "";

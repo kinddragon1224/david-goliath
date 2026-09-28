@@ -134,17 +134,7 @@ export function GameApp() {
         y: ((e.clientY - r.top) / Math.max(1, r.height)) * WORLD_H,
       };
     };
-    const isChrome = (t: EventTarget | null) =>
-      t instanceof HTMLElement && Boolean(t.closest("button"));
-
     const onDown = (e: PointerEvent) => {
-      if (isChrome(e.target)) return;
-      e.preventDefault();
-      try {
-        wrap.setPointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
       const p = toWorld(e);
       game.pointerDown(p.x, p.y, e.pointerId);
     };
@@ -156,10 +146,10 @@ export function GameApp() {
       const p = toWorld(e);
       game.pointerUp(p.x, p.y, e.pointerId);
     };
-    wrap.addEventListener("pointerdown", onDown);
-    wrap.addEventListener("pointermove", onMove);
-    wrap.addEventListener("pointerup", onUp);
-    wrap.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
 
     const onVis = () => {
       if (document.visibilityState === "visible") audio.unlock();
@@ -169,10 +159,10 @@ export function GameApp() {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      wrap.removeEventListener("pointerdown", onDown);
-      wrap.removeEventListener("pointermove", onMove);
-      wrap.removeEventListener("pointerup", onUp);
-      wrap.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
       document.removeEventListener("visibilitychange", onVis);
       pose.stop();
     };
@@ -240,14 +230,14 @@ export function GameApp() {
     <div className="flex h-dvh w-full items-center justify-center bg-bg">
       <div
         ref={wrapRef}
-        className="relative overflow-hidden bg-bg touch-none select-none"
+        className="relative overflow-hidden bg-bg touch-manipulation select-none"
         style={{
           width: "min(100dvw, calc(100dvh * 9 / 16))",
           height: "min(100dvh, calc(100dvw * 16 / 9))",
         }}
         data-phase={ui.phase}
       >
-        <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+        <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
           className={`pointer-events-none absolute z-10 w-28 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
@@ -284,20 +274,8 @@ export function GameApp() {
           onStart={() => {
             const g = gameRef.current;
             if (!g) return;
-            const snap = g.ui();
-            if (snap.checkMode) {
-              g.uiAdvance();
-              if (g.phase === "start") g.uiAdvance();
-              return;
-            }
-            const cameraReady = snap.poseReady && snap.cameraState === "live";
-            if (!cameraReady) {
-              if (snap.cameraState === "off" || snap.cameraState === "loading") void startCamera();
-              g.enterCheckMode();
-              if (g.phase === "start") g.uiAdvance();
-              return;
-            }
-            g.uiAdvance();
+            if (g.cameraState !== "live") void startCamera();
+            g.pressStart();
           }}
           onRetryCamera={() => void startCamera()}
           onRetryMotion={() => void retryMotion()}
