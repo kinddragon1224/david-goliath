@@ -65,10 +65,10 @@ export function GameApp() {
   const poseRef = useRef<PoseController | null>(null);
   const startingRef = useRef(false);
   const [ui, setUi] = useState<UiSnap>(initialUi);
-  // 아이들 얼굴은 기본으로 화면에 띄우지 않는다. 설치 점검 때만 주소 끝에 ?camera=1
-  const [showVideo, setShowVideo] = useState(false);
+  // 내 모습은 실제 카메라 영상으로 보여 준다. 얼굴을 숨겨야 하는 행사는 주소 끝에 ?camera=0
+  const [showVideo, setShowVideo] = useState(true);
   useEffect(() => {
-    setShowVideo(new URLSearchParams(window.location.search).get("camera") === "1");
+    setShowVideo(new URLSearchParams(window.location.search).get("camera") !== "0");
   }, []);
 
   useEffect(() => {
@@ -99,6 +99,7 @@ export function GameApp() {
 
     let raf = 0;
     let lastPhase = game.phase;
+    let throwFlashUntil = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const video = videoRef.current;
@@ -111,7 +112,9 @@ export function GameApp() {
         const pip = pipRef.current;
         if (pip) {
           const pctx = pip.getContext("2d");
-          if (pctx) drawPip(pctx, video, frame.skeleton, frame.present);
+          if (frame.throwEvent) throwFlashUntil = now + 450;
+          const flash = Math.max(0, (throwFlashUntil - now) / 450);
+          if (pctx) drawPip(pctx, video, frame.skeleton, frame.present, frame.armed, flash);
         }
       }
       if (game.phase !== lastPhase) {
@@ -252,10 +255,10 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
-          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[38%] right-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[40%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
           <div
-            className={`relative h-28 w-24 overflow-hidden rounded-2xl border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "bg-[#4a2414]" : "bg-[#4a2414]/70"}`}
+            className="relative h-28 w-36 overflow-hidden rounded-2xl border-[5px] border-ink bg-ink shadow-[0_5px_0_var(--color-ink)]"
           >
             <video
               ref={videoRef}
@@ -265,7 +268,7 @@ export function GameApp() {
               muted
               autoPlay
             />
-            <canvas ref={pipRef} width={240} height={280} className="absolute inset-0 size-full" />
+            <canvas ref={pipRef} width={288} height={224} className="absolute inset-0 size-full" />
           </div>
           <p
             className={`relative mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}

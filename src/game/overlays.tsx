@@ -237,7 +237,7 @@ function Attract({
           <VerseBlock ui={ui} compact />
         </div>
       </header>
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 items-center justify-end pr-5">
         {!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && (
           <HandsUpPrompt progress={ui.handsUpProgress} small />
         )}

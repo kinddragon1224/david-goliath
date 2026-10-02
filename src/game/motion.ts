@@ -355,7 +355,9 @@ export class MotionTracker {
     // 장전 없이 크게 휘두른 경우: 지금 손 위치로 던진다
     const speed = Math.hypot(v.vx, v.vy);
     const settled = t - hand.readyT > 400;
-    if (settled && speed > MOTION.swingSpeed && travelOf(hand.hist, 0.25) > MOTION.swingTravel) {
+    // 위로 올리는 동작은 장전이지 던지기가 아니다. 옆·아래로 휘두를 때만.
+    const notUpward = v.vy > -2;
+    if (settled && notUpward && speed > MOTION.swingSpeed && travelOf(hand.hist, 0.25) > MOTION.swingTravel) {
       return { ...aimNow, power: clamp(0.45 + (speed / 12) * 0.55, 0.45, 1) };
     }
     return null;

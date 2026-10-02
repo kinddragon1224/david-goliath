@@ -143,3 +143,41 @@ test("가만히 서 있을 때 카메라 떨림으로는 던지지 않는다", (
   const { events } = run(() => ({ right: { x: 0.6 + rnd(), y: 1.5 + rnd() }, left: { x: -0.6 + rnd(), y: 1.5 + rnd() } }), 5000);
   assert.equal(events.length, 0);
 });
+
+test("손을 아주 빠르게 들어 올리기만 해도 던지기가 아니다", () => {
+  // 0.8초 가만히 → 0.18초 만에 머리 위로 휙 → 그대로 유지
+  const { events, last } = run(
+    (t) => ({ right: { x: 0.55, y: t < 800 ? 1.5 : lerp(1.5, -1.2, (t - 800) / 180) } }),
+    1600,
+  );
+  assert.equal(events.length, 0);
+  assert.equal(last?.armed, true);
+});
+
+test("빠르게 들어 올린 뒤 내리찍으면 그때 한 번 던진다", () => {
+  const frames = (t: number) => {
+    let y = 1.5;
+    if (t >= 800 && t < 980) y = lerp(1.5, -1.2, (t - 800) / 180);
+    else if (t >= 980 && t < 1300) y = -1.2;
+    else if (t >= 1300) y = lerp(-1.2, 1.2, (t - 1300) / 150);
+    return { right: { x: 0.55, y } };
+  };
+  const { events } = run(frames, 2000);
+  assert.equal(events.length, 1);
+  assert.ok(events[0].t >= 1300, `fired at ${events[0].t}`);
+});
+
+test("들어 올리는 속도가 어떻든(0.1~0.6초) 들기만 하면 안 나간다", () => {
+  for (const ms of [100, 150, 250, 400, 600]) {
+    const { events } = run((t) => ({ right: { x: 0.55, y: t < 800 ? 1.5 : lerp(1.5, -1.3, (t - 800) / ms) } }), 2000);
+    assert.equal(events.length, 0, `raise in ${ms}ms`);
+  }
+});
+
+test("머리 위에서 손을 좌우로 흔들어도 안 나간다", () => {
+  const { events } = run(
+    (t) => ({ right: { x: t < 800 ? 0.55 : 0.55 + Math.sin(t / 60) * 0.8, y: t < 500 ? lerp(1.5, -1.2, t / 500) : -1.2 } }),
+    3000,
+  );
+  assert.equal(events.length, 0);
+});

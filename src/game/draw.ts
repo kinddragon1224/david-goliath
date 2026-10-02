@@ -1227,75 +1227,52 @@ export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = fa
   ctx.restore();
 }
 
-/** 내 모습 카드: 실제 영상 대신 관절로 그린 아바타. 몸 크기와 상관없이 카드에 꽉 차게. */
+/** 내 모습 카드 위에 겹치는 표시. 영상은 그대로 보이고, 던질 손에만 표시를 단다.
+ * 손 표시: 노란 원 = 손을 잡고 있음, 빨간 원 = 장전(던질 준비), 화면 번쩍 = 던짐 인식.
+ */
 export function drawPip(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement | null,
   skeleton: { x: number; y: number; v: number }[] | null,
   present: boolean,
+  armed = false,
+  flash = 0,
 ): void {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
   ctx.save();
   ctx.clearRect(0, 0, w, h);
-  const ls = skeleton?.[1];
-  const rs = skeleton?.[2];
-  if (!skeleton || !ls || !rs || ls.v < 0.3 || rs.v < 0.3) {
-    outlinedText(ctx, "?", w / 2, h / 2, 110, C.cream, null);
-    ctx.restore();
-    return;
+  // 영상이 object-cover로 잘린 만큼 같은 변환을 건다
+  const vw = video?.videoWidth || 4;
+  const vh = video?.videoHeight || 3;
+  const k = Math.max(w / vw, h / vh);
+  const ox = (w - vw * k) / 2;
+  const oy = (h - vh * k) / 2;
+  const P = (p: { x: number; y: number }) => ({ x: ox + p.x * vw * k, y: oy + p.y * vh * k });
+  if (skeleton && present) {
+    const lw = skeleton[5];
+    const rw = skeleton[6];
+    const hands = [lw, rw].filter((p) => p && p.v > 0.3);
+    if (hands.length > 0) {
+      const top = hands.reduce((a, b) => (a.y < b.y ? a : b));
+      const p = P(top);
+      const r = armed ? 26 + Math.sin(performance.now() / 70) * 4 : 20;
+      circle(ctx, p.x, p.y, r);
+      ctx.lineWidth = 12;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = armed ? C.red : C.yellow;
+      ctx.stroke();
+    }
   }
-  const aspect = video && video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
-  const sw = Math.max(0.02, Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y));
-  const k = (w * 0.36) / sw;
-  const cx = ((ls.x + rs.x) / 2) * aspect;
-  const cy = (ls.y + rs.y) / 2;
-  const P = (i: number) => ({ x: w / 2 + (skeleton[i].x * aspect - cx) * k, y: h * 0.42 + (skeleton[i].y - cy) * k, v: skeleton[i].v });
-  const limb = (a: number, b: number, col: string, width: number) => {
-    const pa = P(a);
-    const pb = P(b);
-    if (pa.v < 0.3 || pb.v < 0.3) return;
-    ctx.beginPath();
-    ctx.moveTo(pa.x, pa.y);
-    ctx.lineTo(pb.x, pb.y);
-    ctx.lineWidth = width + 10;
-    ctx.strokeStyle = INK;
-    ctx.stroke();
-    ctx.lineWidth = width;
-    ctx.strokeStyle = col;
-    ctx.stroke();
-  };
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const body = present ? C.cream : "rgba(255,244,220,0.5)";
-  const arm = present ? C.yellow : "rgba(255,210,58,0.5)";
-  // 몸통
-  const pls = P(1);
-  const prs = P(2);
-  const plh = P(7);
-  const prh = P(8);
-  ctx.beginPath();
-  ctx.moveTo(pls.x, pls.y);
-  ctx.lineTo(prs.x, prs.y);
-  ctx.lineTo(prh.v > 0.3 ? prh.x : prs.x - 8, prh.v > 0.3 ? prh.y : h + 20);
-  ctx.lineTo(plh.v > 0.3 ? plh.x : pls.x + 8, plh.v > 0.3 ? plh.y : h + 20);
-  ctx.closePath();
-  ink(ctx, body, 8);
-  limb(1, 3, arm, 18);
-  limb(3, 5, arm, 18);
-  limb(2, 4, arm, 18);
-  limb(4, 6, arm, 18);
-  for (const i of [5, 6]) {
-    const p = P(i);
-    if (p.v < 0.3) continue;
-    circle(ctx, p.x, p.y, 14);
-    ink(ctx, C.red, 6);
+  if (flash > 0) {
+    ctx.globalAlpha = Math.min(1, flash * 2);
+    ctx.lineWidth = 18;
+    ctx.strokeStyle = C.yellow;
+    ctx.strokeRect(0, 0, w, h);
+    outlinedText(ctx, "던짐!", w / 2, h / 2, 64, C.yellow, C.white);
+    ctx.globalAlpha = 1;
   }
-  // 머리
-  const nose = P(0);
-  const hx = nose.v > 0.3 ? nose.x : (pls.x + prs.x) / 2;
-  const hy = nose.v > 0.3 ? nose.y : pls.y - w * 0.3;
-  circle(ctx, hx, hy, w * 0.17);
-  ink(ctx, present ? "#ffcf9e" : "rgba(255,207,158,0.5)", 7);
   ctx.restore();
 }

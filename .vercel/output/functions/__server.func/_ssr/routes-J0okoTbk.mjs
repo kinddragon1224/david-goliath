@@ -1,7 +1,7 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-Bx0g8Glz.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-J0okoTbk.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -1623,71 +1623,45 @@ function drawWorld(ctx, sim, calm = false) {
 	drawFloaters(ctx, sim);
 	ctx.restore();
 }
-/** 내 모습 카드: 실제 영상 대신 관절로 그린 아바타. 몸 크기와 상관없이 카드에 꽉 차게. */
-function drawPip(ctx, video, skeleton, present) {
+/** 내 모습 카드 위에 겹치는 표시. 영상은 그대로 보이고, 던질 손에만 표시를 단다.
+* 손 표시: 노란 원 = 손을 잡고 있음, 빨간 원 = 장전(던질 준비), 화면 번쩍 = 던짐 인식.
+*/
+function drawPip(ctx, video, skeleton, present, armed = false, flash = 0) {
 	const w = ctx.canvas.width;
 	const h = ctx.canvas.height;
 	ctx.save();
 	ctx.clearRect(0, 0, w, h);
-	const ls = skeleton?.[1];
-	const rs = skeleton?.[2];
-	if (!skeleton || !ls || !rs || ls.v < .3 || rs.v < .3) {
-		outlinedText(ctx, "?", w / 2, h / 2, 110, C.cream, null);
-		ctx.restore();
-		return;
-	}
-	const aspect = video && video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
-	const sw = Math.max(.02, Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y));
-	const k = w * .36 / sw;
-	const cx = (ls.x + rs.x) / 2 * aspect;
-	const cy = (ls.y + rs.y) / 2;
-	const P = (i) => ({
-		x: w / 2 + (skeleton[i].x * aspect - cx) * k,
-		y: h * .42 + (skeleton[i].y - cy) * k,
-		v: skeleton[i].v
+	const vw = video?.videoWidth || 4;
+	const vh = video?.videoHeight || 3;
+	const k = Math.max(w / vw, h / vh);
+	const ox = (w - vw * k) / 2;
+	const oy = (h - vh * k) / 2;
+	const P = (p) => ({
+		x: ox + p.x * vw * k,
+		y: oy + p.y * vh * k
 	});
-	const limb = (a, b, col, width) => {
-		const pa = P(a);
-		const pb = P(b);
-		if (pa.v < .3 || pb.v < .3) return;
-		ctx.beginPath();
-		ctx.moveTo(pa.x, pa.y);
-		ctx.lineTo(pb.x, pb.y);
-		ctx.lineWidth = width + 10;
-		ctx.strokeStyle = INK;
-		ctx.stroke();
-		ctx.lineWidth = width;
-		ctx.strokeStyle = col;
-		ctx.stroke();
-	};
-	ctx.lineCap = "round";
-	ctx.lineJoin = "round";
-	const body = present ? C.cream : "rgba(255,244,220,0.5)";
-	const arm = present ? C.yellow : "rgba(255,210,58,0.5)";
-	const pls = P(1);
-	const prs = P(2);
-	const plh = P(7);
-	const prh = P(8);
-	ctx.beginPath();
-	ctx.moveTo(pls.x, pls.y);
-	ctx.lineTo(prs.x, prs.y);
-	ctx.lineTo(prh.v > .3 ? prh.x : prs.x - 8, prh.v > .3 ? prh.y : h + 20);
-	ctx.lineTo(plh.v > .3 ? plh.x : pls.x + 8, plh.v > .3 ? plh.y : h + 20);
-	ctx.closePath();
-	ink(ctx, body, 8);
-	limb(1, 3, arm, 18);
-	limb(3, 5, arm, 18);
-	limb(2, 4, arm, 18);
-	limb(4, 6, arm, 18);
-	for (const i of [5, 6]) {
-		const p = P(i);
-		if (p.v < .3) continue;
-		circle(ctx, p.x, p.y, 14);
-		ink(ctx, C.red, 6);
+	if (skeleton && present) {
+		const hands = [skeleton[5], skeleton[6]].filter((p) => p && p.v > .3);
+		if (hands.length > 0) {
+			const p = P(hands.reduce((a, b) => a.y < b.y ? a : b));
+			const r = armed ? 26 + Math.sin(performance.now() / 70) * 4 : 20;
+			circle(ctx, p.x, p.y, r);
+			ctx.lineWidth = 12;
+			ctx.strokeStyle = INK;
+			ctx.stroke();
+			ctx.lineWidth = 7;
+			ctx.strokeStyle = armed ? C.red : C.yellow;
+			ctx.stroke();
+		}
 	}
-	const nose = P(0);
-	circle(ctx, nose.v > .3 ? nose.x : (pls.x + prs.x) / 2, nose.v > .3 ? nose.y : pls.y - w * .3, w * .17);
-	ink(ctx, present ? "#ffcf9e" : "rgba(255,207,158,0.5)", 7);
+	if (flash > 0) {
+		ctx.globalAlpha = Math.min(1, flash * 2);
+		ctx.lineWidth = 18;
+		ctx.strokeStyle = C.yellow;
+		ctx.strokeRect(0, 0, w, h);
+		outlinedText(ctx, "던짐!", w / 2, h / 2, 64, C.yellow, C.white);
+		ctx.globalAlpha = 1;
+	}
 	ctx.restore();
 }
 function loadScores() {
@@ -3261,7 +3235,7 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 			})]
 		}),
 		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: "flex flex-1 items-center justify-center",
+			className: "flex flex-1 items-center justify-end pr-5",
 			children: !ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HandsUpPrompt, {
 				progress: ui.handsUpProgress,
 				small: true
@@ -4009,7 +3983,9 @@ var MotionTracker = class {
 			return null;
 		}
 		const speed = Math.hypot(v.vx, v.vy);
-		if (t - hand.readyT > 400 && speed > MOTION.swingSpeed && travelOf(hand.hist, .25) > MOTION.swingTravel) return {
+		const settled = t - hand.readyT > 400;
+		const notUpward = v.vy > -2;
+		if (settled && notUpward && speed > MOTION.swingSpeed && travelOf(hand.hist, .25) > MOTION.swingTravel) return {
 			...aimNow,
 			power: clamp(.45 + speed / 12 * .55, .45, 1)
 		};
@@ -4474,9 +4450,9 @@ function GameApp() {
 	const poseRef = (0, import_react.useRef)(null);
 	const startingRef = (0, import_react.useRef)(false);
 	const [ui, setUi] = (0, import_react.useState)(initialUi);
-	const [showVideo, setShowVideo] = (0, import_react.useState)(false);
+	const [showVideo, setShowVideo] = (0, import_react.useState)(true);
 	(0, import_react.useEffect)(() => {
-		setShowVideo(new URLSearchParams(window.location.search).get("camera") === "1");
+		setShowVideo(new URLSearchParams(window.location.search).get("camera") !== "0");
 	}, []);
 	(0, import_react.useEffect)(() => {
 		const canvas = canvasRef.current;
@@ -4503,6 +4479,7 @@ function GameApp() {
 		ro.observe(wrap);
 		let raf = 0;
 		let lastPhase = game.phase;
+		let throwFlashUntil = 0;
 		const loop = (now) => {
 			raf = requestAnimationFrame(loop);
 			const video = videoRef.current;
@@ -4513,7 +4490,9 @@ function GameApp() {
 				const pip = pipRef.current;
 				if (pip) {
 					const pctx = pip.getContext("2d");
-					if (pctx) drawPip(pctx, video, frame.skeleton, frame.present);
+					if (frame.throwEvent) throwFlashUntil = now + 450;
+					const flash = Math.max(0, (throwFlashUntil - now) / 450);
+					if (pctx) drawPip(pctx, video, frame.skeleton, frame.present, frame.armed, flash);
 				}
 			}
 			if (game.phase !== lastPhase) {
@@ -4630,9 +4609,9 @@ function GameApp() {
 					className: "absolute inset-0 size-full touch-none"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: `pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[38%] right-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
+					className: `pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[40%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: `relative h-28 w-24 overflow-hidden rounded-2xl border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "bg-[#4a2414]" : "bg-[#4a2414]/70"}`,
+						className: "relative h-28 w-36 overflow-hidden rounded-2xl border-[5px] border-ink bg-ink shadow-[0_5px_0_var(--color-ink)]",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("video", {
 							ref: videoRef,
 							className: "absolute inset-0 size-full object-cover",
@@ -4645,8 +4624,8 @@ function GameApp() {
 							autoPlay: true
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("canvas", {
 							ref: pipRef,
-							width: 240,
-							height: 280,
+							width: 288,
+							height: 224,
 							className: "absolute inset-0 size-full"
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
