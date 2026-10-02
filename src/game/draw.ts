@@ -5,7 +5,7 @@ import type { Floater, GameSim } from "./types";
 
 /** 태고의 달인풍: 굵은 먹선, 평평한 원색, 회전하는 햇살, 튀어 오르는 판정 글자. */
 export const INK = "#2a160c";
-const FONT = "'Jua', 'Noto Sans KR', sans-serif";
+const FONT = "'Jua', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const LINE = 10;
 
 const C = {

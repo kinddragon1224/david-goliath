@@ -1,6 +1,7 @@
 import { Volume2, VolumeX } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
+import { useEffect, useState, type ReactNode } from "react";
+import { APP_VERSION, CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
+import { listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { formatScoreDate, monthCsv, monthKey, monthLabel, monthlyRows, shiftMonth, type ScoreRecord } from "./scores";
 import type { UiSnap } from "./types";
@@ -716,6 +717,11 @@ function AdminPanel({
 }) {
   const [month, setMonth] = useState(() => monthKey(Date.now()));
   const [armed, setArmed] = useState<number | null>(null);
+  const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
+  const [camera, setCamera] = useState<string>(() => preferredCameraId() ?? "");
+  useEffect(() => {
+    void listCameras().then(setCameras);
+  }, []);
   const rows = monthlyRows(scores, month);
   const download = () => {
     const blob = new Blob([monthCsv(scores, month)], { type: "text/csv;charset=utf-8" });
@@ -772,9 +778,33 @@ function AdminPanel({
         <button type="button" onClick={download} disabled={rows.length === 0} className="t-btn mt-3 h-14 bg-ka text-xl text-cream disabled:opacity-50">
           이 달 명단 저장 (엑셀 CSV)
         </button>
-        <button type="button" onClick={onAskReset} className="mt-2 h-10 text-sm font-bold text-fg-muted underline">
-          전체 기록 지우기
-        </button>
+        {cameras.length > 1 && (
+          <label className="mt-3 flex items-center gap-2 text-sm font-bold">
+            <span className="shrink-0">카메라</span>
+            <select
+              value={camera}
+              onChange={(e) => {
+                setCamera(e.target.value);
+                setPreferredCamera(e.target.value || null);
+                window.location.reload();
+              }}
+              className="h-10 min-w-0 flex-1 rounded-lg border-[3px] border-ink bg-white px-2"
+            >
+              <option value="">자동 선택</option>
+              {cameras.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-xs text-fg-muted">버전 {APP_VERSION}</span>
+          <button type="button" onClick={onAskReset} className="h-10 text-sm font-bold text-fg-muted underline">
+            전체 기록 지우기
+          </button>
+        </div>
       </div>
     </div>
   );

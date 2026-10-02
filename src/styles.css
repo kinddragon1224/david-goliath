@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* 오프라인 설치판 빌드(루트가 offline/)에서도 게임 코드의 클래스를 찾게 한다 */
+@source "./";
 
 @theme {
   /* 태고의 달인풍: 먹선 + 원색 */
@@ -16,8 +18,8 @@
   --color-fg-muted: #7a5038;
   --color-on-dark: #fff4dc;
   --color-danger: #f24a2a;
-  --font-display: "Jua", "Noto Sans KR", system-ui, sans-serif;
-  --font-sans: "Noto Sans KR", "Noto Sans", system-ui, sans-serif;
+  --font-display: "Jua", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --font-sans: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
   --radius-md: 16px;
   --radius-lg: 24px;
   --radius-xl: 32px;

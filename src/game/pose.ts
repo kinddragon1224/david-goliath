@@ -1,3 +1,4 @@
+import { preferredCameraId } from "./kiosk";
 import { MotionTracker, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
 
 export type { Aim, Landmark, ThrowEvent };
@@ -153,7 +154,11 @@ export class PoseController {
     video.muted = true;
     video.playsInline = true;
 
+    const chosen = preferredCameraId();
     const tries: MediaStreamConstraints[] = [
+      ...(chosen
+        ? [{ audio: false, video: { deviceId: { exact: chosen }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } }]
+        : []),
       {
         audio: false,
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" },

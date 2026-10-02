@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "@fontsource/jua";
 import { GameAudio } from "./audio";
 import { WORLD_H, WORLD_W, ROUND_SECONDS } from "./constants";
 import { drawPip } from "./draw";
@@ -7,6 +8,7 @@ import { Overlays } from "./overlays";
 import { PoseController } from "./pose";
 import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
+import { isKiosk, setupKiosk } from "./kiosk";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
   if (!g) return;
@@ -220,6 +222,31 @@ export function GameApp() {
     g?.begin();
     void startCamera();
   };
+
+  // 키오스크: 켜지자마자 대기 화면, 카메라가 빠지거나 실패하면 5초마다 다시 시도
+  const startRef = useRef(startCamera);
+  const retryRef = useRef(retryMotion);
+  startRef.current = startCamera;
+  retryRef.current = retryMotion;
+  useEffect(() => {
+    if (!isKiosk()) return;
+    const cleanup = setupKiosk();
+    const g = gameRef.current;
+    if (g && g.phase === "boot") {
+      g.begin();
+      void startRef.current();
+    }
+    const id = window.setInterval(() => {
+      const game = gameRef.current;
+      if (!game || startingRef.current) return;
+      if (game.cameraState === "off" || game.cameraState === "denied") void startRef.current();
+      else if (game.cameraState === "live" && game.modelState === "failed") void retryRef.current();
+    }, 5000);
+    return () => {
+      cleanup();
+      window.clearInterval(id);
+    };
+  }, []);
 
   const openNewWindow = () => {
     window.open(window.location.href, "_blank", "noopener,noreferrer");
