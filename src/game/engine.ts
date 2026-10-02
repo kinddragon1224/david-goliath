@@ -86,7 +86,6 @@ export class Game {
   private chargeY = 0;
   private pointerId: number | null = null;
   private lastUiKey = "";
-  private bg: HTMLImageElement | null = null;
   private hitStop = 0;
   private trauma = 0;
   private aiT = 0;
@@ -141,10 +140,6 @@ export class Game {
     this.calm =
       typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.pushUi(true);
-  }
-
-  setBackground(img: HTMLImageElement | null): void {
-    this.bg = img;
   }
 
   setCameraState(state: CameraState, error: string | null = null): void {
@@ -470,7 +465,7 @@ export class Game {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    drawWorld(ctx, this.sim(), this.bg);
+    drawWorld(ctx, this.sim(), this.calm);
   }
 
   sim(): GameSim {
@@ -592,9 +587,11 @@ export class Game {
     this.hitStop = 0;
     this.absentHold = 0;
     this.audio.play("start");
+    this.audio.startBeat();
   }
 
   private abortRound(message: string): void {
+    this.audio.stopBeat();
     this.roundOpen = false;
     this.playStart = 0;
     this.phase = "attract";
@@ -651,6 +648,7 @@ export class Game {
   }
 
   private goAttract(): void {
+    this.audio.stopBeat();
     this.phase = "attract";
     this.personHold = 0;
     this.vacantHold = 0;
@@ -671,6 +669,7 @@ export class Game {
 
   private finishRound(): void {
     if (this.phase === "result") return;
+    this.audio.stopBeat();
     this.phase = "result";
     this.resultAcc = 0;
     this.vacantHold = 0;
@@ -739,11 +738,7 @@ export class Game {
     });
     this.followLeft = 0.15;
     this.recoverLeft = 0;
-    if (!demo) {
-      this.audio.play("throw");
-      this.banner = "던짐!";
-      this.bannerLife = 0.45;
-    }
+    if (!demo) this.audio.play("throw");
   }
 
   private breakCombo(): void {
@@ -845,11 +840,12 @@ export class Game {
   }
 
   private registerHit(part: HitPart, x: number, y: number, sfx: "hitSoft" | "hitShield" | "hitHead"): void {
-    const label = part === "이마" ? "크리티컬" : part === "투구" ? "머리 명중" : part === "방패" ? "막힘" : "몸통";
+    const kind = part === "이마" ? "crit" : part === "투구" ? "good" : part === "방패" ? "bad" : "ok";
+    const label = part === "이마" ? "크리티컬!" : part === "투구" ? "좋아!" : part === "방패" ? "막힘" : "명중";
     if (this.phase === "practice") {
       this.hitFlash = 0.45;
       this.hitLog.push({ part, gained: 0 });
-      this.floaters.push({ x, y, life: 0.8, maxLife: 0.8, text: label, color: "#efe8dc" });
+      this.floaters.push({ x, y, life: 0.8, maxLife: 0.8, text: label, color: "#fff4dc", kind });
       this.audio.play(sfx);
       return;
     }
@@ -873,28 +869,29 @@ export class Game {
     this.stagger = crit ? 0.7 : 0.25;
     this.trauma = Math.min(0.7, this.trauma + (crit ? 0.45 : blocked ? 0.15 : 0.28));
     if (crit) this.hitStop = 0.045;
-    this.rings.push({ x, y, life: 0.35, maxLife: 0.35, r: 16 });
+    this.rings.push({ x, y, life: crit ? 0.45 : 0.32, maxLife: crit ? 0.45 : 0.32, r: crit ? 30 : 16 });
     this.floaters.push({
       x,
-      y,
-      life: 0.9,
-      maxLife: 0.9,
-      text: part === "이마" ? `크리티컬 ${gained}` : part === "투구" ? `머리 명중 ${gained}` : blocked ? `막힘 ${gained}` : this.combo > 1 ? `${gained} 연속${this.combo}` : `${gained}`,
-      color: crit ? "#efe8dc" : blocked ? "#8a8074" : "#d7cbb8",
+      y: y - 30,
+      life: crit ? 1.1 : 0.9,
+      maxLife: crit ? 1.1 : 0.9,
+      text: label,
+      sub: `+${gained.toLocaleString("ko-KR")}`,
+      color: "#fff4dc",
+      kind,
     });
-    this.burst(x, y, crit ? "#efe8dc" : "#c4b49a");
+    this.burst(x, y, crit);
     this.audio.play(sfx);
     if (!blocked && this.combo >= 3) this.audio.play("combo");
     if (crit || part === "투구") this.damage = Math.min(3, this.damage + 1);
     if (crit) {
       this.foreheadHits += 1;
-      this.banner = "크리티컬";
-      this.bannerLife = 0.8;
     }
   }
 
-  private burst(x: number, y: number, color: string): void {
-    const n = color === "#efe8dc" ? 22 : 14;
+  private burst(x: number, y: number, big: boolean): void {
+    const n = big ? 28 : 14;
+    const colors = big ? ["#ffd23a", "#f24a2a", "#ffffff", "#3fb8d9"] : ["#ffd23a", "#ffffff", "#ff8a1f"];
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 80 + Math.random() * 280;
@@ -905,8 +902,8 @@ export class Game {
         vy: Math.sin(a) * sp,
         life: 0.45 + Math.random() * 0.3,
         maxLife: 0.7,
-        size: 2 + Math.random() * 4,
-        color,
+        size: big && i % 4 === 0 ? 6 + Math.random() * 3 : 2 + Math.random() * 3,
+        color: colors[i % colors.length],
       });
     }
     if (this.particles.length > 90) this.particles.splice(0, this.particles.length - 90);

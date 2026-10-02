@@ -1,9 +1,14 @@
+import { BEAT_BPM } from "./constants";
+
 type SfxName = "throw" | "hitSoft" | "hitShield" | "hitHead" | "stagger" | "tick" | "start" | "end" | "combo" | "freeze";
 
 export class GameAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   muted = false;
+  private beatTimer: ReturnType<typeof setInterval> | null = null;
+  private nextBeat = 0;
+  private beatStep = 0;
 
   unlock = (): void => {
     if (!this.ctx) {
@@ -32,14 +37,16 @@ export class GameAudio {
         this.noiseSweep(t, 0.18, 900, 240, 0.35);
         break;
       case "hitSoft":
-        this.thump(t, 90, 0.28);
+        this.don(t, 0.9);
         break;
       case "hitShield":
+        this.ka(t, 0.7);
         this.clang(t);
         break;
       case "hitHead":
+        this.don(t, 1);
         this.chime(t, 740, 0.4);
-        this.thump(t, 70, 0.22);
+        this.chime(t + 0.06, 990, 0.3);
         break;
       case "stagger":
         this.chime(t, 520, 0.55);
@@ -65,6 +72,44 @@ export class GameAudio {
         this.chime(t + 0.08, 247, 0.4);
         break;
     }
+  }
+
+  /** 경기 중 배경 북 장단. 쿵 . 딱 . 쿵 쿵 딱 . */
+  startBeat(): void {
+    if (!this.ctx || this.beatTimer) return;
+    this.nextBeat = this.ctx.currentTime + 0.05;
+    this.beatStep = 0;
+    const pattern = ["don", null, "ka", null, "don", "don", "ka", null] as const;
+    const step = 60 / BEAT_BPM / 2;
+    this.beatTimer = setInterval(() => {
+      if (!this.ctx) return;
+      while (this.nextBeat < this.ctx.currentTime + 0.12) {
+        const hit = pattern[this.beatStep % pattern.length];
+        if (!this.muted) {
+          if (hit === "don") this.don(this.nextBeat, 0.32);
+          else if (hit === "ka") this.ka(this.nextBeat, 0.22);
+        }
+        this.nextBeat += step;
+        this.beatStep += 1;
+      }
+    }, 40);
+  }
+
+  stopBeat(): void {
+    if (this.beatTimer) clearInterval(this.beatTimer);
+    this.beatTimer = null;
+  }
+
+  /** 북 가죽: 낮게 떨어지는 사인. */
+  private don(t: number, gain: number): void {
+    this.osc(170, "sine", t, 0.28, gain * 0.9, 62);
+    this.osc(340, "triangle", t, 0.06, gain * 0.25, 160);
+  }
+
+  /** 북 테두리: 짧은 고음 딱. */
+  private ka(t: number, gain: number): void {
+    this.osc(1900, "square", t, 0.04, gain * 0.18, 1200);
+    this.noiseSweep(t, 0.05, 3200, 2400, gain * 0.5);
   }
 
   private osc(freq: number, type: OscillatorType, t: number, dur: number, gain: number, freqEnd?: number): void {

@@ -38,6 +38,9 @@ export type Floater = {
   maxLife: number;
   text: string;
   color: string;
+  /** 판정 글자 종류. 없으면 안내 글자. */
+  kind?: "crit" | "good" | "ok" | "bad" | "info";
+  sub?: string;
 };
 
 export type Ring = {

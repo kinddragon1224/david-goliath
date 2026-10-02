@@ -1,4 +1,5 @@
 import { Volume2, VolumeX } from "lucide-react";
+import type { ReactNode } from "react";
 import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW } from "./constants";
 import { formatScoreDate } from "./scores";
 import type { UiSnap } from "./types";
@@ -37,10 +38,10 @@ export function Overlays({
       <button
         type="button"
         onClick={onMute}
-        className="pointer-events-auto absolute top-4 right-4 z-20 flex size-11 items-center justify-center rounded-full border border-border bg-bg-elevated/80 text-fg"
+        className="t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center bg-cream text-ink"
         aria-label={ui.muted ? "소리 켜기" : "소리 끄기"}
       >
-        {ui.muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
+        {ui.muted ? <VolumeX className="size-5" strokeWidth={3} /> : <Volume2 className="size-5" strokeWidth={3} />}
       </button>
 
       {ui.phase === "boot" && <Boot ui={ui} onBegin={onBegin} />}
@@ -62,23 +63,15 @@ export function Overlays({
       {ui.phase === "result" && <Result ui={ui} onNext={onNext} />}
 
       {ui.confirmReset && (
-        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-bg/70 px-8">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-6 shadow-[0_24px_60px_rgb(0_0_0/0.35)]">
-            <p className="font-display text-xl text-fg">기록을 모두 지울까요?</p>
+        <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-ink/60 px-8">
+          <div className="t-panel w-full max-w-sm p-6 text-center">
+            <p className="font-display text-2xl">기록을 모두 지울까요?</p>
             <p className="mt-2 text-sm text-fg-muted">리셋 전까지 쌓인 점수가 사라집니다.</p>
             <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={onCancelReset}
-                className="h-12 flex-1 rounded-md border border-border-strong text-sm font-medium"
-              >
+              <button type="button" onClick={onCancelReset} className="t-btn h-14 flex-1 bg-cream text-lg">
                 취소
               </button>
-              <button
-                type="button"
-                onClick={onConfirmReset}
-                className="h-12 flex-1 rounded-md bg-fg text-sm font-medium text-accent-fg"
-              >
+              <button type="button" onClick={onConfirmReset} className="t-btn h-14 flex-1 bg-don text-lg text-cream">
                 지우기
               </button>
             </div>
@@ -89,13 +82,56 @@ export function Overlays({
   );
 }
 
+/* ───────── 공통 조각 ───────── */
+
+function stop(e: { preventDefault: () => void; stopPropagation: () => void }) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function Ribbon({ children, tone = "don" }: { children: ReactNode; tone?: "don" | "ka" | "sun" }) {
+  const bg = tone === "ka" ? "bg-ka" : tone === "sun" ? "bg-sun" : "bg-don";
+  const fg = tone === "sun" ? "text-ink" : "text-cream";
+  return (
+    <span
+      className={`inline-block rounded-full border-4 border-ink px-5 py-1 font-display text-lg leading-tight ${bg} ${fg}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Title({ size = "lg" }: { size?: "lg" | "md" }) {
+  return (
+    <h1
+      className={`t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : "text-4xl"}`}
+    >
+      <span className="text-sun">다윗</span>과 <span className="text-don">골리앗</span>
+      <span className="sr-only">{GAME_TITLE}</span>
+    </h1>
+  );
+}
+
+function LogoBadge({ size = 96 }: { size?: number }) {
+  return (
+    <div
+      className="flex items-center justify-center overflow-hidden rounded-full border-[5px] border-ink bg-white shadow-[0_5px_0_var(--color-ink)]"
+      style={{ width: size, height: size }}
+    >
+      <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="size-full scale-125 object-cover" />
+    </div>
+  );
+}
+
 function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
   const words = ui.verse.text.trim().split(/\s+/);
   return (
-    <div className="w-full px-6 text-center">
-      <p className="text-xs tracking-[0.22em] text-fg-muted">말씀 · 발췌</p>
+    <div className="t-panel relative w-full px-5 pt-7 pb-4 text-center">
+      <div className="absolute -top-5 left-1/2 -translate-x-1/2">
+        <Ribbon tone="ka">오늘의 말씀</Ribbon>
+      </div>
       <blockquote
-        className={`mt-3 font-display leading-relaxed ${large ? "text-3xl" : "text-2xl"}`}
+        className={`font-display leading-snug text-ink ${large ? "text-2xl" : "text-xl"}`}
         style={{ wordBreak: "keep-all", lineBreak: "strict" }}
       >
         {words.map((word, i) => (
@@ -105,37 +141,48 @@ function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
           </span>
         ))}
       </blockquote>
-      <p className="mt-3 text-sm tracking-wide text-fg-muted">{ui.verse.ref}</p>
+      <p className="mt-2 text-sm font-bold text-fg-muted">{ui.verse.ref}</p>
     </div>
   );
 }
+
+function HintPill({ children }: { children: ReactNode }) {
+  if (!children) return null;
+  return (
+    <p className="mx-auto w-fit max-w-[92%] rounded-full border-4 border-ink bg-cream px-4 py-1.5 text-center text-sm font-bold text-ink text-pretty">
+      {children}
+    </p>
+  );
+}
+
+/* ───────── 화면별 ───────── */
 
 function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
   return (
     <button
       type="button"
       onPointerUp={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        stop(e);
         onBegin();
       }}
       onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        stop(e);
         onBegin();
       }}
-      className="pointer-events-auto flex h-full w-full touch-manipulation flex-col items-center justify-center gap-8 bg-bg px-8 text-center"
+      className="pointer-events-auto flex h-full w-full touch-manipulation flex-col items-center justify-center gap-7 bg-ink/40 px-7 text-center"
     >
-      <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="h-28 w-28 object-contain" />
-      <div>
-        <p className="text-sm tracking-[0.18em] text-fg-muted">{CHURCH_NAME}</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight text-balance">{GAME_TITLE}</h1>
+      <LogoBadge size={104} />
+      <div className="flex flex-col items-center gap-3">
+        <Title />
+        <p className="t-outline-sm font-display text-lg tracking-wide text-cream">{CHURCH_NAME}</p>
       </div>
       <VerseBlock ui={ui} large />
-      <p className="rounded-full border border-border-strong px-5 py-3 text-sm tracking-wide">화면을 눌러 시작</p>
+      <span className="t-btn animate-throb bg-don px-9 py-4 text-2xl text-cream">화면을 눌러 시작</span>
     </button>
   );
 }
+
+const MEDAL = ["bg-sun", "bg-[#d9dde6]", "bg-[#e0955a]"];
 
 function Attract({
   ui,
@@ -153,38 +200,42 @@ function Attract({
   const top = ui.scores.slice(0, LEADERBOARD_SHOW);
   return (
     <>
-      <header className="pointer-events-none flex flex-col items-center px-4 pt-6">
-        <img src="/logo-alllove.jpg" alt="" className="h-12 w-12 object-contain" />
-        <h1 className="mt-2 font-display text-3xl text-balance">{GAME_TITLE}</h1>
-        <p className="mt-1 text-xs tracking-[0.2em] text-fg-muted">{CHURCH_NAME}</p>
-        <div className="mt-4 w-full rounded-xl border border-border bg-bg px-2 py-4">
+      <header className="pointer-events-none flex flex-col items-center gap-3 px-5 pt-5">
+        <div className="flex items-center gap-3">
+          <LogoBadge size={56} />
+          <Title size="md" />
+        </div>
+        <div className="mt-4 w-full">
           <VerseBlock ui={ui} />
         </div>
       </header>
       <div className="flex-1" />
-      <section className="pointer-events-auto mx-5 mb-5 shrink-0 rounded-xl border border-border bg-bg/78 p-4 backdrop-blur-[2px]">
+      {ui.banner && (
+        <div className="mb-3 px-5">
+          <HintPill>{ui.banner}</HintPill>
+        </div>
+      )}
+      <section className="t-panel pointer-events-auto mx-4 mb-4 shrink-0 p-4">
         <button
           type="button"
           onPointerUp={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            stop(e);
             onStart();
           }}
           onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            stop(e);
             onStart();
           }}
-          className="h-14 w-full touch-manipulation rounded-lg bg-fg text-base font-medium text-accent-fg"
+          className="t-btn h-16 w-full touch-manipulation bg-don text-2xl text-cream"
         >
           시작하기
         </button>
-        <p className="mt-2 text-center text-xs text-fg-subtle">{ui.motionHint}</p>
+        <p className="mt-3 text-center text-sm font-bold text-fg-muted">{ui.motionHint}</p>
         {ui.checkMode ? (
-          <p className="mt-2 text-center text-xs text-fg-muted">화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다.</p>
+          <p className="mt-1 text-center text-xs text-fg-muted">화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다.</p>
         ) : (
           ui.cameraState === "denied" && (
-            <p className="mt-2 text-center text-xs text-fg-muted">웹캠이 없어도 화면을 밀어 던질 수 있습니다.</p>
+            <p className="mt-1 text-center text-xs text-fg-muted">웹캠이 없어도 화면을 밀어 던질 수 있습니다.</p>
           )
         )}
         <button
@@ -196,28 +247,32 @@ function Attract({
             const started = Number(e.currentTarget.dataset.t ?? 0);
             if (performance.now() - started > 1400) onAskReset();
           }}
-          className="mt-3 flex w-full items-baseline justify-between"
+          className="mt-3 flex w-full items-center justify-between"
         >
-          <h2 className="text-sm tracking-[0.16em] text-fg-muted">최고 기록</h2>
-          <span className="text-[11px] text-fg-subtle">길게 눌러 초기화</span>
+          <Ribbon tone="sun">명예의 전당</Ribbon>
+          <span className="text-[11px] text-fg-muted">길게 눌러 초기화</span>
         </button>
-        <ol className="mt-2 space-y-1">
-          {top.length === 0 && <li className="text-sm text-fg-subtle">아직 기록이 없습니다</li>}
+        <ol className="mt-2 space-y-1.5">
+          {top.length === 0 && <li className="py-2 text-center font-display text-lg text-fg-muted">첫 번째 용사를 기다립니다</li>}
           {top.map((row, i) => (
-            <li key={`${row.at}-${i}`} className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="tabular-nums text-fg-subtle">{i + 1}</span>
-              <span className="flex-1 tabular-nums font-medium">{row.score.toLocaleString("ko-KR")}</span>
-              <span className="text-xs text-fg-subtle">{formatScoreDate(row.at)}</span>
+            <li key={`${row.at}-${i}`} className="flex items-center gap-3">
+              <span
+                className={`flex size-8 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`}
+              >
+                {i + 1}
+              </span>
+              <span className="flex-1 font-display text-xl tabular-nums">{row.score.toLocaleString("ko-KR")}</span>
+              <span className="text-xs text-fg-muted">{formatScoreDate(row.at)}</span>
             </li>
           ))}
         </ol>
         {!ui.checkMode && ui.cameraState === "denied" && (
-          <button type="button" onClick={onRetryCamera} className="mt-3 h-10 w-full text-xs text-fg-muted">
+          <button type="button" onClick={onRetryCamera} className="mt-3 h-10 w-full text-sm font-bold text-fg-muted underline">
             카메라 다시 시도
           </button>
         )}
         {ui.modelState === "failed" && (
-          <button type="button" onClick={onRetryMotion} className="mt-2 h-10 w-full text-xs text-fg-muted">
+          <button type="button" onClick={onRetryMotion} className="mt-2 h-10 w-full text-sm font-bold text-fg-muted underline">
             모션 다시 준비
           </button>
         )}
@@ -241,41 +296,34 @@ function Start({
 }) {
   return (
     <div
-      className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center"
+      className="pointer-events-auto flex h-full flex-col items-center justify-center gap-6 overflow-y-auto bg-ink/45 px-6 py-8 text-center"
       onPointerUp={(e) => {
         const target = e.target as HTMLElement | null;
         if (target?.closest("[data-keep-click]")) return;
         onStart();
       }}
     >
-      <img
-        src="/logo-alllove.jpg"
-        alt={CHURCH_NAME}
-        className="h-24 w-24 object-contain"
-      />
-      <div className="mt-4 w-full">
+      <LogoBadge size={88} />
+      <div className="mt-2 w-full">
         <VerseBlock ui={ui} />
       </div>
-      <p className="mt-6 text-lg font-medium">한 번 던지면 경기가 시작됩니다</p>
+      <HandsUpMark />
+      <p className="t-outline font-display text-3xl text-cream">양손 번쩍! 하면 연습 시작</p>
       <button
         type="button"
         onPointerUp={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+          stop(e);
           onStart();
         }}
         onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+          stop(e);
           onStart();
         }}
-        className="mt-4 h-14 w-full max-w-xs touch-manipulation rounded-lg bg-fg text-base font-medium text-accent-fg"
+        className="t-btn h-16 w-full max-w-xs touch-manipulation bg-don text-2xl text-cream"
       >
         연습 던지기
       </button>
-      <p className="mt-3 text-sm text-fg-muted">
-        {ui.checkMode ? "화면을 밀어 던지는 중입니다" : ui.motionHint}
-      </p>
+      <HintPill>{ui.checkMode ? "화면을 밀어 던지는 중입니다" : ui.motionHint}</HintPill>
       {!ui.checkMode && ui.cameraState === "denied" && (
         <CameraHelp ui={ui} onRetry={onRetryCamera} onOpenWindow={onOpenWindow} />
       )}
@@ -296,30 +344,20 @@ function CameraHelp({
   onOpenWindow: () => void;
 }) {
   return (
-    <div data-keep-click className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
-      <p className="font-medium">카메라가 꺼져 있습니다</p>
-      <p className="mt-2 text-sm text-pretty text-fg-muted">
-        {ui.cameraError || "브라우저가 카메라를 막았습니다."}
-      </p>
-      <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-fg-subtle">
+    <div data-keep-click className="t-panel w-full p-4 text-left">
+      <p className="font-display text-xl">카메라가 꺼져 있습니다</p>
+      <p className="mt-1 text-sm text-pretty text-fg-muted">{ui.cameraError || "브라우저가 카메라를 막았습니다."}</p>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
         <li>주소창 왼쪽 자물쇠 또는 카메라 아이콘을 누릅니다</li>
         <li>
-          카메라를 <span className="text-fg">허용</span>으로 바꿉니다
+          카메라를 <b>허용</b>으로 바꿉니다
         </li>
         <li>아래 다시 시도를 누릅니다</li>
       </ol>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-4 h-12 w-full rounded-lg bg-fg text-sm font-medium text-accent-fg"
-      >
+      <button type="button" onClick={onRetry} className="t-btn mt-4 h-14 w-full bg-don text-lg text-cream">
         다시 시도
       </button>
-      <button
-        type="button"
-        onClick={onOpenWindow}
-        className="mt-2 h-12 w-full rounded-lg border border-border-strong text-sm font-medium"
-      >
+      <button type="button" onClick={onOpenWindow} className="t-btn mt-3 h-14 w-full bg-cream text-lg">
         새 창에서 열기
       </button>
     </div>
@@ -328,17 +366,13 @@ function CameraHelp({
 
 function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
   return (
-    <div data-keep-click className="mt-5 rounded-lg border border-border-strong bg-bg-elevated p-4 text-left">
-      <p className="font-medium">모션을 준비하지 못했습니다</p>
-      <p className="mt-2 text-sm text-pretty text-fg-muted">
+    <div data-keep-click className="t-panel w-full p-4 text-left">
+      <p className="font-display text-xl">모션을 준비하지 못했습니다</p>
+      <p className="mt-1 text-sm text-pretty text-fg-muted">
         {ui.modelError || "카메라는 켜져 있지만 동작 인식을 불러오지 못했습니다."}
       </p>
-      <p className="mt-2 text-xs text-fg-subtle">카메라는 그대로 두고, 모션만 다시 불러옵니다.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-4 h-12 w-full rounded-lg bg-fg text-sm font-medium text-accent-fg"
-      >
+      <p className="mt-2 text-xs text-fg-muted">카메라는 그대로 두고, 모션만 다시 불러옵니다.</p>
+      <button type="button" onClick={onRetry} className="t-btn mt-4 h-14 w-full bg-don text-lg text-cream">
         모션 다시 준비
       </button>
     </div>
@@ -347,22 +381,16 @@ function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
 
 function HandsUpMark() {
   return (
-    <svg viewBox="0 0 120 140" className="mt-8 h-28 w-24 text-fg" aria-hidden="true">
-      <circle cx="60" cy="44" r="12" fill="currentColor" opacity="0.9" />
-      <path
-        d="M60 56v34M60 70l-22 18M60 70l22 18M60 90l-14 28M60 90l14 28"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      <path
-        d="M38 40V18M82 40V18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
+    <svg viewBox="0 0 120 130" className="animate-bob h-28 w-24" aria-hidden="true">
+      <g fill="none" stroke="var(--color-ink)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" />
+      </g>
+      <g fill="none" stroke="var(--color-cream)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" />
+      </g>
+      <circle cx="60" cy="40" r="17" fill="var(--color-sun)" stroke="var(--color-ink)" strokeWidth="5" />
+      <circle cx="30" cy="34" r="9" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
+      <circle cx="90" cy="34" r="9" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
     </svg>
   );
 }
@@ -370,13 +398,15 @@ function HandsUpMark() {
 function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
   return (
     <div className="pointer-events-none flex h-full flex-col">
+      <div className="flex justify-center pt-5">
+        <span className="t-outline font-display text-6xl text-ka drop-shadow-[0_5px_0_var(--color-ink)]">연습</span>
+      </div>
       <div className="flex-1" />
-      <div className="pointer-events-auto mx-5 mb-8 rounded-xl border border-border bg-bg px-5 py-4 text-center">
-        <p className="font-display text-3xl">연습</p>
-        <p className="mt-2 text-sm text-fg-muted">점수는 오르지 않습니다. 금빛이 보일 때 이마를 노려요.</p>
-        <p className="mt-2 text-sm text-fg">{ui.motionHint}</p>
-        <button type="button" onClick={onSkip} className="mt-4 h-12 rounded-lg border border-border-strong px-5 text-sm">
-          건너뛰고 시작
+      <div className="t-panel pointer-events-auto mx-4 mb-6 px-5 py-4 text-center">
+        <p className="font-display text-xl">점수는 오르지 않아요. 금빛 표적이 뜨면 이마를 노려요!</p>
+        <p className="mt-2 text-sm font-bold text-fg-muted">{ui.motionHint}</p>
+        <button type="button" onClick={onSkip} className="t-btn mt-4 h-14 bg-sun px-7 text-xl">
+          바로 시작!
         </button>
       </div>
     </div>
@@ -385,45 +415,80 @@ function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
 
 function Countdown({ n }: { n: number }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-5">
-      <p className="font-display text-8xl tabular-nums">{n}</p>
-      <p className="text-lg text-fg">금빛이 보일 때만 이마가 크리티컬</p>
-      <p className="max-w-[22ch] text-center text-sm text-fg-muted">
-        점선이 가는 곳으로 돌이 날아갑니다. 골리앗 쪽으로 팔을 휘두르세요.
+    <div className="flex h-full flex-col items-center justify-center gap-6 bg-ink/25">
+      <p
+        key={n}
+        className="animate-pop t-outline font-display text-[11rem] leading-none tabular-nums text-sun drop-shadow-[0_8px_0_var(--color-ink)]"
+      >
+        {n > 0 ? n : "시작!"}
       </p>
+      <div className="t-panel max-w-[80%] px-5 py-3 text-center">
+        <p className="font-display text-xl">금빛 표적이 뜰 때 이마 = 크리티컬!</p>
+        <p className="mt-1 text-sm text-fg-muted">하얀 점선이 가는 곳으로 돌이 날아갑니다</p>
+      </div>
+    </div>
+  );
+}
+
+/** 태고 북 모양 시계. */
+function DrumTimer({ timeLeft }: { timeLeft: number }) {
+  const sec = Math.ceil(timeLeft);
+  const urgent = timeLeft <= 10;
+  return (
+    <div
+      className={`relative flex size-24 shrink-0 items-center justify-center rounded-full border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${urgent ? "animate-throb bg-don" : "bg-don"}`}
+    >
+      <div className="absolute inset-[9px] rounded-full border-[4px] border-ink bg-cream" />
+      <div className="absolute inset-[22px] rounded-full bg-[#f6e2bf]" />
+      <span
+        key={urgent ? sec : undefined}
+        className={`relative font-display text-4xl leading-none tabular-nums ${urgent ? "animate-pop text-don" : "text-ink"}`}
+      >
+        {sec}
+      </span>
     </div>
   );
 }
 
 function Hud({ ui }: { ui: UiSnap }) {
-  const mm = Math.floor(ui.timeLeft);
-  const frac = Math.floor((ui.timeLeft % 1) * 10);
-  const urgent = ui.timeLeft <= 10;
   return (
     <>
-      <div className="flex items-start justify-end gap-3 px-5 pt-5 pr-16">
-        <div className="rounded-md border border-border bg-bg/70 px-3 py-2 text-right">
-          <p className="text-xs tracking-[0.16em] text-fg-muted">점수</p>
-          <p className="font-display text-3xl tabular-nums leading-none">{ui.score.toLocaleString("ko-KR")}</p>
-          <p className="mt-1 text-xs text-fg-subtle">
-            크리티컬 {ui.foreheadHits}
-            {ui.combo > 1 ? ` · 연속 ${ui.combo}` : ""}
-          </p>
-        </div>
-        <div className={`rounded-md border px-3 py-2 text-right ${urgent ? "border-danger bg-bg/80 text-danger" : "border-border bg-bg/70"}`}>
-          <p className="text-xs tracking-[0.16em] text-fg-muted">시간</p>
-          <p className="font-display text-3xl tabular-nums leading-none">
-            {mm}
-            <span className="text-lg text-fg-muted">.{frac}</span>
+      <div className="flex items-start gap-2 px-3 pt-3 pr-16">
+        <DrumTimer timeLeft={ui.timeLeft} />
+        <div className="mt-2 flex-1 rounded-2xl border-[5px] border-ink bg-gradient-to-b from-don to-don-dark px-4 py-1.5 text-right shadow-[0_5px_0_var(--color-ink)]">
+          <p className="font-display text-sm leading-tight text-cream/90">점수 · 크리티컬 {ui.foreheadHits}</p>
+          <p className="t-outline-sm font-display text-4xl leading-none tabular-nums text-cream">
+            {ui.score.toLocaleString("ko-KR")}
           </p>
         </div>
       </div>
-      {ui.freezeLeft > 0 && (
-        <p className="mt-2 text-center text-sm tracking-wide text-fg">집중 {ui.freezeLeft.toFixed(1)}</p>
-      )}
-      {ui.banner && <p className="mt-2 text-center text-sm text-fg">{ui.banner}</p>}
+      <div className="relative h-24">
+        {ui.combo > 1 && (
+          <div key={ui.combo} className="animate-pop absolute top-2 left-4 flex flex-col items-center">
+            <span className="t-outline font-display text-5xl leading-none tabular-nums text-sun">{ui.combo}</span>
+            <span className="t-outline-sm font-display text-lg leading-none text-cream">콤보</span>
+          </div>
+        )}
+        {ui.banner && (
+          <p
+            key={ui.banner}
+            className="animate-pop t-outline absolute inset-x-0 top-3 text-center font-display text-5xl text-cream drop-shadow-[0_5px_0_var(--color-ink)]"
+          >
+            {ui.banner}
+          </p>
+        )}
+        {ui.freezeLeft > 0 && (
+          <p className="absolute inset-x-0 top-20 text-center">
+            <span className="rounded-full border-4 border-ink bg-ka px-4 py-1 font-display text-lg text-cream">
+              집중 {ui.freezeLeft.toFixed(1)}
+            </span>
+          </p>
+        )}
+      </div>
       <div className="flex-1" />
-      <p className="mb-6 px-6 text-center text-sm text-fg-muted">{ui.motionHint}</p>
+      <div className="mb-5 px-4">
+        <HintPill>{ui.motionHint}</HintPill>
+      </div>
     </>
   );
 }
@@ -432,41 +497,39 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
   const best = ui.bestScore;
   const isBest = ui.resultRank === 1 && ui.score > 0;
   return (
-    <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-bg px-8 py-8 text-center">
-      <p className="text-sm tracking-[0.2em] text-fg-muted">{isBest ? "최고 기록" : "기록"}</p>
-      <p className="mt-3 font-display text-7xl tabular-nums leading-none">{ui.score.toLocaleString("ko-KR")}</p>
-      <p className="mt-4 text-fg-muted">
-        {ui.checkMode
-          ? "점검은 기록되지 않습니다"
-          : ui.resultRank > 0
-            ? `${ui.resultRank}위 · 웹캠`
-            : "순위권 밖 · 웹캠"}
-      </p>
-      <dl className="mt-8 grid w-full max-w-xs grid-cols-2 gap-3 text-sm">
-        <div className="rounded-md border border-border bg-bg/50 px-3 py-3">
-          <dt className="text-xs text-fg-subtle">크리티컬</dt>
-          <dd className="mt-1 font-display text-2xl tabular-nums">{ui.foreheadHits}</dd>
+    <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-ink/55 px-5 pt-20 pb-6 text-center">
+      <div className="t-panel relative w-full px-5 pt-9 pb-5">
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+          <span className="inline-block rounded-full border-[5px] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
+            {isBest ? "최고 기록!" : "결과 발표"}
+          </span>
         </div>
-        <div className="rounded-md border border-border bg-bg/50 px-3 py-3">
-          <dt className="text-xs text-fg-subtle">최대 콤보</dt>
-          <dd className="mt-1 font-display text-2xl tabular-nums">{ui.maxCombo}</dd>
-        </div>
-      </dl>
-      {best > 0 && (
-        <p className="mt-4 text-xs text-fg-subtle">최고 {best.toLocaleString("ko-KR")}</p>
-      )}
-      {ui.freezeFound && <p className="mt-3 text-sm text-fg">다윗의 프리징을 발견했습니다</p>}
-      <div className="mt-6 w-full">
+        <p className="animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_6px_0_var(--color-ink)]">
+          {ui.score.toLocaleString("ko-KR")}
+        </p>
+        <p className="mt-3 font-display text-lg text-fg-muted">
+          {ui.checkMode ? "점검은 기록되지 않습니다" : ui.resultRank > 0 ? `전체 ${ui.resultRank}위` : "순위권 밖"}
+        </p>
+        <dl className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border-4 border-ink bg-sun px-3 py-2">
+            <dt className="font-display text-sm">크리티컬</dt>
+            <dd className="font-display text-3xl tabular-nums">{ui.foreheadHits}</dd>
+          </div>
+          <div className="rounded-2xl border-4 border-ink bg-ka px-3 py-2 text-cream">
+            <dt className="font-display text-sm">최대 콤보</dt>
+            <dd className="t-outline-sm font-display text-3xl tabular-nums">{ui.maxCombo}</dd>
+          </div>
+        </dl>
+        {best > 0 && <p className="mt-3 text-sm font-bold text-fg-muted">역대 최고 {best.toLocaleString("ko-KR")}</p>}
+        {ui.freezeFound && <p className="mt-1 font-display text-lg text-ka-dark">다윗의 프리징을 발견했습니다!</p>}
+      </div>
+      <div className="mt-8 w-full">
         <VerseBlock ui={ui} />
       </div>
-      <button
-        type="button"
-        onClick={onNext}
-        className="mt-10 h-14 min-w-52 rounded-lg bg-fg px-8 font-medium text-accent-fg"
-      >
+      <button type="button" onClick={onNext} className="t-btn mt-6 h-16 min-w-56 bg-don px-8 text-2xl text-cream">
         다음 사람
       </button>
-      <p className="mt-4 text-xs text-fg-subtle">자리를 비우면 대기 화면으로 돌아갑니다</p>
+      <p className="t-outline-sm mt-3 text-sm font-bold text-cream">자리를 비우면 대기 화면으로 돌아갑니다</p>
     </div>
   );
 }

@@ -79,10 +79,6 @@ export function GameApp() {
     const pose = new PoseController();
     poseRef.current = pose;
 
-    const bg = new Image();
-    bg.src = "/valley.jpg";
-    bg.onload = () => game.setBackground(bg);
-
     const resize = () => {
       const r = wrap.getBoundingClientRect();
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -239,13 +235,14 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
-          className={`pointer-events-none absolute z-10 w-28 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-10 w-32 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
-          <p className="mb-1 text-center text-xs tracking-[0.16em] text-fg-muted">내 모습</p>
-          <div className="relative h-28 w-36">
+          <div
+            className={`relative h-24 w-32 overflow-hidden rounded-2xl border-[5px] bg-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "border-ink" : "border-ink/70"}`}
+          >
             <video
               ref={videoRef}
-              className={`absolute inset-0 size-full rounded-md border object-cover ${ui.personPresent ? "border-fg" : "border-border"}`}
+              className="absolute inset-0 size-full object-cover"
               style={{ transform: "scaleX(-1)" }}
               playsInline
               muted
@@ -255,10 +252,12 @@ export function GameApp() {
               ref={pipRef}
               width={320}
               height={240}
-              className="absolute inset-0 size-full rounded-md"
+              className="absolute inset-0 size-full"
             />
           </div>
-          <p className="mt-1 text-center text-xs text-fg-subtle">
+          <p
+            className={`mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs ${ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}
+          >
             {ui.modelState === "failed"
               ? "모션 실패"
               : ui.modelState === "loading"

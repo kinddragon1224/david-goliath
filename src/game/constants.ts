@@ -5,6 +5,8 @@ export const ROUND_SECONDS = 30;
 export const THROW_COOLDOWN = 0.7;
 export const MAX_STONES = 6;
 export const GRAVITY = 1520;
+/** 배경 북 장단과 캐릭터 들썩임이 함께 쓰는 박자. */
+export const BEAT_BPM = 132;
 
 export const STONE_OX = WORLD_W / 2 + 28;
 export const STONE_OY = 1568;

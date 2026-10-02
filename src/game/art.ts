@@ -1,162 +1,82 @@
 import { WORLD_W } from "./constants";
 
-/** 골리앗 대기 원화는 public/goliath-idle.png, 다윗 대기 원화는 public/david-idle.png.
- * 둘 다 1024×1536 원본 알파. 창·방패·물매는 몸에 붙어 있다.
- * 다윗 투척 프레임은 아직 없다.
+/** 태고의 달인풍 2등신 캐릭터. 그림은 전부 draw.ts에서 코드로 그린다.
+ * 이 파일은 그림과 판정이 함께 쓰는 좌표만 둔다.
  */
 
 export type GoliathPose = "idle" | "warn" | "guard" | "hit";
 export type DavidPose = "idle" | "ready" | "spin" | "throw" | "recover" | "focus";
 
-export type SpriteSlot = {
-  src: string | null;
-  imageW: number;
-  imageH: number;
-  displayW: number;
-  displayH: number;
-  /** 이미지 픽셀 기준 발 위치. 이 점이 월드 발 앵커에 붙는다. */
-  foot: { x: number; y: number };
-};
-
 /** 골리앗 로컬 좌표. 원점 (goliathX, 70+bob), 발은 y=1320.
- * 이미지 발 (506,1493), 표시 높이 1240 → 축척 1240/1536.
+ * 머리가 몸만큼 큰 2등신이다. 머리 중심 (0,430) 반지름 190.
  */
 export const GOLIATH_LOCAL = {
-  /** 투구 틈의 이마. 머리 너비의 약 32%, 높이는 노출된 이마 띠. */
-  forehead: { x: -16, y: 260, rx: 38, ry: 26 },
-  helmet: { x: -4, y: 290, r: 100 },
-  shieldX: 240,
-  shieldOpenY: 730,
-  shieldR: 120,
-  torso: { x: 10, y: 600, w: 230, h: 320 },
-  legs: { x: -5, y: 1092, w: 210, h: 291 },
+  head: { x: 0, y: 430, r: 190 },
+  /** 투구 챙 아래로 드러난 이마 띠. 열렸을 때만 크리티컬. */
+  forehead: { x: 0, y: 360, rx: 72, ry: 28 },
+  helmet: { x: 0, y: 410, r: 205 },
+  shieldX: 250,
+  shieldOpenY: 850,
+  shieldR: 140,
+  torso: { x: 0, y: 820, w: 400, h: 360 },
+  legs: { x: 0, y: 1170, w: 270, h: 280 },
   foot: { x: 0, y: 1320 },
 };
 
-/** 대기 방패는 그림의 팔 위치. 방어 중에는 얼굴 앞을 가리는 판으로 옮긴다.
- * 판은 아직 별도 PNG가 아니라 판정과 같은 자리에 그린 임시 방패다.
- */
+/** 방어 중에는 방패가 얼굴 앞으로 올라온다. 경고 중에는 가슴 높이까지 든다. */
 export function shieldLocal(up: boolean, warn: boolean): { x: number; y: number; r: number } {
-  if (up) return { x: GOLIATH_LOCAL.forehead.x, y: GOLIATH_LOCAL.forehead.y + 70, r: 156 };
-  if (warn) return { x: 120, y: 460, r: 72 };
+  if (up) return { x: 0, y: GOLIATH_LOCAL.forehead.y + 70, r: 215 };
+  if (warn) return { x: 170, y: 640, r: 150 };
   return { x: GOLIATH_LOCAL.shieldX, y: GOLIATH_LOCAL.shieldOpenY, r: GOLIATH_LOCAL.shieldR };
 }
 
-const goliathSlot = (): SpriteSlot => ({
-  src: "/goliath-idle.png",
-  imageW: 1024,
-  imageH: 1536,
-  displayW: 827,
-  displayH: 1240,
-  foot: { x: 506, y: 1493 },
-});
+/** 다윗 발 위치와 크기. 로컬 단위에 DAVID_SCALE을 곱해 월드에 놓는다. */
+export const DAVID_FOOT_WORLD = { x: WORLD_W / 2, y: 1720 };
+export const DAVID_SCALE = 1.3;
 
-export const GOLIATH_SPRITES: Record<GoliathPose, SpriteSlot> = {
-  idle: goliathSlot(),
-  warn: goliathSlot(),
-  guard: goliathSlot(),
-  hit: goliathSlot(),
+/** 다윗 로컬 좌표(축척 전). 발이 원점, 위가 음수. */
+export const DAVID_LOCAL = {
+  head: { x: 0, y: -205, r: 92 },
+  shoulder: { x: 46, y: -118 },
 };
 
-const DAVID_DISPLAY_H = 680;
-const DAVID_DISPLAY_W = (1024 * DAVID_DISPLAY_H) / 1536;
-
-export const DAVID_FOOT_PX = { x: 487, y: 1483 };
-export const DAVID_FOOT_WORLD = { x: WORLD_W / 2, y: 1720 };
-export const DAVID_SLING_PX = { x: 861, y: 1446 };
-export const DAVID_CHEST_PX = { x: 500, y: 520 };
-
-export function davidWorld(px: number, py: number): { x: number; y: number } {
-  const s = DAVID_DISPLAY_H / 1536;
-  return {
-    x: DAVID_FOOT_WORLD.x + (px - DAVID_FOOT_PX.x) * s,
-    y: DAVID_FOOT_WORLD.y + (py - DAVID_FOOT_PX.y) * s,
-  };
+/** 자세별 물매 손 위치(로컬, 축척 전). */
+function slingHand(pose: DavidPose, charge: number, time: number): { x: number; y: number } {
+  if (pose === "spin") {
+    const a = time * 18;
+    return { x: 70 + Math.cos(a) * 20, y: -300 + Math.sin(a) * 10 };
+  }
+  if (pose === "ready") return { x: 92, y: -150 - charge * 90 };
+  if (pose === "throw") return { x: 40, y: -310 };
+  if (pose === "recover") return { x: 96, y: -200 };
+  if (pose === "focus") return { x: 30, y: -110 };
+  return { x: 98, y: -86 };
 }
 
-const davidIdle = (): SpriteSlot => ({
-  src: "/david-idle.png",
-  imageW: 1024,
-  imageH: 1536,
-  displayW: DAVID_DISPLAY_W,
-  displayH: DAVID_DISPLAY_H,
-  foot: { x: DAVID_FOOT_PX.x, y: DAVID_FOOT_PX.y },
-});
-
-const davidEmpty = (): SpriteSlot => ({
-  src: null,
-  imageW: 1024,
-  imageH: 1536,
-  displayW: DAVID_DISPLAY_W,
-  displayH: DAVID_DISPLAY_H,
-  foot: { x: DAVID_FOOT_PX.x, y: DAVID_FOOT_PX.y },
-});
-
-export const DAVID_SPRITES: Record<DavidPose, SpriteSlot> = {
-  idle: davidIdle(),
-  ready: davidEmpty(),
-  spin: davidEmpty(),
-  throw: davidEmpty(),
-  recover: davidEmpty(),
-  focus: davidEmpty(),
-};
-
-/** 동작 그림이 없으면 대기 원화를 그대로 두고, 몸 전체만 기울인다. */
-export function davidSprite(pose: DavidPose): SpriteSlot {
-  const slot = DAVID_SPRITES[pose];
-  return slot.src ? slot : DAVID_SPRITES.idle;
+export function davidHandLocal(pose: DavidPose, charge: number, time: number): { x: number; y: number } {
+  return slingHand(pose, charge, time);
 }
 
 export function davidMotion(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number; rot: number } {
-  const aim = Math.max(-1, Math.min(1, aimX)) * 0.04;
-  if (pose === "ready") return { x: 0, y: 0, rot: aim - 0.06 - charge * 0.04 };
+  const aim = Math.max(-1, Math.min(1, aimX)) * 0.05;
+  if (pose === "ready") return { x: 0, y: 0, rot: aim - 0.06 - charge * 0.05 };
   if (pose === "spin") return { x: -4, y: 0, rot: aim - 0.1 };
-  if (pose === "throw") return { x: 8, y: 0, rot: aim + 0.08 };
-  if (pose === "recover") return { x: 3, y: 0, rot: aim + 0.03 };
+  if (pose === "throw") return { x: 10, y: -8, rot: aim + 0.1 };
+  if (pose === "recover") return { x: 4, y: 0, rot: aim + 0.04 };
   if (pose === "focus") return { x: 0, y: 0, rot: 0 };
-  return { x: 0, y: Math.sin(time * 2.4) * 4, rot: aim };
+  return { x: 0, y: -Math.abs(Math.sin(time * Math.PI * 2.2)) * 10, rot: aim };
 }
 
+/** 돌이 떠나는 월드 좌표. 물매 손 위치를 몸 회전과 축척에 맞춰 옮긴다. */
 export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number } {
   const motion = davidMotion(pose, aimX, charge, time);
-  const rest = davidWorld(DAVID_SLING_PX.x, DAVID_SLING_PX.y);
-  const lx = rest.x - DAVID_FOOT_WORLD.x;
-  const ly = rest.y - DAVID_FOOT_WORLD.y;
+  const hand = slingHand(pose, charge, time);
+  const lx = hand.x * DAVID_SCALE;
+  const ly = hand.y * DAVID_SCALE;
   const c = Math.cos(motion.rot);
   const s = Math.sin(motion.rot);
   return {
     x: DAVID_FOOT_WORLD.x + motion.x + c * lx - s * ly,
     y: DAVID_FOOT_WORLD.y + motion.y + s * lx + c * ly,
   };
-}
-
-const cache = new Map<string, HTMLImageElement>();
-
-export function spriteImage(slot: SpriteSlot): HTMLImageElement | null {
-  if (!slot.src || typeof Image === "undefined") return null;
-  let img = cache.get(slot.src);
-  if (!img) {
-    img = new Image();
-    img.decoding = "async";
-    img.src = slot.src;
-    cache.set(slot.src, img);
-  }
-  if (!img.complete || img.naturalWidth === 0) return null;
-  return img;
-}
-
-/** 현재 변환의 (anchorX, anchorY)에 발 앵커를 맞춘다. 이미지가 없으면 false. */
-export function drawSprite(ctx: CanvasRenderingContext2D, slot: SpriteSlot, anchorX: number, anchorY: number): boolean {
-  const img = spriteImage(slot);
-  if (!img) return false;
-  const sx = slot.displayW / slot.imageW;
-  const sy = slot.displayH / slot.imageH;
-  ctx.drawImage(
-    img,
-    anchorX - slot.foot.x * sx,
-    anchorY - slot.foot.y * sy,
-    slot.displayW,
-    slot.displayH,
-  );
-  return true;
 }
