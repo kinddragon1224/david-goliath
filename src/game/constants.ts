@@ -15,7 +15,12 @@ export const FOREHEAD_DY = 198;
 export const AIM_SPREAD = 170;
 export const CRIT_MULT = 2;
 
-export const LEADERBOARD_KEEP = 30;
+/** 기기에 남기는 기록 수. 오래된 것부터 지운다(한 판 약 100바이트). */
+export const LEADERBOARD_KEEP = 5000;
+/** 이달 이 순위 안에 들면 이름을 남기게 한다. */
+export const NAME_RANK_LIMIT = 10;
+/** 이름 입력을 아무도 안 하면 이 시간 뒤 건너뛴다. */
+export const NAME_ENTRY_SECONDS = 60;
 export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = "alllove-david-goliath-scores-v2";
 

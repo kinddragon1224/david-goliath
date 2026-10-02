@@ -1,12 +1,14 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-J0okoTbk.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-B6Y7dDTQ.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
 var WORLD_H = 1920;
 var GRAVITY = 1520;
+/** 기기에 남기는 기록 수. 오래된 것부터 지운다(한 판 약 100바이트). */
+var LEADERBOARD_KEEP = 5e3;
 var SCORES_KEY = "alllove-david-goliath-scores-v2";
 var CHURCH_NAME = "모두애침례교회";
 var GAME_TITLE = "다윗과 골리앗";
@@ -339,7 +341,7 @@ function davidSlingWorld(pose, aimX, charge, time) {
 		y: DAVID_FOOT_WORLD.y + motion.y + s * lx + c * ly
 	};
 }
-var BASE = {
+var BASE$1 = {
 	이마: 1e3,
 	투구: 250,
 	몸통: 100,
@@ -352,7 +354,7 @@ function comboMultiplier(combo) {
 }
 /** 이마는 열린 급소 명중 1,000점. 투구는 일반 머리 250점. */
 function hitPoints(part, combo) {
-	return Math.round(BASE[part] * comboMultiplier(combo));
+	return Math.round(BASE$1[part] * comboMultiplier(combo));
 }
 function combatBand(elapsed) {
 	if (elapsed < 8) return {
@@ -1664,22 +1666,29 @@ function drawPip(ctx, video, skeleton, present, armed = false, flash = 0) {
 	}
 	ctx.restore();
 }
+var byScore = (a, b) => b.score - a.score || a.at - b.at;
+/** 저장된 기록 전체(최신 LEADERBOARD_KEEP개). 점수 높은 순. */
 function loadScores() {
 	try {
 		const raw = localStorage.getItem(SCORES_KEY);
 		if (!raw) return [];
 		const parsed = JSON.parse(raw);
 		if (!Array.isArray(parsed)) return [];
-		const rows = parsed.filter((row) => !!row && typeof row === "object" && typeof row.score === "number" && typeof row.at === "number").filter((row) => row.via !== "pointer").sort((a, b) => b.score - a.score || b.at - a.at).slice(0, 30);
+		const rows = parsed.filter((row) => !!row && typeof row === "object" && typeof row.score === "number" && typeof row.at === "number").filter((row) => row.via !== "pointer").map((row) => typeof row.name === "string" ? {
+			...row,
+			name: cleanName(row.name) || void 0
+		} : row);
 		if (rows.length !== parsed.length) saveScores(rows);
-		return rows;
+		return rows.sort(byScore);
 	} catch {
 		return [];
 	}
 }
+/** 오래된 기록부터 버린다. 지난달 1등이 새 기록에 밀려 사라지지 않게 점수가 아니라 시각으로 자른다. */
 function saveScores(rows) {
 	try {
-		localStorage.setItem(SCORES_KEY, JSON.stringify(rows.slice(0, 30)));
+		const keep = [...rows].sort((a, b) => b.at - a.at).slice(0, LEADERBOARD_KEEP);
+		localStorage.setItem(SCORES_KEY, JSON.stringify(keep));
 	} catch {}
 }
 function addScore(score, via) {
@@ -1690,24 +1699,64 @@ function addScore(score, via) {
 			at,
 			via,
 			ruleset: 2
-		}].sort((a, b) => b.score - a.score || b.at - a.at);
-		const rank = all.findIndex((r) => r.at === at) + 1;
-		const list = all.slice(0, 30);
-		saveScores(list);
+		}];
+		saveScores(all);
+		const list = all.sort(byScore);
 		return {
 			list,
-			rank: rank > 0 && rank <= 30 ? rank : 0
+			rank: list.findIndex((r) => r.at === at) + 1,
+			monthRank: monthlyRows(list, monthKey(at)).findIndex((r) => r.at === at) + 1,
+			at
 		};
 	} catch {
 		return {
 			list: loadScores(),
-			rank: 0
+			rank: 0,
+			monthRank: 0,
+			at
 		};
 	}
+}
+function setScoreName(at, name) {
+	const clean = cleanName(name);
+	const rows = loadScores().map((r) => r.at === at ? {
+		...r,
+		name: clean || void 0
+	} : r);
+	saveScores(rows);
+	return rows.sort(byScore);
+}
+function deleteScore(at) {
+	const rows = loadScores().filter((r) => r.at !== at);
+	saveScores(rows);
+	return rows;
 }
 function clearScores() {
 	saveScores([]);
 	return [];
+}
+/** "2026-10" 같은 달 키. 키오스크 시계(한국 시간) 기준. */
+function monthKey(at) {
+	const d = new Date(at);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabel(key) {
+	const [y, m] = key.split("-");
+	return `${y}년 ${Number(m)}월`;
+}
+function shiftMonth(key, delta) {
+	const [y, m] = key.split("-").map(Number);
+	return monthKey(new Date(y, m - 1 + delta, 1).getTime());
+}
+function monthlyRows(rows, key) {
+	return rows.filter((r) => monthKey(r.at) === key).sort(byScore);
+}
+/** 이 점수가 이달 이름을 남길 만한 순위인가. */
+function qualifiesForName(monthRank, score) {
+	return score > 0 && monthRank > 0 && monthRank <= 10;
+}
+function cleanName(name) {
+	return [...name].filter((ch) => ch >= " " && ch !== "<" && ch !== ">").join("").trim().slice(0, 8);
 }
 function formatScoreDate(at) {
 	return new Date(at).toLocaleString("ko-KR", {
@@ -1716,6 +1765,26 @@ function formatScoreDate(at) {
 		hour: "2-digit",
 		minute: "2-digit"
 	});
+}
+/** 시상용 명단. 엑셀에서 한글이 깨지지 않게 BOM을 붙인다. */
+function monthCsv(rows, key) {
+	const lines = [[
+		"순위",
+		"이름",
+		"점수",
+		"일시"
+	].join(",")];
+	monthlyRows(rows, key).forEach((r, i) => {
+		const when = new Date(r.at).toLocaleString("ko-KR");
+		const name = (r.name ?? "(이름 없음)").replace(/"/g, "\"\"");
+		lines.push([
+			i + 1,
+			`"${name}"`,
+			r.score,
+			`"${when}"`
+		].join(","));
+	});
+	return "﻿" + lines.join("\r\n");
 }
 var VERSES = [
 	{
@@ -1782,6 +1851,13 @@ var Game = class {
 	cameraState = "off";
 	lastHit = null;
 	resultRank = 0;
+	/** 이달 순위(0이면 기록 안 됨). */
+	monthRank = 0;
+	/** 이름 입력 중. 이 동안은 자리를 비워도 대기 화면으로 돌아가지 않는다. */
+	naming = false;
+	namingLeft = 0;
+	resultAt = 0;
+	savedName = null;
 	scores = [];
 	confirmReset = false;
 	banner = null;
@@ -1972,8 +2048,11 @@ var Game = class {
 			}
 			if (this.phase === "result") {
 				const now = performance.now();
-				if (this.vacantHold === 0) this.vacantHold = now;
-				if (now - this.vacantHold > 2500) this.goAttract();
+				if (this.naming) this.vacantHold = 0;
+				else {
+					if (this.vacantHold === 0) this.vacantHold = now;
+					if (now - this.vacantHold > 2500) this.goAttract();
+				}
 			}
 			return;
 		}
@@ -2095,6 +2174,32 @@ var Game = class {
 		this.confirmReset = false;
 		this.pushUi(true);
 	}
+	/** 결과 화면에서 이름 저장. 저장 후 몇 초 보여 주고 평소 흐름으로. */
+	saveName(name) {
+		if (!this.naming || !this.resultAt) return;
+		this.scores = setScoreName(this.resultAt, name);
+		this.savedName = name.trim() || null;
+		this.naming = false;
+		this.resultAcc = 6;
+		this.audio.play("combo");
+		this.pushUi(true);
+	}
+	skipName() {
+		if (!this.naming) return;
+		this.naming = false;
+		this.resultAcc = 6;
+		this.pushUi(true);
+	}
+	/** 운영자 화면에서 기록 하나 지우기(부적절한 이름 등). */
+	removeRecord(at) {
+		this.scores = deleteScore(at);
+		this.pushUi(true);
+	}
+	/** 저장된 기록 다시 읽기. */
+	refreshScores() {
+		this.scores = loadScores();
+		this.pushUi(true);
+	}
 	update(now) {
 		const real = this.lastNow ? Math.min(.25, (now - this.lastNow) / 1e3) : .016;
 		this.lastNow = now;
@@ -2181,8 +2286,13 @@ var Game = class {
 			} else if (this.practiceIdle > PRACTICE_MAX_SECONDS) this.goCountdown();
 		}
 		if (this.phase === "result") {
-			this.resultAcc += real;
-			if (this.resultAcc > 18) this.goAttract();
+			if (this.naming) {
+				this.namingLeft -= real;
+				if (this.namingLeft <= 0) this.skipName();
+			} else {
+				this.resultAcc += real;
+				if (this.resultAcc > 18) this.goAttract();
+			}
 		}
 		this.stepFx(real);
 		this.pushUi();
@@ -2385,6 +2495,9 @@ var Game = class {
 		if (this.phase === "result") return;
 		this.audio.stopBeat();
 		this.phase = "result";
+		this.monthRank = 0;
+		this.naming = false;
+		this.savedName = null;
 		this.resultAcc = 0;
 		this.vacantHold = 0;
 		this.stones = [];
@@ -2397,6 +2510,10 @@ var Game = class {
 				const saved = addScore(this.score, "webcam");
 				this.scores = saved.list;
 				this.resultRank = saved.rank;
+				this.monthRank = saved.monthRank;
+				this.resultAt = saved.at;
+				this.naming = qualifiesForName(saved.monthRank, this.score);
+				this.namingLeft = 60;
 			}
 		}
 		this.audio.play("end");
@@ -2885,6 +3002,8 @@ var Game = class {
 			snap.inputVia,
 			snap.verse.ref,
 			snap.scores.length,
+			snap.naming ? 1 : 0,
+			snap.savedName ?? "",
 			Math.round(snap.handsUpProgress * 20)
 		].join("|");
 		if (!force && key === this.lastUiKey) return;
@@ -2904,6 +3023,9 @@ var Game = class {
 			cameraState: this.cameraState,
 			lastHit: this.lastHit,
 			resultRank: this.resultRank,
+			monthRank: this.monthRank,
+			naming: this.naming,
+			savedName: this.savedName,
 			scores: this.scores,
 			muted: this.audio.muted,
 			confirmReset: this.confirmReset,
@@ -2976,7 +3098,174 @@ var Game = class {
 		return "";
 	}
 };
-function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice }) {
+/** 화면 자판용 한글 조합. 두벌식처럼 자모를 하나씩 넣으면 글자로 묶는다.
+* 키오스크에 실제 키보드가 없어도 이름을 쓸 수 있게 한다.
+*/
+var CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+var JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
+var JONG = ["", ..."ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ"];
+var BASE = 44032;
+var VOWEL_PAIR = {
+	ㅗㅏ: "ㅘ",
+	ㅗㅐ: "ㅙ",
+	ㅗㅣ: "ㅚ",
+	ㅜㅓ: "ㅝ",
+	ㅜㅔ: "ㅞ",
+	ㅜㅣ: "ㅟ",
+	ㅡㅣ: "ㅢ"
+};
+var JONG_PAIR = {
+	ㄱㅅ: "ㄳ",
+	ㄴㅈ: "ㄵ",
+	ㄴㅎ: "ㄶ",
+	ㄹㄱ: "ㄺ",
+	ㄹㅁ: "ㄻ",
+	ㄹㅂ: "ㄼ",
+	ㄹㅅ: "ㄽ",
+	ㄹㅌ: "ㄾ",
+	ㄹㅍ: "ㄿ",
+	ㄹㅎ: "ㅀ",
+	ㅂㅅ: "ㅄ"
+};
+var split = (table, v) => {
+	const hit = Object.entries(table).find(([, c]) => c === v);
+	return hit ? [hit[0][0], hit[0][1]] : null;
+};
+var isVowel = (j) => JUNG.includes(j);
+var isConsonant = (j) => CHO.includes(j) || JONG.includes(j);
+function decompose(ch) {
+	if (!ch) return null;
+	const code = ch.charCodeAt(0) - BASE;
+	if (code < 0 || code > 11171) return null;
+	return {
+		cho: CHO[Math.floor(code / 588)],
+		jung: JUNG[Math.floor(code % 588 / 28)],
+		jong: JONG[code % 28]
+	};
+}
+function compose({ cho, jung, jong }) {
+	return String.fromCharCode(BASE + CHO.indexOf(cho) * 588 + JUNG.indexOf(jung) * 28 + JONG.indexOf(jong));
+}
+/** 글자 끝에 자모 하나를 넣는다. */
+function typeJamo(text, j) {
+	const head = text.slice(0, -1);
+	const lastCh = text.slice(-1);
+	const last = decompose(lastCh);
+	if (isVowel(j)) {
+		if (last) {
+			if (last.jong) {
+				const pair = split(JONG_PAIR, last.jong);
+				const keep = pair ? pair[0] : "";
+				const move = pair ? pair[1] : last.jong;
+				if (CHO.includes(move)) return head + compose({
+					...last,
+					jong: keep
+				}) + compose({
+					cho: move,
+					jung: j,
+					jong: ""
+				});
+				return text + j;
+			}
+			const both = VOWEL_PAIR[last.jung + j];
+			if (both) return head + compose({
+				...last,
+				jung: both
+			});
+			return text + j;
+		}
+		if (lastCh && CHO.includes(lastCh)) return head + compose({
+			cho: lastCh,
+			jung: j,
+			jong: ""
+		});
+		if (lastCh && VOWEL_PAIR[lastCh + j]) return head + VOWEL_PAIR[lastCh + j];
+		return text + j;
+	}
+	if (isConsonant(j)) {
+		if (last) {
+			if (!last.jong) {
+				if (JONG.includes(j)) return head + compose({
+					...last,
+					jong: j
+				});
+				return text + j;
+			}
+			const both = JONG_PAIR[last.jong + j];
+			if (both) return head + compose({
+				...last,
+				jong: both
+			});
+		}
+		return text + j;
+	}
+	return text + j;
+}
+/** 자모 하나만 지운다: 감 → 가 → ㄱ → (없음). */
+function backspaceJamo(text) {
+	const head = text.slice(0, -1);
+	const last = decompose(text.slice(-1));
+	if (!last) return head;
+	if (last.jong) {
+		const pair = split(JONG_PAIR, last.jong);
+		return head + compose({
+			...last,
+			jong: pair ? pair[0] : ""
+		});
+	}
+	const vp = split(VOWEL_PAIR, last.jung);
+	if (vp) return head + compose({
+		...last,
+		jung: vp[0]
+	});
+	return head + last.cho;
+}
+/** 화면 자판 배치. 쌍자음·ㅒㅖ는 ⇧로. */
+var KEY_ROWS = [
+	[
+		"ㅂ",
+		"ㅈ",
+		"ㄷ",
+		"ㄱ",
+		"ㅅ",
+		"ㅛ",
+		"ㅕ",
+		"ㅑ",
+		"ㅐ",
+		"ㅔ"
+	],
+	[
+		"ㅁ",
+		"ㄴ",
+		"ㅇ",
+		"ㄹ",
+		"ㅎ",
+		"ㅗ",
+		"ㅓ",
+		"ㅏ",
+		"ㅣ"
+	],
+	[
+		"ㅋ",
+		"ㅌ",
+		"ㅊ",
+		"ㅍ",
+		"ㅠ",
+		"ㅜ",
+		"ㅡ"
+	]
+];
+var SHIFTED = {
+	ㅂ: "ㅃ",
+	ㅈ: "ㅉ",
+	ㄷ: "ㄸ",
+	ㄱ: "ㄲ",
+	ㅅ: "ㅆ",
+	ㅐ: "ㅒ",
+	ㅔ: "ㅖ"
+};
+function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice, onSaveName, onSkipName, onRemoveRecord }) {
+	const [adminOpen, setAdminOpen] = (0, import_react.useState)(false);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "pointer-events-none absolute inset-0 flex flex-col text-fg",
 		children: [
@@ -3000,7 +3289,7 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 			ui.phase === "attract" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Attract, {
 				ui,
 				onStart,
-				onAskReset,
+				onOpenAdmin: () => setAdminOpen(true),
 				onRetryCamera,
 				onRetryMotion
 			}),
@@ -3017,9 +3306,19 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 			}),
 			ui.phase === "countdown" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Countdown, { n: ui.countdown }),
 			ui.phase === "play" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Hud, { ui }),
-			ui.phase === "result" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, {
+			ui.phase === "result" && (ui.naming ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NameEntry, {
+				ui,
+				onSave: onSaveName,
+				onSkip: onSkipName
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, {
 				ui,
 				onNext
+			})),
+			adminOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AdminPanel, {
+				scores: ui.scores,
+				onClose: () => setAdminOpen(false),
+				onRemove: onRemoveRecord,
+				onAskReset
 			}),
 			ui.confirmReset && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-ink/60 px-8",
@@ -3218,8 +3517,9 @@ var MEDAL = [
 	"bg-[#d9dde6]",
 	"bg-[#e0955a]"
 ];
-function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
-	const top = ui.scores.slice(0, 5);
+function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
+	const month = monthKey(Date.now());
+	const top = monthlyRows(ui.scores, month).slice(0, 5);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 			className: "pointer-events-none flex flex-col items-center gap-2 px-4 pt-4",
@@ -3279,22 +3579,22 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 					},
 					onPointerUp: (e) => {
 						const started = Number(e.currentTarget.dataset.t ?? 0);
-						if (performance.now() - started > 1400) onAskReset();
+						if (performance.now() - started > 1400) onOpenAdmin();
 					},
 					className: "mt-3 flex w-full items-center justify-between",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ribbon, {
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Ribbon, {
 						tone: "sun",
-						children: "명예의 전당"
+						children: [Number(month.slice(5)), "월의 용사"]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] text-fg-muted",
-						children: "길게 눌러 초기화"
+						className: "font-display text-sm text-don",
+						children: "매달 1등에게 선물!"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
 					className: "mt-1.5 space-y-1",
 					children: [top.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
 						className: "py-2 text-center font-display text-lg text-fg-muted",
-						children: "첫 번째 용사를 기다립니다"
+						children: "이달 첫 번째 용사를 기다립니다"
 					}), top.map((row, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
 						className: "flex items-center gap-3",
 						children: [
@@ -3303,12 +3603,12 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 								children: i + 1
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "flex-1 font-display text-lg tabular-nums",
-								children: row.score.toLocaleString("ko-KR")
+								className: `min-w-0 flex-1 truncate font-display text-lg ${row.name ? "" : "text-fg-muted"}`,
+								children: row.name ?? "이름 없음"
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-xs text-fg-muted",
-								children: formatScoreDate(row.at)
+								className: "font-display text-lg tabular-nums",
+								children: row.score.toLocaleString("ko-KR")
 							})
 						]
 					}, `${row.at}-${i}`))]
@@ -3672,7 +3972,7 @@ function Result({ ui, onNext }) {
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "mt-3 font-display text-lg text-fg-muted",
-						children: ui.checkMode ? "점검은 기록되지 않습니다" : ui.resultRank > 0 ? `전체 ${ui.resultRank}위` : "순위권 밖"
+						children: ui.checkMode ? "점검은 기록되지 않습니다" : ui.savedName ? `${ui.savedName} 용사, 이달 ${ui.monthRank}위로 올라갔어요!` : ui.monthRank > 0 ? `이달 ${ui.monthRank}위` : "기록되지 않았습니다"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dl", {
 						className: "mt-4 grid grid-cols-2 gap-3",
@@ -3721,6 +4021,216 @@ function Result({ ui, onNext }) {
 				children: "자리를 비우면 대기 화면으로 돌아갑니다"
 			})
 		]
+	});
+}
+function NameEntry({ ui, onSave, onSkip }) {
+	const [name, setName] = (0, import_react.useState)("");
+	const [shift, setShift] = (0, import_react.useState)(false);
+	const MAX = 8;
+	const put = (k) => {
+		const next = typeJamo(name, shift ? SHIFTED[k] ?? k : k);
+		if (next.length <= MAX) setName(next);
+		setShift(false);
+	};
+	const key = "h-12 min-w-0 flex-1 rounded-xl border-[3px] border-ink font-display text-2xl shadow-[0_3px_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
+	const ready = name.trim().length > 0;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "pointer-events-auto flex h-full flex-col items-center justify-center gap-4 overflow-y-auto bg-ink/60 px-3 pt-16 pb-4 text-center",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "t-panel relative w-full px-4 pt-8 pb-4",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "absolute -top-6 left-1/2 -translate-x-1/2",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							className: "inline-block rounded-full border-[5px] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
+							children: [
+								"이달 ",
+								ui.monthRank,
+								"위!"
+							]
+						})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "t-outline font-display text-5xl leading-none tabular-nums text-sun",
+						children: ui.score.toLocaleString("ko-KR")
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "mt-3 font-display text-lg",
+						children: "이름을 남기면 순위판에 올라가요"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "text-sm font-bold text-don",
+						children: "매달 1등에게 선물이 있어요!"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						value: name,
+						onChange: (e) => setName(e.target.value.replace(/[<>]/g, "").slice(0, MAX)),
+						inputMode: "none",
+						autoComplete: "off",
+						"aria-label": "이름",
+						placeholder: "이름을 눌러 주세요",
+						className: "mt-3 h-14 w-full rounded-2xl border-4 border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "w-full space-y-1.5",
+				children: KEY_ROWS.map((row, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex gap-1",
+					children: [
+						i === 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setShift((v) => !v),
+							className: `${key} ${shift ? "bg-sun" : "bg-cream"} max-w-14 text-lg`,
+							"aria-label": "쌍자음",
+							children: "⇧"
+						}),
+						row.map((k) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => put(k),
+							className: `${key} bg-paper`,
+							children: shift ? SHIFTED[k] ?? k : k
+						}, k)),
+						i === 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setName((n) => backspaceJamo(n)),
+							className: `${key} max-w-16 bg-cream text-lg`,
+							"aria-label": "지우기",
+							children: "⌫"
+						})
+					]
+				}, i))
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex w-full gap-3",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: onSkip,
+					className: "t-btn h-14 flex-1 bg-cream text-xl",
+					children: "건너뛰기"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					disabled: !ready,
+					onClick: () => onSave(name.trim()),
+					className: "t-btn h-14 flex-[2] bg-don text-2xl text-cream disabled:opacity-50",
+					children: "이름 저장"
+				})]
+			})
+		]
+	});
+}
+function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
+	const [month, setMonth] = (0, import_react.useState)(() => monthKey(Date.now()));
+	const [armed, setArmed] = (0, import_react.useState)(null);
+	const rows = monthlyRows(scores, month);
+	const download = () => {
+		const blob = new Blob([monthCsv(scores, month)], { type: "text/csv;charset=utf-8" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `다윗과골리앗_${month}_순위.csv`;
+		a.click();
+		setTimeout(() => URL.revokeObjectURL(url), 1e3);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "pointer-events-auto absolute inset-0 z-[25] flex items-center justify-center bg-ink/70 px-3 py-4",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "t-panel flex max-h-full w-full flex-col p-4",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center justify-between",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "font-display text-xl",
+						children: "운영자 · 월별 기록"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: onClose,
+						className: "t-btn h-10 bg-cream px-4 text-base",
+						children: "닫기"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mt-3 flex items-center justify-between rounded-2xl border-4 border-ink bg-sun px-2 py-1",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setMonth((m) => shiftMonth(m, -1)),
+							className: "size-10 font-display text-2xl",
+							"aria-label": "이전 달",
+							children: "◀"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							className: "font-display text-xl",
+							children: [
+								monthLabel(month),
+								" · ",
+								rows.length,
+								"판"
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setMonth((m) => shiftMonth(m, 1)),
+							className: "size-10 font-display text-2xl",
+							"aria-label": "다음 달",
+							children: "▶"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
+					className: "mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1",
+					children: [rows.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
+						className: "py-6 text-center text-fg-muted",
+						children: "이 달 기록이 없습니다"
+					}), rows.slice(0, 50).map((r, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
+						className: `flex items-center gap-2 rounded-lg px-2 py-1 ${i === 0 ? "bg-sun/50" : ""}`,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "w-6 text-right font-display tabular-nums",
+								children: i + 1
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: `min-w-0 flex-1 truncate font-display text-lg ${r.name ? "" : "text-fg-muted"}`,
+								children: r.name ?? "이름 없음"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "font-display tabular-nums",
+								children: r.score.toLocaleString("ko-KR")
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "w-24 text-right text-[11px] text-fg-muted",
+								children: formatScoreDate(r.at)
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => {
+									if (armed === r.at) {
+										onRemove(r.at);
+										setArmed(null);
+									} else setArmed(r.at);
+								},
+								className: `h-8 shrink-0 rounded-lg border-2 border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`,
+								children: armed === r.at ? "정말 삭제" : "삭제"
+							})
+						]
+					}, r.at))]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: download,
+					disabled: rows.length === 0,
+					className: "t-btn mt-3 h-14 bg-ka text-xl text-cream disabled:opacity-50",
+					children: "이 달 명단 저장 (엑셀 CSV)"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: onAskReset,
+					className: "mt-2 h-10 text-sm font-bold text-fg-muted underline",
+					children: "전체 기록 지우기"
+				})
+			]
+		})
 	});
 }
 var NOSE = 0;
@@ -4421,6 +4931,9 @@ var initialUi = () => ({
 	cameraState: "off",
 	lastHit: null,
 	resultRank: 0,
+	monthRank: 0,
+	naming: false,
+	savedName: null,
 	scores: [],
 	muted: false,
 	confirmReset: false,
@@ -4646,6 +5159,9 @@ function GameApp() {
 					onRetryMotion: () => void retryMotion(),
 					onOpenWindow: openNewWindow,
 					onSkipPractice: () => gameRef.current?.skipPractice(),
+					onSaveName: (name) => gameRef.current?.saveName(name),
+					onSkipName: () => gameRef.current?.skipName(),
+					onRemoveRecord: (at) => gameRef.current?.removeRecord(at),
 					onNext: () => gameRef.current?.nextPlayer(),
 					onMute: () => gameRef.current?.toggleMute(),
 					onAskReset: () => gameRef.current?.askReset(),

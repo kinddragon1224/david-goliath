@@ -93,6 +93,9 @@ export type UiSnap = {
   cameraState: CameraState;
   lastHit: string | null;
   resultRank: number;
+  monthRank: number;
+  naming: boolean;
+  savedName: string | null;
   scores: ScoreRecord[];
   muted: boolean;
   confirmReset: boolean;

@@ -24,7 +24,8 @@ import {
   type GoliathAct,
   type HitPart,
 } from "./rules";
-import { addScore, clearScores, loadScores, type InputVia, type ScoreRecord } from "./scores";
+import { addScore, clearScores, deleteScore, loadScores, qualifiesForName, setScoreName, type InputVia, type ScoreRecord } from "./scores";
+import { NAME_ENTRY_SECONDS } from "./constants";
 import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, Stone, UiSnap } from "./types";
 import { VERSES, randomVerse, type Verse } from "./verses";
 
@@ -46,6 +47,13 @@ export class Game {
   cameraState: CameraState = "off";
   lastHit: string | null = null;
   resultRank = 0;
+  /** 이달 순위(0이면 기록 안 됨). */
+  monthRank = 0;
+  /** 이름 입력 중. 이 동안은 자리를 비워도 대기 화면으로 돌아가지 않는다. */
+  naming = false;
+  private namingLeft = 0;
+  private resultAt = 0;
+  savedName: string | null = null;
   scores: ScoreRecord[] = [];
   confirmReset = false;
   banner: string | null = null;
@@ -251,8 +259,11 @@ export class Game {
       }
       if (this.phase === "result") {
         const now = performance.now();
-        if (this.vacantHold === 0) this.vacantHold = now;
-        if (now - this.vacantHold > 2500) this.goAttract();
+        if (this.naming) this.vacantHold = 0;
+        else {
+          if (this.vacantHold === 0) this.vacantHold = now;
+          if (now - this.vacantHold > 2500) this.goAttract();
+        }
       }
       return;
     }
@@ -383,6 +394,36 @@ export class Game {
     this.pushUi(true);
   }
 
+  /** 결과 화면에서 이름 저장. 저장 후 몇 초 보여 주고 평소 흐름으로. */
+  saveName(name: string): void {
+    if (!this.naming || !this.resultAt) return;
+    this.scores = setScoreName(this.resultAt, name);
+    this.savedName = name.trim() || null;
+    this.naming = false;
+    this.resultAcc = 6;
+    this.audio.play("combo");
+    this.pushUi(true);
+  }
+
+  skipName(): void {
+    if (!this.naming) return;
+    this.naming = false;
+    this.resultAcc = 6;
+    this.pushUi(true);
+  }
+
+  /** 운영자 화면에서 기록 하나 지우기(부적절한 이름 등). */
+  removeRecord(at: number): void {
+    this.scores = deleteScore(at);
+    this.pushUi(true);
+  }
+
+  /** 저장된 기록 다시 읽기. */
+  refreshScores(): void {
+    this.scores = loadScores();
+    this.pushUi(true);
+  }
+
   update(now: number): void {
     const real = this.lastNow ? Math.min(0.25, (now - this.lastNow) / 1000) : 0.016;
     this.lastNow = now;
@@ -484,8 +525,13 @@ export class Game {
     }
 
     if (this.phase === "result") {
-      this.resultAcc += real;
-      if (this.resultAcc > 18) this.goAttract();
+      if (this.naming) {
+        this.namingLeft -= real;
+        if (this.namingLeft <= 0) this.skipName();
+      } else {
+        this.resultAcc += real;
+        if (this.resultAcc > 18) this.goAttract();
+      }
     }
 
     this.stepFx(real);
@@ -701,6 +747,9 @@ export class Game {
     if (this.phase === "result") return;
     this.audio.stopBeat();
     this.phase = "result";
+    this.monthRank = 0;
+    this.naming = false;
+    this.savedName = null;
     this.resultAcc = 0;
     this.vacantHold = 0;
     this.stones = [];
@@ -714,6 +763,10 @@ export class Game {
         const saved = addScore(this.score, "webcam");
         this.scores = saved.list;
         this.resultRank = saved.rank;
+        this.monthRank = saved.monthRank;
+        this.resultAt = saved.at;
+        this.naming = qualifiesForName(saved.monthRank, this.score);
+        this.namingLeft = NAME_ENTRY_SECONDS;
       }
     }
     this.audio.play("end");
@@ -1193,6 +1246,8 @@ export class Game {
       snap.inputVia,
       snap.verse.ref,
       snap.scores.length,
+      snap.naming ? 1 : 0,
+      snap.savedName ?? "",
       Math.round(snap.handsUpProgress * 20),
     ].join("|");
     if (!force && key === this.lastUiKey) return;
@@ -1213,6 +1268,9 @@ export class Game {
       cameraState: this.cameraState,
       lastHit: this.lastHit,
       resultRank: this.resultRank,
+      monthRank: this.monthRank,
+      naming: this.naming,
+      savedName: this.savedName,
       scores: this.scores,
       muted: this.audio.muted,
       confirmReset: this.confirmReset,

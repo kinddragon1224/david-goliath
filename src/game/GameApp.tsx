@@ -35,6 +35,9 @@ const initialUi = (): UiSnap => ({
   cameraState: "off",
   lastHit: null,
   resultRank: 0,
+  monthRank: 0,
+  naming: false,
+  savedName: null,
   scores: [],
   muted: false,
   confirmReset: false,
@@ -289,6 +292,9 @@ export function GameApp() {
           onRetryMotion={() => void retryMotion()}
           onOpenWindow={openNewWindow}
           onSkipPractice={() => gameRef.current?.skipPractice()}
+          onSaveName={(name) => gameRef.current?.saveName(name)}
+          onSkipName={() => gameRef.current?.skipName()}
+          onRemoveRecord={(at) => gameRef.current?.removeRecord(at)}
           onNext={() => gameRef.current?.nextPlayer()}
           onMute={() => gameRef.current?.toggleMute()}
           onAskReset={() => gameRef.current?.askReset()}

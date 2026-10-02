@@ -1,7 +1,8 @@
 import { Volume2, VolumeX } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
-import { formatScoreDate } from "./scores";
+import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
+import { formatScoreDate, monthCsv, monthKey, monthLabel, monthlyRows, shiftMonth, type ScoreRecord } from "./scores";
 import type { UiSnap } from "./types";
 
 type Props = {
@@ -17,6 +18,9 @@ type Props = {
   onRetryMotion: () => void;
   onOpenWindow: () => void;
   onSkipPractice: () => void;
+  onSaveName: (name: string) => void;
+  onSkipName: () => void;
+  onRemoveRecord: (at: number) => void;
 };
 
 export function Overlays({
@@ -32,7 +36,11 @@ export function Overlays({
   onRetryMotion,
   onOpenWindow,
   onSkipPractice,
+  onSaveName,
+  onSkipName,
+  onRemoveRecord,
 }: Props) {
+  const [adminOpen, setAdminOpen] = useState(false);
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col text-fg">
       <button
@@ -49,7 +57,7 @@ export function Overlays({
         <Attract
           ui={ui}
           onStart={onStart}
-          onAskReset={onAskReset}
+          onOpenAdmin={() => setAdminOpen(true)}
           onRetryCamera={onRetryCamera}
           onRetryMotion={onRetryMotion}
         />
@@ -60,7 +68,21 @@ export function Overlays({
       {ui.phase === "practice" && <Practice ui={ui} onSkip={onSkipPractice} />}
       {ui.phase === "countdown" && <Countdown n={ui.countdown} />}
       {ui.phase === "play" && <Hud ui={ui} />}
-      {ui.phase === "result" && <Result ui={ui} onNext={onNext} />}
+      {ui.phase === "result" &&
+        (ui.naming ? (
+          <NameEntry ui={ui} onSave={onSaveName} onSkip={onSkipName} />
+        ) : (
+          <Result ui={ui} onNext={onNext} />
+        ))}
+
+      {adminOpen && (
+        <AdminPanel
+          scores={ui.scores}
+          onClose={() => setAdminOpen(false)}
+          onRemove={onRemoveRecord}
+          onAskReset={onAskReset}
+        />
+      )}
 
       {ui.confirmReset && (
         <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-ink/60 px-8">
@@ -215,17 +237,18 @@ const MEDAL = ["bg-sun", "bg-[#d9dde6]", "bg-[#e0955a]"];
 function Attract({
   ui,
   onStart,
-  onAskReset,
+  onOpenAdmin,
   onRetryCamera,
   onRetryMotion,
 }: {
   ui: UiSnap;
   onStart: () => void;
-  onAskReset: () => void;
+  onOpenAdmin: () => void;
   onRetryCamera: () => void;
   onRetryMotion: () => void;
 }) {
-  const top = ui.scores.slice(0, LEADERBOARD_SHOW);
+  const month = monthKey(Date.now());
+  const top = monthlyRows(ui.scores, month).slice(0, LEADERBOARD_SHOW);
   return (
     <>
       <header className="pointer-events-none flex flex-col items-center gap-2 px-4 pt-4">
@@ -277,15 +300,15 @@ function Attract({
           }}
           onPointerUp={(e) => {
             const started = Number(e.currentTarget.dataset.t ?? 0);
-            if (performance.now() - started > 1400) onAskReset();
+            if (performance.now() - started > 1400) onOpenAdmin();
           }}
           className="mt-3 flex w-full items-center justify-between"
         >
-          <Ribbon tone="sun">명예의 전당</Ribbon>
-          <span className="text-[11px] text-fg-muted">길게 눌러 초기화</span>
+          <Ribbon tone="sun">{Number(month.slice(5))}월의 용사</Ribbon>
+          <span className="font-display text-sm text-don">매달 1등에게 선물!</span>
         </button>
         <ol className="mt-1.5 space-y-1">
-          {top.length === 0 && <li className="py-2 text-center font-display text-lg text-fg-muted">첫 번째 용사를 기다립니다</li>}
+          {top.length === 0 && <li className="py-2 text-center font-display text-lg text-fg-muted">이달 첫 번째 용사를 기다립니다</li>}
           {top.map((row, i) => (
             <li key={`${row.at}-${i}`} className="flex items-center gap-3">
               <span
@@ -293,8 +316,10 @@ function Attract({
               >
                 {i + 1}
               </span>
-              <span className="flex-1 font-display text-lg tabular-nums">{row.score.toLocaleString("ko-KR")}</span>
-              <span className="text-xs text-fg-muted">{formatScoreDate(row.at)}</span>
+              <span className={`min-w-0 flex-1 truncate font-display text-lg ${row.name ? "" : "text-fg-muted"}`}>
+                {row.name ?? "이름 없음"}
+              </span>
+              <span className="font-display text-lg tabular-nums">{row.score.toLocaleString("ko-KR")}</span>
             </li>
           ))}
         </ol>
@@ -572,7 +597,13 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
           {ui.score.toLocaleString("ko-KR")}
         </p>
         <p className="mt-3 font-display text-lg text-fg-muted">
-          {ui.checkMode ? "점검은 기록되지 않습니다" : ui.resultRank > 0 ? `전체 ${ui.resultRank}위` : "순위권 밖"}
+          {ui.checkMode
+            ? "점검은 기록되지 않습니다"
+            : ui.savedName
+              ? `${ui.savedName} 용사, 이달 ${ui.monthRank}위로 올라갔어요!`
+              : ui.monthRank > 0
+                ? `이달 ${ui.monthRank}위`
+                : "기록되지 않았습니다"}
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl border-4 border-ink bg-sun px-3 py-2">
@@ -594,6 +625,157 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
         다음 사람
       </button>
       <p className="t-outline-sm mt-3 text-sm font-bold text-cream">자리를 비우면 대기 화면으로 돌아갑니다</p>
+    </div>
+  );
+}
+
+/* ───────── 이름 남기기 ───────── */
+
+function NameEntry({ ui, onSave, onSkip }: { ui: UiSnap; onSave: (name: string) => void; onSkip: () => void }) {
+  const [name, setName] = useState("");
+  const [shift, setShift] = useState(false);
+  const MAX = 8;
+  const put = (k: string) => {
+    const next = typeJamo(name, shift ? (SHIFTED[k] ?? k) : k);
+    if (next.length <= MAX) setName(next);
+    setShift(false);
+  };
+  const key = "h-12 min-w-0 flex-1 rounded-xl border-[3px] border-ink font-display text-2xl shadow-[0_3px_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
+  const ready = name.trim().length > 0;
+  return (
+    <div className="pointer-events-auto flex h-full flex-col items-center justify-center gap-4 overflow-y-auto bg-ink/60 px-3 pt-16 pb-4 text-center">
+      <div className="t-panel relative w-full px-4 pt-8 pb-4">
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+          <span className="inline-block rounded-full border-[5px] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
+            이달 {ui.monthRank}위!
+          </span>
+        </div>
+        <p className="t-outline font-display text-5xl leading-none tabular-nums text-sun">{ui.score.toLocaleString("ko-KR")}</p>
+        <p className="mt-3 font-display text-lg">이름을 남기면 순위판에 올라가요</p>
+        <p className="text-sm font-bold text-don">매달 1등에게 선물이 있어요!</p>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value.replace(/[<>]/g, "").slice(0, MAX))}
+          inputMode="none"
+          autoComplete="off"
+          aria-label="이름"
+          placeholder="이름을 눌러 주세요"
+          className="mt-3 h-14 w-full rounded-2xl border-4 border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
+        />
+      </div>
+      <div className="w-full space-y-1.5">
+        {KEY_ROWS.map((row, i) => (
+          <div key={i} className="flex gap-1">
+            {i === 2 && (
+              <button type="button" onClick={() => setShift((v) => !v)} className={`${key} ${shift ? "bg-sun" : "bg-cream"} max-w-14 text-lg`} aria-label="쌍자음">
+                ⇧
+              </button>
+            )}
+            {row.map((k) => (
+              <button key={k} type="button" onClick={() => put(k)} className={`${key} bg-paper`}>
+                {shift ? (SHIFTED[k] ?? k) : k}
+              </button>
+            ))}
+            {i === 2 && (
+              <button type="button" onClick={() => setName((n) => backspaceJamo(n))} className={`${key} max-w-16 bg-cream text-lg`} aria-label="지우기">
+                ⌫
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex w-full gap-3">
+        <button type="button" onClick={onSkip} className="t-btn h-14 flex-1 bg-cream text-xl">
+          건너뛰기
+        </button>
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={() => onSave(name.trim())}
+          className="t-btn h-14 flex-[2] bg-don text-2xl text-cream disabled:opacity-50"
+        >
+          이름 저장
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── 운영자: 월별 기록 ───────── */
+
+function AdminPanel({
+  scores,
+  onClose,
+  onRemove,
+  onAskReset,
+}: {
+  scores: ScoreRecord[];
+  onClose: () => void;
+  onRemove: (at: number) => void;
+  onAskReset: () => void;
+}) {
+  const [month, setMonth] = useState(() => monthKey(Date.now()));
+  const [armed, setArmed] = useState<number | null>(null);
+  const rows = monthlyRows(scores, month);
+  const download = () => {
+    const blob = new Blob([monthCsv(scores, month)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `다윗과골리앗_${month}_순위.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-[25] flex items-center justify-center bg-ink/70 px-3 py-4">
+      <div className="t-panel flex max-h-full w-full flex-col p-4">
+        <div className="flex items-center justify-between">
+          <p className="font-display text-xl">운영자 · 월별 기록</p>
+          <button type="button" onClick={onClose} className="t-btn h-10 bg-cream px-4 text-base">
+            닫기
+          </button>
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-2xl border-4 border-ink bg-sun px-2 py-1">
+          <button type="button" onClick={() => setMonth((m) => shiftMonth(m, -1))} className="size-10 font-display text-2xl" aria-label="이전 달">
+            ◀
+          </button>
+          <span className="font-display text-xl">
+            {monthLabel(month)} · {rows.length}판
+          </span>
+          <button type="button" onClick={() => setMonth((m) => shiftMonth(m, 1))} className="size-10 font-display text-2xl" aria-label="다음 달">
+            ▶
+          </button>
+        </div>
+        <ol className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+          {rows.length === 0 && <li className="py-6 text-center text-fg-muted">이 달 기록이 없습니다</li>}
+          {rows.slice(0, 50).map((r, i) => (
+            <li key={r.at} className={`flex items-center gap-2 rounded-lg px-2 py-1 ${i === 0 ? "bg-sun/50" : ""}`}>
+              <span className="w-6 text-right font-display tabular-nums">{i + 1}</span>
+              <span className={`min-w-0 flex-1 truncate font-display text-lg ${r.name ? "" : "text-fg-muted"}`}>{r.name ?? "이름 없음"}</span>
+              <span className="font-display tabular-nums">{r.score.toLocaleString("ko-KR")}</span>
+              <span className="w-24 text-right text-[11px] text-fg-muted">{formatScoreDate(r.at)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (armed === r.at) {
+                    onRemove(r.at);
+                    setArmed(null);
+                  } else setArmed(r.at);
+                }}
+                className={`h-8 shrink-0 rounded-lg border-2 border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`}
+              >
+                {armed === r.at ? "정말 삭제" : "삭제"}
+              </button>
+            </li>
+          ))}
+        </ol>
+        <button type="button" onClick={download} disabled={rows.length === 0} className="t-btn mt-3 h-14 bg-ka text-xl text-cream disabled:opacity-50">
+          이 달 명단 저장 (엑셀 CSV)
+        </button>
+        <button type="button" onClick={onAskReset} className="mt-2 h-10 text-sm font-bold text-fg-muted underline">
+          전체 기록 지우기
+        </button>
+      </div>
     </div>
   );
 }
