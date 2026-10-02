@@ -111,4 +111,6 @@ export type UiSnap = {
   freezeFound: boolean;
   inputVia: "webcam" | "pointer";
   checkMode: boolean;
+  /** 양손 번쩍 유지 정도 0..1. */
+  handsUpProgress: number;
 };

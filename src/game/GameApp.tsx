@@ -53,6 +53,7 @@ const initialUi = (): UiSnap => ({
   freezeFound: false,
   inputVia: "webcam",
   checkMode: false,
+  handsUpProgress: 0,
 });
 
 export function GameApp() {
@@ -64,6 +65,11 @@ export function GameApp() {
   const poseRef = useRef<PoseController | null>(null);
   const startingRef = useRef(false);
   const [ui, setUi] = useState<UiSnap>(initialUi);
+  // 아이들 얼굴은 기본으로 화면에 띄우지 않는다. 설치 점검 때만 주소 끝에 ?camera=1
+  const [showVideo, setShowVideo] = useState(false);
+  useEffect(() => {
+    setShowVideo(new URLSearchParams(window.location.search).get("camera") === "1");
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -109,7 +115,8 @@ export function GameApp() {
         }
       }
       if (game.phase !== lastPhase) {
-        if (game.phase === "play" || game.phase === "practice" || game.phase === "attract") pose.resetMotion();
+        // 연습·대기로 넘어갈 때만 초기화한다. 카운트다운 중 장전한 손은 경기 시작과 함께 바로 던질 수 있다.
+        if (game.phase === "practice" || game.phase === "attract") pose.resetMotion();
         lastPhase = game.phase;
       }
       game.update(now);
@@ -213,6 +220,16 @@ export function GameApp() {
   };
 
   const pipLow = ui.phase === "play" || ui.phase === "practice" || ui.phase === "countdown";
+  const pipLabel =
+    ui.modelState === "failed"
+      ? "모션 실패"
+      : ui.modelState === "loading" || ui.cameraState === "loading"
+        ? "준비 중"
+        : !ui.personPresent
+          ? "어디 있나요?"
+          : ui.armed && pipLow
+            ? "던질 준비!"
+            : "인식됨";
   const showPip =
     ui.cameraState === "live" || ui.cameraState === "loading"
       ? ui.phase === "attract" ||
@@ -235,36 +252,25 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
-          className={`pointer-events-none absolute z-10 w-32 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[38%] right-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
           <div
-            className={`relative h-24 w-32 overflow-hidden rounded-2xl border-[5px] bg-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "border-ink" : "border-ink/70"}`}
+            className={`relative h-28 w-24 overflow-hidden rounded-2xl border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "bg-[#4a2414]" : "bg-[#4a2414]/70"}`}
           >
             <video
               ref={videoRef}
               className="absolute inset-0 size-full object-cover"
-              style={{ transform: "scaleX(-1)" }}
+              style={{ transform: "scaleX(-1)", opacity: showVideo ? 1 : 0 }}
               playsInline
               muted
               autoPlay
             />
-            <canvas
-              ref={pipRef}
-              width={320}
-              height={240}
-              className="absolute inset-0 size-full"
-            />
+            <canvas ref={pipRef} width={240} height={280} className="absolute inset-0 size-full" />
           </div>
           <p
-            className={`mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs ${ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}
+            className={`relative mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}
           >
-            {ui.modelState === "failed"
-              ? "모션 실패"
-              : ui.modelState === "loading"
-                ? "모션 준비 중"
-                : ui.personPresent
-                  ? "인식됨"
-                  : "상반신을 보여 주세요"}
+            {pipLabel}
           </p>
         </div>
         <Overlays

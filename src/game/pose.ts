@@ -1,46 +1,39 @@
-export function aimFromWrist(handX: number, handY: number, shoulderY: number, vx = 0): { aimX: number; aimY: number } {
-  return {
-    aimX: Math.max(-1, Math.min(1, (handX - 0.5) * 1.8 + vx * 0.12)),
-    aimY: Math.max(-1, Math.min(1, (handY - shoulderY) / 0.22)),
-  };
-}
+import { MotionTracker, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
 
-export type Landmark = { x: number; y: number; v: number };
-
-export type ThrowEvent = {
-  power: number;
-  aimX: number;
-  aimY: number;
-};
+export type { Aim, Landmark, ThrowEvent };
 
 export type PoseFrame = {
   present: boolean;
   handsUp: boolean;
   throwEvent: ThrowEvent | null;
   skeleton: Landmark[] | null;
+  /** 던질 손이 머리 위(또는 뒤)로 장전된 상태. */
   armed: boolean;
   chestStill: boolean;
+  /** 지금 손 위치가 가리키는 조준. 사람이 없으면 null. */
+  aim: Aim | null;
+  tooFar: boolean;
+  offCenter: boolean;
 };
 
-type Sample = {
-  t: number;
-  lx: number;
-  ly: number;
-  lz: number;
-  lv: number;
-  rx: number;
-  ry: number;
-  rz: number;
-  rv: number;
+const EMPTY: PoseFrame = {
+  present: false,
+  handsUp: false,
+  throwEvent: null,
+  skeleton: null,
+  armed: false,
+  chestStill: false,
+  aim: null,
+  tooFar: false,
+  offCenter: false,
 };
 
-const LS = 11;
-const RS = 12;
-const LW = 15;
-const RW = 16;
-const LH = 23;
-const RH = 24;
-const NOSE = 0;
+type RawPoint = { x: number; y: number; z?: number; visibility?: number };
+
+/** 초당 추론 횟수 상한. 빠른 팔 동작을 놓치지 않을 만큼. */
+const INFER_MS = 30;
+/** 추론용으로 줄인 영상의 긴 변. 멀리 선 아이의 손목까지 보이게. */
+const INFER_LONG = 480;
 
 export class PoseController {
   video: HTMLVideoElement | null = null;
@@ -53,33 +46,22 @@ export class PoseController {
       image: HTMLVideoElement | HTMLCanvasElement,
       ts: number,
     ) => {
-      landmarks: { x: number; y: number; z?: number; visibility?: number }[][];
+      landmarks: RawPoint[][];
       worldLandmarks?: { x: number; y: number; z: number }[][];
     };
     close?: () => void;
   } | null = null;
   private stream: MediaStream | null = null;
   private disconnected = false;
-  private history: Sample[] = [];
-  private throwCooldownUntil = 0;
-  private presentFrames = 0;
-  private absentFrames = 0;
+  private motion = new MotionTracker();
   private lastTs = 0;
   private lastInfer = 0;
   private inferCanvas: HTMLCanvasElement | null = null;
   present = false;
-  lastFrame: PoseFrame = {
-    present: false,
-    handsUp: false,
-    throwEvent: null,
-    skeleton: null,
-    armed: false,
-    chestStill: false,
-  };
+  lastFrame: PoseFrame = EMPTY;
 
   resetMotion(): void {
-    this.history = [];
-    this.throwCooldownUntil = 0;
+    this.motion.reset();
   }
 
   hasStream(): boolean {
@@ -99,8 +81,8 @@ export class PoseController {
     this.status = "off";
     this.poseReady = false;
     this.present = false;
-    this.history = [];
-    this.lastFrame = { ...this.lastFrame, present: false, throwEvent: null, armed: false, chestStill: false };
+    this.motion.reset();
+    this.lastFrame = EMPTY;
     return true;
   }
 
@@ -137,10 +119,11 @@ export class PoseController {
           delegate: "GPU" as const,
         },
         runningMode: "VIDEO" as const,
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.4,
-        minPosePresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
+        // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다
+        numPoses: 2,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
       };
       try {
         this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
@@ -171,6 +154,10 @@ export class PoseController {
     video.playsInline = true;
 
     const tries: MediaStreamConstraints[] = [
+      {
+        audio: false,
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" },
+      },
       { audio: false, video: true },
       { audio: false, video: { facingMode: { ideal: "user" } } },
     ];
@@ -221,199 +208,98 @@ export class PoseController {
   }
 
   tick(now: number): PoseFrame {
-    const empty: PoseFrame = {
-      present: false,
-      handsUp: false,
-      throwEvent: null,
-      skeleton: null,
-      armed: false,
-      chestStill: false,
-    };
     const video = this.video;
     if (!video || video.readyState < 2 || !this.landmarker) {
-      this.history = [];
-      this.lastFrame = { ...empty, present: false };
+      this.motion.reset();
       this.present = false;
+      this.lastFrame = EMPTY;
       return this.lastFrame;
     }
-
-    if (now - this.lastInfer < 70 && this.lastFrame.skeleton) {
+    if (now - this.lastInfer < INFER_MS && this.lastFrame.skeleton) {
       return { ...this.lastFrame, throwEvent: null };
     }
     this.lastInfer = now;
-
     const ts = now <= this.lastTs ? this.lastTs + 1 : now;
     this.lastTs = ts;
 
-    let pose: { x: number; y: number; z?: number; visibility?: number }[] | undefined;
-    let world: { x: number; y: number; z: number }[] | undefined;
+    const source = this.inferSource(video);
+    const aspect = source.width && source.height ? source.width / source.height : 4 / 3;
+    let poses: RawPoint[][] = [];
+    let worlds: { x: number; y: number; z: number }[][] = [];
     try {
-      const result = this.landmarker.detectForVideo(this.inferSource(video), ts);
-      pose = result.landmarks[0];
-      world = result.worldLandmarks?.[0];
+      const result = this.landmarker.detectForVideo(source, ts);
+      poses = result.landmarks ?? [];
+      worlds = result.worldLandmarks ?? [];
     } catch {
-      this.lastFrame = empty;
-      return empty;
-    }
-
-    if (!pose) {
-      this.absentFrames += 1;
-      this.presentFrames = 0;
-      if (this.absentFrames > 12) this.present = false;
-      if (!this.present) this.history = [];
-      this.lastFrame = { ...empty, present: this.present };
+      this.lastFrame = { ...EMPTY, present: this.present };
       return this.lastFrame;
     }
 
-    const vis = (i: number) => pose[i]?.visibility ?? 1;
-    const seen = vis(LS) > 0.35 && vis(RS) > 0.35 && (vis(NOSE) > 0.25 || vis(LH) > 0.25);
-    if (seen) {
-      this.presentFrames += 1;
-      this.absentFrames = 0;
-      if (this.presentFrames > 4) this.present = true;
-    } else {
-      this.absentFrames += 1;
-      this.presentFrames = 0;
-      if (this.absentFrames > 12) this.present = false;
+    const pick = pickMain(poses, aspect);
+    if (pick < 0) {
+      const m = this.motion.update(null, now);
+      this.present = m.present;
+      this.lastFrame = { ...EMPTY, present: m.present };
+      return this.lastFrame;
     }
-
-    const mirror = (i: number): Landmark => ({
-      x: 1 - pose[i].x,
-      y: pose[i].y,
-      v: vis(i),
-    });
-
-    const lShoulder = mirror(LS);
-    const rShoulder = mirror(RS);
-    const lWrist = mirror(LW);
-    const rWrist = mirror(RW);
-
-    const handsUp =
-      lWrist.v > 0.35 &&
-      rWrist.v > 0.35 &&
-      lWrist.y < lShoulder.y - 0.05 &&
-      rWrist.y < rShoulder.y - 0.05;
-
-    const zAt = (i: number) => world?.[i]?.z ?? pose[i]?.z ?? 0;
-
-    this.history.push({
-      t: now,
-      lx: lWrist.x,
-      ly: lWrist.y,
-      lz: zAt(LW),
-      lv: lWrist.v,
-      rx: rWrist.x,
-      ry: rWrist.y,
-      rz: zAt(RW),
-      rv: rWrist.v,
-    });
-    if (this.history.length > 22) this.history.shift();
-    if (!this.present) this.history = [];
-
-    const armed = this.present && this.isArmed();
-    let throwEvent: ThrowEvent | null = null;
-    if (!handsUp && this.present && now >= this.throwCooldownUntil) {
-      throwEvent = this.detectThrow(now);
-      if (throwEvent) {
-        const handY = Math.min(lWrist.y, rWrist.y);
-        const shoulderY = (lShoulder.y + rShoulder.y) / 2;
-        throwEvent.aimY = aimFromWrist(0.5, handY, shoulderY, 0).aimY;
-        this.throwCooldownUntil = now + 520;
-      }
-    }
-
-    const shoulderY = (lShoulder.y + rShoulder.y) / 2;
-    const chestStill =
-      this.present &&
-      lWrist.v > 0.5 &&
-      rWrist.v > 0.5 &&
-      lShoulder.v > 0.45 &&
-      rShoulder.v > 0.45 &&
-      Math.abs(lWrist.x - rWrist.x) < 0.14 &&
-      Math.abs(lWrist.y - rWrist.y) < 0.12 &&
-      lWrist.y > shoulderY + 0.02 &&
-      lWrist.y < shoulderY + 0.32 &&
-      rWrist.y > shoulderY + 0.02 &&
-      rWrist.y < shoulderY + 0.32;
-
-    const skeleton = [0, 11, 12, 13, 14, 15, 16, 23, 24].map((i) => mirror(i));
-    this.lastFrame = { present: this.present, handsUp, throwEvent, skeleton, armed, chestStill };
+    const raw = poses[pick];
+    const world = worlds[pick];
+    const img: Landmark[] = raw.map((p) => ({ x: 1 - p.x, y: p.y, v: p.visibility ?? 1 }));
+    const input: BodyInput = { t: now, aspect, img, worldZ: world ? world.map((p) => p.z) : null };
+    const m = this.motion.update(input, now);
+    this.present = m.present;
+    const skeleton = [0, 11, 12, 13, 14, 15, 16, 23, 24].map((i) => img[i]);
+    this.lastFrame = {
+      present: m.present,
+      handsUp: m.handsUp,
+      throwEvent: m.throwEvent,
+      skeleton,
+      armed: m.armed,
+      chestStill: m.chestStill,
+      aim: m.aim,
+      tooFar: m.tooFar,
+      offCenter: m.offCenter,
+    };
     return this.lastFrame;
   }
 
+  /** 영상 비율을 그대로 둔 채 줄인다. 찌그러진 영상은 관절을 틀리게 읽는다. */
   private inferSource(video: HTMLVideoElement): HTMLVideoElement | HTMLCanvasElement {
-    if (!this.inferCanvas) {
-      this.inferCanvas = document.createElement("canvas");
-      this.inferCanvas.width = 256;
-      this.inferCanvas.height = 192;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (vw < 2 || vh < 2) return video;
+    const k = Math.min(1, INFER_LONG / Math.max(vw, vh));
+    const w = Math.round(vw * k);
+    const h = Math.round(vh * k);
+    if (!this.inferCanvas) this.inferCanvas = document.createElement("canvas");
+    if (this.inferCanvas.width !== w || this.inferCanvas.height !== h) {
+      this.inferCanvas.width = w;
+      this.inferCanvas.height = h;
     }
     const ctx = this.inferCanvas.getContext("2d");
-    if (!ctx || video.videoWidth < 2) return video;
-    ctx.drawImage(video, 0, 0, 256, 192);
+    if (!ctx) return video;
+    ctx.drawImage(video, 0, 0, w, h);
     return this.inferCanvas;
   }
+}
 
-  private isArmed(): boolean {
-    const hist = this.history;
-    if (hist.length < 4) return false;
-    const cur = hist[hist.length - 1];
-    const old = hist.find((s) => cur.t - s.t >= 140) ?? hist[0];
-    const leftDown = old.ly + 0.04 < cur.ly;
-    const rightDown = old.ry + 0.04 < cur.ry;
-    return leftDown || rightDown;
-  }
-
-  private detectThrow(now: number): ThrowEvent | null {
-    const hist = this.history;
-    if (hist.length < 5) return null;
-    const cur = hist[hist.length - 1];
-    const prev = hist.find((s) => now - s.t >= 60) ?? hist[Math.max(0, hist.length - 4)];
-    const wind = hist.find((s) => now - s.t >= 140) ?? hist[0];
-    const dt = Math.max(0.035, (cur.t - prev.t) / 1000);
-
-    const hands = [
-      {
-        vx: (cur.lx - prev.lx) / dt,
-        vy: (cur.ly - prev.ly) / dt,
-        vz: (cur.lz - prev.lz) / dt,
-        x: cur.lx,
-        y: cur.ly,
-        dy: wind.ly - cur.ly,
-        dx: Math.abs(cur.lx - wind.lx),
-        v: Math.min(cur.lv, wind.lv),
-      },
-      {
-        vx: (cur.rx - prev.rx) / dt,
-        vy: (cur.ry - prev.ry) / dt,
-        vz: (cur.rz - prev.rz) / dt,
-        x: cur.rx,
-        y: cur.ry,
-        dy: wind.ry - cur.ry,
-        dx: Math.abs(cur.rx - wind.rx),
-        v: Math.min(cur.rv, wind.rv),
-      },
-    ];
-
-    let best: ThrowEvent | null = null;
-    let bestScore = 0;
-    for (const hand of hands) {
-      const speed = Math.hypot(hand.vx, hand.vy);
-      const towardCamera = hand.vz < -0.45;
-      const upward = hand.vy < -0.85;
-      const windup = hand.dy > 0.07;
-      const traveled = hand.dy > 0.05 || hand.dx > 0.08;
-      if (!(hand.v > 0.45 && windup && traveled && speed > 1.05 && (upward || towardCamera))) continue;
-      const score = speed + (upward ? 0.4 : 0) + (towardCamera ? 0.35 : 0);
-      if (score > bestScore) {
-        bestScore = score;
-        best = {
-          power: Math.max(0.42, Math.min(1, (speed - 0.6) / 2.4)),
-          ...aimFromWrist(hand.x, hand.y, 0.45, hand.vx),
-        };
-      }
+/** 여러 명이 잡히면 어깨가 가장 넓은(가장 가까운) 사람, 비슷하면 가운데 사람. */
+function pickMain(poses: RawPoint[][], aspect: number): number {
+  let best = -1;
+  let bestScore = 0;
+  poses.forEach((p, i) => {
+    const ls = p[11];
+    const rs = p[12];
+    if (!ls || !rs || (ls.visibility ?? 1) < 0.4 || (rs.visibility ?? 1) < 0.4) return;
+    const width = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
+    const center = Math.abs((ls.x + rs.x) / 2 - 0.5);
+    const score = width - center * 0.08;
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
     }
-    return best;
-  }
+  });
+  return best;
 }
 
 function errorName(err: unknown): string {

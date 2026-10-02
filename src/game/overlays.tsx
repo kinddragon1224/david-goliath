@@ -1,6 +1,6 @@
 import { Volume2, VolumeX } from "lucide-react";
 import type { ReactNode } from "react";
-import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW } from "./constants";
+import { CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
 import { formatScoreDate } from "./scores";
 import type { UiSnap } from "./types";
 
@@ -101,10 +101,10 @@ function Ribbon({ children, tone = "don" }: { children: ReactNode; tone?: "don" 
   );
 }
 
-function Title({ size = "lg" }: { size?: "lg" | "md" }) {
+function Title({ size = "lg" }: { size?: "lg" | "md" | "sm" }) {
   return (
     <h1
-      className={`t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : "text-4xl"}`}
+      className={`t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`}
     >
       <span className="text-sun">다윗</span>과 <span className="text-don">골리앗</span>
       <span className="sr-only">{GAME_TITLE}</span>
@@ -123,7 +123,7 @@ function LogoBadge({ size = 96 }: { size?: number }) {
   );
 }
 
-function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
+function VerseBlock({ ui, large, compact }: { ui: UiSnap; large?: boolean; compact?: boolean }) {
   const words = ui.verse.text.trim().split(/\s+/);
   return (
     <div className="t-panel relative w-full px-5 pt-7 pb-4 text-center">
@@ -131,7 +131,7 @@ function VerseBlock({ ui, large }: { ui: UiSnap; large?: boolean }) {
         <Ribbon tone="ka">오늘의 말씀</Ribbon>
       </div>
       <blockquote
-        className={`font-display leading-snug text-ink ${large ? "text-2xl" : "text-xl"}`}
+        className={`font-display leading-snug text-ink ${large ? "text-2xl" : compact ? "text-lg" : "text-xl"}`}
         style={{ wordBreak: "keep-all", lineBreak: "strict" }}
       >
         {words.map((word, i) => (
@@ -155,6 +155,31 @@ function HintPill({ children }: { children: ReactNode }) {
   );
 }
 
+/** 제작사 표기. full이면 사업자 정보까지. */
+function Credit({ full }: { full?: boolean }) {
+  if (!full) {
+    return (
+      <div className="flex items-center justify-center gap-2 text-[11px] font-bold text-fg-muted">
+        <span>제작</span>
+        <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-3.5 w-auto" />
+      </div>
+    );
+  }
+  return (
+    <div className="w-full rounded-2xl border-4 border-ink bg-paper/95 px-4 py-2.5 text-center">
+      <div className="flex items-center justify-center gap-2">
+        <span className="font-display text-sm text-fg-muted">제작</span>
+        <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-5 w-auto" />
+      </div>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-fg-muted text-pretty" style={{ wordBreak: "keep-all" }}>
+        상호 {PRODUCER.name} · 대표 {PRODUCER.ceo} · 사업자등록번호 {PRODUCER.bizNo}
+        <br />
+        {PRODUCER.address} · {PRODUCER.phone} · {PRODUCER.email}
+      </p>
+    </div>
+  );
+}
+
 /* ───────── 화면별 ───────── */
 
 function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
@@ -169,7 +194,7 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
         stop(e);
         onBegin();
       }}
-      className="pointer-events-auto flex h-full w-full touch-manipulation flex-col items-center justify-center gap-7 bg-ink/40 px-7 text-center"
+      className="pointer-events-auto relative flex h-full w-full touch-manipulation flex-col items-center justify-center gap-6 bg-ink/40 px-7 pb-28 text-center"
     >
       <LogoBadge size={104} />
       <div className="flex flex-col items-center gap-3">
@@ -178,6 +203,9 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
       </div>
       <VerseBlock ui={ui} large />
       <span className="t-btn animate-throb bg-don px-9 py-4 text-2xl text-cream">화면을 눌러 시작</span>
+      <div className="absolute inset-x-4 bottom-4">
+        <Credit full />
+      </div>
     </button>
   );
 }
@@ -200,16 +228,20 @@ function Attract({
   const top = ui.scores.slice(0, LEADERBOARD_SHOW);
   return (
     <>
-      <header className="pointer-events-none flex flex-col items-center gap-3 px-5 pt-5">
-        <div className="flex items-center gap-3">
-          <LogoBadge size={56} />
-          <Title size="md" />
+      <header className="pointer-events-none flex flex-col items-center gap-2 px-4 pt-4">
+        <div className="flex items-center gap-2 pr-12">
+          <LogoBadge size={46} />
+          <Title size="sm" />
         </div>
         <div className="mt-4 w-full">
-          <VerseBlock ui={ui} />
+          <VerseBlock ui={ui} compact />
         </div>
       </header>
-      <div className="flex-1" />
+      <div className="flex flex-1 items-center justify-center">
+        {!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && (
+          <HandsUpPrompt progress={ui.handsUpProgress} small />
+        )}
+      </div>
       {ui.banner && (
         <div className="mb-3 px-5">
           <HintPill>{ui.banner}</HintPill>
@@ -226,11 +258,11 @@ function Attract({
             stop(e);
             onStart();
           }}
-          className="t-btn h-16 w-full touch-manipulation bg-don text-2xl text-cream"
+          className="t-btn h-14 w-full touch-manipulation bg-don text-2xl text-cream"
         >
           시작하기
         </button>
-        <p className="mt-3 text-center text-sm font-bold text-fg-muted">{ui.motionHint}</p>
+        <p className="mt-2.5 text-center text-sm font-bold text-fg-muted">{ui.motionHint}</p>
         {ui.checkMode ? (
           <p className="mt-1 text-center text-xs text-fg-muted">화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다.</p>
         ) : (
@@ -252,16 +284,16 @@ function Attract({
           <Ribbon tone="sun">명예의 전당</Ribbon>
           <span className="text-[11px] text-fg-muted">길게 눌러 초기화</span>
         </button>
-        <ol className="mt-2 space-y-1.5">
+        <ol className="mt-1.5 space-y-1">
           {top.length === 0 && <li className="py-2 text-center font-display text-lg text-fg-muted">첫 번째 용사를 기다립니다</li>}
           {top.map((row, i) => (
             <li key={`${row.at}-${i}`} className="flex items-center gap-3">
               <span
-                className={`flex size-8 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`}
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`}
               >
                 {i + 1}
               </span>
-              <span className="flex-1 font-display text-xl tabular-nums">{row.score.toLocaleString("ko-KR")}</span>
+              <span className="flex-1 font-display text-lg tabular-nums">{row.score.toLocaleString("ko-KR")}</span>
               <span className="text-xs text-fg-muted">{formatScoreDate(row.at)}</span>
             </li>
           ))}
@@ -276,6 +308,9 @@ function Attract({
             모션 다시 준비
           </button>
         )}
+        <div className="mt-2.5 border-t-2 border-dashed border-ink/20 pt-2">
+          <Credit />
+        </div>
       </section>
     </>
   );
@@ -307,8 +342,9 @@ function Start({
       <div className="mt-2 w-full">
         <VerseBlock ui={ui} />
       </div>
-      <HandsUpMark />
-      <p className="t-outline font-display text-3xl text-cream">양손 번쩍! 하면 연습 시작</p>
+      {!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && (
+        <HandsUpPrompt progress={ui.handsUpProgress} />
+      )}
       <button
         type="button"
         onPointerUp={(e) => {
@@ -379,19 +415,45 @@ function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
   );
 }
 
-function HandsUpMark() {
+/** 양손 번쩍 그림과 유지 게이지. 다 차면 연습이 시작된다. */
+function HandsUpPrompt({ progress, label = true, small }: { progress: number; label?: boolean; small?: boolean }) {
+  const R = 56;
+  const len = 2 * Math.PI * R;
+  const holding = progress > 0.02;
   return (
-    <svg viewBox="0 0 120 130" className="animate-bob h-28 w-24" aria-hidden="true">
-      <g fill="none" stroke="var(--color-ink)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" />
-      </g>
-      <g fill="none" stroke="var(--color-cream)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" />
-      </g>
-      <circle cx="60" cy="40" r="17" fill="var(--color-sun)" stroke="var(--color-ink)" strokeWidth="5" />
-      <circle cx="30" cy="34" r="9" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
-      <circle cx="90" cy="34" r="9" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
-    </svg>
+    <div className="flex flex-col items-center gap-2">
+      <svg viewBox="0 0 140 140" className={`${small ? "size-28" : "size-36"} ${holding ? "" : "animate-bob"}`} aria-hidden="true">
+        <circle cx="70" cy="70" r={R} fill="var(--color-paper)" stroke="var(--color-ink)" strokeWidth="18" />
+        <circle cx="70" cy="70" r={R} fill="none" stroke="var(--color-cream)" strokeWidth="9" />
+        <circle
+          cx="70"
+          cy="70"
+          r={R}
+          fill="none"
+          stroke="var(--color-don)"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={`${len * progress} ${len}`}
+          transform="rotate(-90 70 70)"
+        />
+        <g transform="translate(10 6)">
+          <g fill="none" stroke="var(--color-ink)" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M60 64v26M60 74L38 46M60 74l22-28M60 90l-13 22M60 90l13 22" />
+          </g>
+          <g fill="none" stroke="var(--color-orange)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M60 64v26M60 74L38 46M60 74l22-28M60 90l-13 22M60 90l13 22" />
+          </g>
+          <circle cx="60" cy="46" r="14" fill="var(--color-sun)" stroke="var(--color-ink)" strokeWidth="5" />
+          <circle cx="35" cy="40" r="8" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
+          <circle cx="85" cy="40" r="8" fill="var(--color-don)" stroke="var(--color-ink)" strokeWidth="4" />
+        </g>
+      </svg>
+      {label && (
+        <p key={holding ? "hold" : "idle"} className={`animate-pop t-outline font-display text-cream ${small ? "text-2xl" : "text-3xl"}`}>
+          {holding ? "그대로 유지!" : "양손 번쩍!"}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -423,8 +485,10 @@ function Countdown({ n }: { n: number }) {
         {n > 0 ? n : "시작!"}
       </p>
       <div className="t-panel max-w-[80%] px-5 py-3 text-center">
-        <p className="font-display text-xl">금빛 표적이 뜰 때 이마 = 크리티컬!</p>
-        <p className="mt-1 text-sm text-fg-muted">하얀 점선이 가는 곳으로 돌이 날아갑니다</p>
+        <p className="font-display text-xl" style={{ wordBreak: "keep-all" }}>
+          금빛 표적이 뜨면 <span className="whitespace-nowrap">이마 = 크리티컬!</span>
+        </p>
+        <p className="mt-1 text-sm text-fg-muted">손을 든 높이로 돌이 날아갑니다</p>
       </div>
     </div>
   );

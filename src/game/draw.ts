@@ -1227,9 +1227,10 @@ export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = fa
   ctx.restore();
 }
 
+/** 내 모습 카드: 실제 영상 대신 관절로 그린 아바타. 몸 크기와 상관없이 카드에 꽉 차게. */
 export function drawPip(
   ctx: CanvasRenderingContext2D,
-  _video: HTMLVideoElement | null,
+  video: HTMLVideoElement | null,
   skeleton: { x: number; y: number; v: number }[] | null,
   present: boolean,
 ): void {
@@ -1237,37 +1238,64 @@ export function drawPip(
   const h = ctx.canvas.height;
   ctx.save();
   ctx.clearRect(0, 0, w, h);
-  if (skeleton) {
-    ctx.lineCap = "round";
-    const pt = (i: number) => ({ x: skeleton[i].x * w, y: skeleton[i].y * h });
-    const pairs = [
-      [1, 2],
-      [1, 3],
-      [3, 5],
-      [2, 4],
-      [4, 6],
-      [1, 7],
-      [2, 8],
-      [7, 8],
-    ];
-    for (const pass of [0, 1]) {
-      ctx.strokeStyle = pass === 0 ? INK : present ? C.yellow : "rgba(255,244,220,0.6)";
-      ctx.lineWidth = pass === 0 ? 8 : 4;
-      for (const [a, b] of pairs) {
-        if (!skeleton[a] || !skeleton[b] || skeleton[a].v < 0.3 || skeleton[b].v < 0.3) continue;
-        const pa = pt(a);
-        const pb = pt(b);
-        ctx.beginPath();
-        ctx.moveTo(pa.x, pa.y);
-        ctx.lineTo(pb.x, pb.y);
-        ctx.stroke();
-      }
-    }
-    for (const s of skeleton) {
-      if (s.v < 0.3) continue;
-      circle(ctx, s.x * w, s.y * h, 6);
-      ink(ctx, present ? C.red : C.cream, 3);
-    }
+  const ls = skeleton?.[1];
+  const rs = skeleton?.[2];
+  if (!skeleton || !ls || !rs || ls.v < 0.3 || rs.v < 0.3) {
+    outlinedText(ctx, "?", w / 2, h / 2, 110, C.cream, null);
+    ctx.restore();
+    return;
   }
+  const aspect = video && video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
+  const sw = Math.max(0.02, Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y));
+  const k = (w * 0.36) / sw;
+  const cx = ((ls.x + rs.x) / 2) * aspect;
+  const cy = (ls.y + rs.y) / 2;
+  const P = (i: number) => ({ x: w / 2 + (skeleton[i].x * aspect - cx) * k, y: h * 0.42 + (skeleton[i].y - cy) * k, v: skeleton[i].v });
+  const limb = (a: number, b: number, col: string, width: number) => {
+    const pa = P(a);
+    const pb = P(b);
+    if (pa.v < 0.3 || pb.v < 0.3) return;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.lineWidth = width + 10;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.lineWidth = width;
+    ctx.strokeStyle = col;
+    ctx.stroke();
+  };
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const body = present ? C.cream : "rgba(255,244,220,0.5)";
+  const arm = present ? C.yellow : "rgba(255,210,58,0.5)";
+  // 몸통
+  const pls = P(1);
+  const prs = P(2);
+  const plh = P(7);
+  const prh = P(8);
+  ctx.beginPath();
+  ctx.moveTo(pls.x, pls.y);
+  ctx.lineTo(prs.x, prs.y);
+  ctx.lineTo(prh.v > 0.3 ? prh.x : prs.x - 8, prh.v > 0.3 ? prh.y : h + 20);
+  ctx.lineTo(plh.v > 0.3 ? plh.x : pls.x + 8, plh.v > 0.3 ? plh.y : h + 20);
+  ctx.closePath();
+  ink(ctx, body, 8);
+  limb(1, 3, arm, 18);
+  limb(3, 5, arm, 18);
+  limb(2, 4, arm, 18);
+  limb(4, 6, arm, 18);
+  for (const i of [5, 6]) {
+    const p = P(i);
+    if (p.v < 0.3) continue;
+    circle(ctx, p.x, p.y, 14);
+    ink(ctx, C.red, 6);
+  }
+  // 머리
+  const nose = P(0);
+  const hx = nose.v > 0.3 ? nose.x : (pls.x + prs.x) / 2;
+  const hy = nose.v > 0.3 ? nose.y : pls.y - w * 0.3;
+  circle(ctx, hx, hy, w * 0.17);
+  ink(ctx, present ? "#ffcf9e" : "rgba(255,207,158,0.5)", 7);
   ctx.restore();
 }

@@ -1,7 +1,7 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { L as require_react, v as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-D5qYUyKL.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-Bx0g8Glz.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -10,6 +10,16 @@ var GRAVITY = 1520;
 var SCORES_KEY = "alllove-david-goliath-scores-v2";
 var CHURCH_NAME = "모두애침례교회";
 var GAME_TITLE = "다윗과 골리앗";
+/** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
+var PRODUCER = {
+	logo: "/therumen-logo.png",
+	name: "더루멘(THE RUMEN)",
+	ceo: "김범수, 김선용",
+	bizNo: "222-12-98053",
+	address: "대전광역시 중구 중촌로28번길 6, 1층",
+	phone: "010-5169-1596",
+	email: "therumen.edu@gmail.com"
+};
 var GameAudio = class {
 	ctx = null;
 	master = null;
@@ -1613,446 +1623,72 @@ function drawWorld(ctx, sim, calm = false) {
 	drawFloaters(ctx, sim);
 	ctx.restore();
 }
-function drawPip(ctx, _video, skeleton, present) {
+/** 내 모습 카드: 실제 영상 대신 관절로 그린 아바타. 몸 크기와 상관없이 카드에 꽉 차게. */
+function drawPip(ctx, video, skeleton, present) {
 	const w = ctx.canvas.width;
 	const h = ctx.canvas.height;
 	ctx.save();
 	ctx.clearRect(0, 0, w, h);
-	if (skeleton) {
-		ctx.lineCap = "round";
-		const pt = (i) => ({
-			x: skeleton[i].x * w,
-			y: skeleton[i].y * h
-		});
-		const pairs = [
-			[1, 2],
-			[1, 3],
-			[3, 5],
-			[2, 4],
-			[4, 6],
-			[1, 7],
-			[2, 8],
-			[7, 8]
-		];
-		for (const pass of [0, 1]) {
-			ctx.strokeStyle = pass === 0 ? INK : present ? C.yellow : "rgba(255,244,220,0.6)";
-			ctx.lineWidth = pass === 0 ? 8 : 4;
-			for (const [a, b] of pairs) {
-				if (!skeleton[a] || !skeleton[b] || skeleton[a].v < .3 || skeleton[b].v < .3) continue;
-				const pa = pt(a);
-				const pb = pt(b);
-				ctx.beginPath();
-				ctx.moveTo(pa.x, pa.y);
-				ctx.lineTo(pb.x, pb.y);
-				ctx.stroke();
-			}
-		}
-		for (const s of skeleton) {
-			if (s.v < .3) continue;
-			circle(ctx, s.x * w, s.y * h, 6);
-			ink(ctx, present ? C.red : C.cream, 3);
-		}
+	const ls = skeleton?.[1];
+	const rs = skeleton?.[2];
+	if (!skeleton || !ls || !rs || ls.v < .3 || rs.v < .3) {
+		outlinedText(ctx, "?", w / 2, h / 2, 110, C.cream, null);
+		ctx.restore();
+		return;
 	}
-	ctx.restore();
-}
-function aimFromWrist(handX, handY, shoulderY, vx = 0) {
-	return {
-		aimX: Math.max(-1, Math.min(1, (handX - .5) * 1.8 + vx * .12)),
-		aimY: Math.max(-1, Math.min(1, (handY - shoulderY) / .22))
-	};
-}
-var LS = 11;
-var RS = 12;
-var LW = 15;
-var RW = 16;
-var LH = 23;
-var NOSE = 0;
-var PoseController = class {
-	video = null;
-	status = "off";
-	poseReady = false;
-	modelError = null;
-	error = null;
-	landmarker = null;
-	stream = null;
-	disconnected = false;
-	history = [];
-	throwCooldownUntil = 0;
-	presentFrames = 0;
-	absentFrames = 0;
-	lastTs = 0;
-	lastInfer = 0;
-	inferCanvas = null;
-	present = false;
-	lastFrame = {
-		present: false,
-		handsUp: false,
-		throwEvent: null,
-		skeleton: null,
-		armed: false,
-		chestStill: false
-	};
-	resetMotion() {
-		this.history = [];
-		this.throwCooldownUntil = 0;
-	}
-	hasStream() {
-		return Boolean(this.stream);
-	}
-	trackLive() {
-		const track = this.stream?.getVideoTracks()[0];
-		return Boolean(track && track.readyState === "live");
-	}
-	takeDisconnect() {
-		const track = this.stream?.getVideoTracks()[0];
-		if (this.status === "live" && track && track.readyState === "ended") this.disconnected = true;
-		if (!this.disconnected) return false;
-		this.disconnected = false;
-		this.status = "off";
-		this.poseReady = false;
-		this.present = false;
-		this.history = [];
-		this.lastFrame = {
-			...this.lastFrame,
-			present: false,
-			throwEvent: null,
-			armed: false,
-			chestStill: false
-		};
-		return true;
-	}
-	async start(video, onCamera) {
-		this.video = video;
-		this.status = "loading";
-		this.error = null;
-		try {
-			await this.openCamera(video);
-			this.status = "live";
-			onCamera?.();
-		} catch (err) {
-			this.status = "denied";
-			this.error = explainCameraError(err);
-			this.poseReady = false;
-			this.modelError = null;
-			return;
-		}
-		await this.loadModel();
-	}
-	async loadModel() {
-		if (this.status !== "live") return;
-		this.poseReady = false;
-		this.modelError = null;
-		this.landmarker?.close?.();
-		this.landmarker = null;
-		try {
-			const vision = await import("../_libs/mediapipe__tasks-vision.mjs").then((n) => n.t);
-			const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-			const opts = {
-				baseOptions: {
-					modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
-					delegate: "GPU"
-				},
-				runningMode: "VIDEO",
-				numPoses: 1,
-				minPoseDetectionConfidence: .4,
-				minPosePresenceConfidence: .4,
-				minTrackingConfidence: .4
-			};
-			try {
-				this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
-			} catch {
-				this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
-					...opts,
-					baseOptions: {
-						...opts.baseOptions,
-						delegate: "CPU"
-					}
-				});
-			}
-			this.poseReady = true;
-			this.modelError = null;
-		} catch {
-			this.landmarker = null;
-			this.poseReady = false;
-			this.modelError = "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
-		}
-	}
-	async openCamera(video) {
-		this.stopStream();
-		if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(/* @__PURE__ */ new Error("unsupported"), { name: "SecurityError" });
-		video.setAttribute("playsinline", "true");
-		video.setAttribute("autoplay", "true");
-		video.muted = true;
-		video.playsInline = true;
-		const tries = [{
-			audio: false,
-			video: true
-		}, {
-			audio: false,
-			video: { facingMode: { ideal: "user" } }
-		}];
-		let lastErr = null;
-		for (const constraints of tries) try {
-			const stream = await withTimeout(navigator.mediaDevices.getUserMedia(constraints), 12e3);
-			this.stream = stream;
-			video.srcObject = stream;
-			stream.getVideoTracks().forEach((track) => {
-				track.onended = () => {
-					this.disconnected = true;
-				};
-			});
-			await playVideo(video);
-			return;
-		} catch (err) {
-			lastErr = err;
-			const name = errorName(err);
-			if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") throw err;
-		}
-		throw lastErr ?? Object.assign(/* @__PURE__ */ new Error("camera"), { name: "NotFoundError" });
-	}
-	stopStream() {
-		this.stream?.getTracks().forEach((t) => {
-			t.onended = null;
-			t.stop();
-		});
-		this.stream = null;
-		if (this.video) this.video.srcObject = null;
-	}
-	stop() {
-		this.landmarker?.close?.();
-		this.landmarker = null;
-		this.stopStream();
-		this.status = "off";
-		this.poseReady = false;
-		this.modelError = null;
-	}
-	tick(now) {
-		const empty = {
-			present: false,
-			handsUp: false,
-			throwEvent: null,
-			skeleton: null,
-			armed: false,
-			chestStill: false
-		};
-		const video = this.video;
-		if (!video || video.readyState < 2 || !this.landmarker) {
-			this.history = [];
-			this.lastFrame = {
-				...empty,
-				present: false
-			};
-			this.present = false;
-			return this.lastFrame;
-		}
-		if (now - this.lastInfer < 70 && this.lastFrame.skeleton) return {
-			...this.lastFrame,
-			throwEvent: null
-		};
-		this.lastInfer = now;
-		const ts = now <= this.lastTs ? this.lastTs + 1 : now;
-		this.lastTs = ts;
-		let pose;
-		let world;
-		try {
-			const result = this.landmarker.detectForVideo(this.inferSource(video), ts);
-			pose = result.landmarks[0];
-			world = result.worldLandmarks?.[0];
-		} catch {
-			this.lastFrame = empty;
-			return empty;
-		}
-		if (!pose) {
-			this.absentFrames += 1;
-			this.presentFrames = 0;
-			if (this.absentFrames > 12) this.present = false;
-			if (!this.present) this.history = [];
-			this.lastFrame = {
-				...empty,
-				present: this.present
-			};
-			return this.lastFrame;
-		}
-		const vis = (i) => pose[i]?.visibility ?? 1;
-		if (vis(LS) > .35 && vis(RS) > .35 && (vis(NOSE) > .25 || vis(LH) > .25)) {
-			this.presentFrames += 1;
-			this.absentFrames = 0;
-			if (this.presentFrames > 4) this.present = true;
-		} else {
-			this.absentFrames += 1;
-			this.presentFrames = 0;
-			if (this.absentFrames > 12) this.present = false;
-		}
-		const mirror = (i) => ({
-			x: 1 - pose[i].x,
-			y: pose[i].y,
-			v: vis(i)
-		});
-		const lShoulder = mirror(LS);
-		const rShoulder = mirror(RS);
-		const lWrist = mirror(LW);
-		const rWrist = mirror(RW);
-		const handsUp = lWrist.v > .35 && rWrist.v > .35 && lWrist.y < lShoulder.y - .05 && rWrist.y < rShoulder.y - .05;
-		const zAt = (i) => world?.[i]?.z ?? pose[i]?.z ?? 0;
-		this.history.push({
-			t: now,
-			lx: lWrist.x,
-			ly: lWrist.y,
-			lz: zAt(LW),
-			lv: lWrist.v,
-			rx: rWrist.x,
-			ry: rWrist.y,
-			rz: zAt(RW),
-			rv: rWrist.v
-		});
-		if (this.history.length > 22) this.history.shift();
-		if (!this.present) this.history = [];
-		const armed = this.present && this.isArmed();
-		let throwEvent = null;
-		if (!handsUp && this.present && now >= this.throwCooldownUntil) {
-			throwEvent = this.detectThrow(now);
-			if (throwEvent) {
-				const handY = Math.min(lWrist.y, rWrist.y);
-				const shoulderY = (lShoulder.y + rShoulder.y) / 2;
-				throwEvent.aimY = aimFromWrist(.5, handY, shoulderY, 0).aimY;
-				this.throwCooldownUntil = now + 520;
-			}
-		}
-		const shoulderY = (lShoulder.y + rShoulder.y) / 2;
-		const chestStill = this.present && lWrist.v > .5 && rWrist.v > .5 && lShoulder.v > .45 && rShoulder.v > .45 && Math.abs(lWrist.x - rWrist.x) < .14 && Math.abs(lWrist.y - rWrist.y) < .12 && lWrist.y > shoulderY + .02 && lWrist.y < shoulderY + .32 && rWrist.y > shoulderY + .02 && rWrist.y < shoulderY + .32;
-		const skeleton = [
-			0,
-			11,
-			12,
-			13,
-			14,
-			15,
-			16,
-			23,
-			24
-		].map((i) => mirror(i));
-		this.lastFrame = {
-			present: this.present,
-			handsUp,
-			throwEvent,
-			skeleton,
-			armed,
-			chestStill
-		};
-		return this.lastFrame;
-	}
-	inferSource(video) {
-		if (!this.inferCanvas) {
-			this.inferCanvas = document.createElement("canvas");
-			this.inferCanvas.width = 256;
-			this.inferCanvas.height = 192;
-		}
-		const ctx = this.inferCanvas.getContext("2d");
-		if (!ctx || video.videoWidth < 2) return video;
-		ctx.drawImage(video, 0, 0, 256, 192);
-		return this.inferCanvas;
-	}
-	isArmed() {
-		const hist = this.history;
-		if (hist.length < 4) return false;
-		const cur = hist[hist.length - 1];
-		const old = hist.find((s) => cur.t - s.t >= 140) ?? hist[0];
-		const leftDown = old.ly + .04 < cur.ly;
-		const rightDown = old.ry + .04 < cur.ry;
-		return leftDown || rightDown;
-	}
-	detectThrow(now) {
-		const hist = this.history;
-		if (hist.length < 5) return null;
-		const cur = hist[hist.length - 1];
-		const prev = hist.find((s) => now - s.t >= 60) ?? hist[Math.max(0, hist.length - 4)];
-		const wind = hist.find((s) => now - s.t >= 140) ?? hist[0];
-		const dt = Math.max(.035, (cur.t - prev.t) / 1e3);
-		const hands = [{
-			vx: (cur.lx - prev.lx) / dt,
-			vy: (cur.ly - prev.ly) / dt,
-			vz: (cur.lz - prev.lz) / dt,
-			x: cur.lx,
-			y: cur.ly,
-			dy: wind.ly - cur.ly,
-			dx: Math.abs(cur.lx - wind.lx),
-			v: Math.min(cur.lv, wind.lv)
-		}, {
-			vx: (cur.rx - prev.rx) / dt,
-			vy: (cur.ry - prev.ry) / dt,
-			vz: (cur.rz - prev.rz) / dt,
-			x: cur.rx,
-			y: cur.ry,
-			dy: wind.ry - cur.ry,
-			dx: Math.abs(cur.rx - wind.rx),
-			v: Math.min(cur.rv, wind.rv)
-		}];
-		let best = null;
-		let bestScore = 0;
-		for (const hand of hands) {
-			const speed = Math.hypot(hand.vx, hand.vy);
-			const towardCamera = hand.vz < -.45;
-			const upward = hand.vy < -.85;
-			const windup = hand.dy > .07;
-			const traveled = hand.dy > .05 || hand.dx > .08;
-			if (!(hand.v > .45 && windup && traveled && speed > 1.05 && (upward || towardCamera))) continue;
-			const score = speed + (upward ? .4 : 0) + (towardCamera ? .35 : 0);
-			if (score > bestScore) {
-				bestScore = score;
-				best = {
-					power: Math.max(.42, Math.min(1, (speed - .6) / 2.4)),
-					...aimFromWrist(hand.x, hand.y, .45, hand.vx)
-				};
-			}
-		}
-		return best;
-	}
-};
-function errorName(err) {
-	if (err && typeof err === "object" && "name" in err) return String(err.name);
-	return "";
-}
-function withTimeout(promise, ms) {
-	return new Promise((resolve, reject) => {
-		const id = window.setTimeout(() => {
-			reject(Object.assign(/* @__PURE__ */ new Error("timeout"), { name: "TimeoutError" }));
-		}, ms);
-		promise.then((value) => {
-			window.clearTimeout(id);
-			resolve(value);
-		}, (err) => {
-			window.clearTimeout(id);
-			reject(err);
-		});
+	const aspect = video && video.videoWidth > 0 ? video.videoWidth / video.videoHeight : 4 / 3;
+	const sw = Math.max(.02, Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y));
+	const k = w * .36 / sw;
+	const cx = (ls.x + rs.x) / 2 * aspect;
+	const cy = (ls.y + rs.y) / 2;
+	const P = (i) => ({
+		x: w / 2 + (skeleton[i].x * aspect - cx) * k,
+		y: h * .42 + (skeleton[i].y - cy) * k,
+		v: skeleton[i].v
 	});
-}
-async function playVideo(video) {
-	try {
-		await video.play();
-	} catch {
-		await new Promise((r) => window.setTimeout(r, 120));
-		await video.play();
+	const limb = (a, b, col, width) => {
+		const pa = P(a);
+		const pb = P(b);
+		if (pa.v < .3 || pb.v < .3) return;
+		ctx.beginPath();
+		ctx.moveTo(pa.x, pa.y);
+		ctx.lineTo(pb.x, pb.y);
+		ctx.lineWidth = width + 10;
+		ctx.strokeStyle = INK;
+		ctx.stroke();
+		ctx.lineWidth = width;
+		ctx.strokeStyle = col;
+		ctx.stroke();
+	};
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+	const body = present ? C.cream : "rgba(255,244,220,0.5)";
+	const arm = present ? C.yellow : "rgba(255,210,58,0.5)";
+	const pls = P(1);
+	const prs = P(2);
+	const plh = P(7);
+	const prh = P(8);
+	ctx.beginPath();
+	ctx.moveTo(pls.x, pls.y);
+	ctx.lineTo(prs.x, prs.y);
+	ctx.lineTo(prh.v > .3 ? prh.x : prs.x - 8, prh.v > .3 ? prh.y : h + 20);
+	ctx.lineTo(plh.v > .3 ? plh.x : pls.x + 8, plh.v > .3 ? plh.y : h + 20);
+	ctx.closePath();
+	ink(ctx, body, 8);
+	limb(1, 3, arm, 18);
+	limb(3, 5, arm, 18);
+	limb(2, 4, arm, 18);
+	limb(4, 6, arm, 18);
+	for (const i of [5, 6]) {
+		const p = P(i);
+		if (p.v < .3) continue;
+		circle(ctx, p.x, p.y, 14);
+		ink(ctx, C.red, 6);
 	}
-}
-function isFramed() {
-	try {
-		return window.self !== window.top;
-	} catch {
-		return true;
-	}
-}
-function explainCameraError(err) {
-	const name = errorName(err);
-	if (!navigator.mediaDevices?.getUserMedia) return "이 주소에서는 카메라를 쓸 수 없습니다. Chrome으로 열고, 주소가 https 또는 localhost인지 확인하세요.";
-	if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-		if (isFramed()) return "이 미리보기 창은 카메라를 막습니다. 아래 ‘새 창에서 열기’를 누르세요.";
-		return "브라우저가 카메라를 막았습니다. 주소창 왼쪽 자물쇠/카메라 아이콘에서 허용을 고른 뒤 다시 시도하세요.";
-	}
-	if (name === "NotFoundError" || name === "DevicesNotFoundError") return "연결된 웹캠이 없습니다. 카메라를 꽂고 다시 시도하세요.";
-	if (name === "NotReadableError" || name === "TrackStartError") return "다른 프로그램이 카메라를 사용 중입니다. Zoom/Teams를 끄고 다시 시도하세요.";
-	if (name === "TimeoutError") return "카메라 응답이 없습니다. 권한 창이 다른 창 뒤에 가려졌는지 확인하세요.";
-	if (name === "SecurityError") return "보안 주소가 아니라 카메라를 켤 수 없습니다. Chrome에서 https로 여세요.";
-	return "카메라를 켜지 못했습니다. 주소창에서 카메라 권한을 확인하세요.";
+	const nose = P(0);
+	circle(ctx, nose.v > .3 ? nose.x : (pls.x + prs.x) / 2, nose.v > .3 ? nose.y : pls.y - w * .3, w * .17);
+	ink(ctx, present ? "#ffcf9e" : "rgba(255,207,158,0.5)", 7);
+	ctx.restore();
 }
 function loadScores() {
 	try {
@@ -2153,6 +1789,10 @@ function randomVerse(except) {
 	const pool = except ? VERSES.filter((v) => v.ref !== except) : VERSES;
 	return pool[Math.floor(Math.random() * pool.length)] ?? VERSES[0];
 }
+var HANDS_UP_SECONDS = 1;
+var PRACTICE_THROWS = 2;
+var PRACTICE_MAX_SECONDS = 15;
+var AIM_ASSIST_PX = 110;
 var Game = class {
 	audio;
 	emit;
@@ -2203,8 +1843,14 @@ var Game = class {
 	demoAcc = 0;
 	countdownAcc = 0;
 	resultAcc = 0;
+	/** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
 	handsHold = 0;
-	personHold = 0;
+	handsLost = 0;
+	handsUpProgress = 0;
+	tooFar = false;
+	offCenter = false;
+	practiceThrows = 0;
+	practiceIdle = 0;
 	vacantHold = 0;
 	charging = false;
 	chargeX = 0;
@@ -2336,6 +1982,8 @@ var Game = class {
 	}
 	notePose(frame) {
 		this.personPresent = frame.present;
+		this.tooFar = frame.present && frame.tooFar;
+		this.offCenter = frame.present && frame.offCenter;
 		if (!frame.present) {
 			this.armed = false;
 			this.chestStill = false;
@@ -2343,7 +1991,7 @@ var Game = class {
 			if ((this.phase === "play" || this.phase === "countdown" || this.phase === "practice") && !this.checkMode && this.cameraState === "live") {
 				const t = performance.now();
 				if (this.absentHold === 0) this.absentHold = t;
-				if (t - this.absentHold > 1200) {
+				if (t - this.absentHold > 1500) {
 					this.abortRound("사람이 화면에서 벗어나 이번 경기는 기록하지 않습니다");
 					return;
 				}
@@ -2357,35 +2005,43 @@ var Game = class {
 		}
 		this.absentHold = 0;
 		this.armed = frame.armed;
-		this.chestStill = frame.present && frame.chestStill;
-		if (frame.skeleton && frame.skeleton.length > 6 && !this.queued) {
-			const shoulderY = ((frame.skeleton[1]?.y ?? .45) + (frame.skeleton[2]?.y ?? .45)) / 2;
-			const lw = frame.skeleton[5];
-			const rw = frame.skeleton[6];
-			const hand = lw && rw ? lw.y < rw.y ? lw : rw : lw ?? rw;
-			if (hand && !this.pointerHolding) {
-				const aimed = aimFromWrist(hand.x, hand.y, shoulderY, 0);
-				this.aimX += (aimed.aimX - this.aimX) * .35;
-				this.aimY += (aimed.aimY - this.aimY) * .35;
-			}
+		this.chestStill = frame.chestStill;
+		if (frame.aim && !this.queued && !this.pointerHolding) {
+			this.aimX = frame.aim.aimX;
+			this.aimY = frame.aim.aimY;
 		}
-		if ((this.phase === "play" || this.phase === "practice") && frame.armed) this.charge = Math.max(this.charge, .82);
-		const now = performance.now();
-		if (this.phase === "attract") {
-			if (frame.present && frame.handsUp && this.poseReady) {
-				if (this.personHold === 0) this.personHold = now;
-				if (now - this.personHold > 700) this.goStart();
-			} else this.personHold = 0;
-		}
-		if (this.phase === "start" && frame.handsUp && frame.present) {
-			if (this.handsHold === 0) this.handsHold = now;
-			if (now - this.handsHold > 700) this.goPractice();
-		} else if (this.phase === "start") this.handsHold = 0;
+		if ((this.phase === "play" || this.phase === "practice") && frame.armed) this.charge = Math.max(this.charge, .6);
+		this.handsUpSeen = frame.handsUp && !frame.tooFar;
 		if ((this.phase === "play" || this.phase === "practice") && frame.throwEvent) {
 			if (!this.checkMode) this.inputVia = "webcam";
 			this.launch(frame.throwEvent);
 		}
-		if (this.phase === "result" && frame.present) this.vacantHold = 0;
+		if (this.phase === "result") this.vacantHold = 0;
+	}
+	handsUpSeen = false;
+	/** 시작 동작: 양손을 머리 위로 1초 유지. 0.25초 이내로 놓친 것은 봐준다. */
+	stepHandsUp(dt) {
+		if (!(this.phase === "attract" || this.phase === "start") || !this.poseReady || this.cameraState !== "live") {
+			this.handsHold = 0;
+			this.handsLost = 0;
+			this.handsUpProgress = 0;
+			return;
+		}
+		if (this.handsUpSeen && this.personPresent) {
+			this.handsHold += dt;
+			this.handsLost = 0;
+		} else {
+			this.handsLost += dt;
+			if (this.handsLost > .25) this.handsHold = Math.max(0, this.handsHold - dt * 2);
+		}
+		this.handsUpProgress = Math.min(1, this.handsHold / HANDS_UP_SECONDS);
+		if (this.handsHold >= HANDS_UP_SECONDS) {
+			this.handsHold = 0;
+			this.handsUpProgress = 0;
+			this.audio.play("start");
+			if (this.phase === "attract") this.goStart();
+			this.goPractice();
+		}
 	}
 	pointerDown(x, y, id) {
 		this.pointerId = id;
@@ -2542,9 +2198,13 @@ var Game = class {
 				this.pushUi(true);
 			}
 		}
-		if (this.phase === "practice" && this.practiceLeft > 0) {
-			this.practiceLeft -= real;
-			if (this.practiceLeft <= 0) this.goCountdown();
+		this.stepHandsUp(real);
+		if (this.phase === "practice") {
+			this.practiceIdle += real;
+			if (this.practiceLeft > 0) {
+				this.practiceLeft -= real;
+				if (this.practiceLeft <= 0) this.goCountdown();
+			} else if (this.practiceIdle > PRACTICE_MAX_SECONDS) this.goCountdown();
 		}
 		if (this.phase === "result") {
 			this.resultAcc += real;
@@ -2604,6 +2264,8 @@ var Game = class {
 		this.stones = [];
 		this.queued = null;
 		this.practiceLeft = 0;
+		this.practiceThrows = 0;
+		this.practiceIdle = 0;
 		this.absentHold = 0;
 		this.score = 0;
 		this.combo = 0;
@@ -2685,7 +2347,7 @@ var Game = class {
 		this.freezeHold = 0;
 		this.freezeCd = 0;
 		this.absentHold = 0;
-		this.personHold = 0;
+		this.handsHold = 0;
 		this.handsHold = 0;
 		this.throwCool = 0;
 		this.hitStop = 0;
@@ -2729,7 +2391,7 @@ var Game = class {
 	goAttract() {
 		this.audio.stopBeat();
 		this.phase = "attract";
-		this.personHold = 0;
+		this.handsHold = 0;
 		this.vacantHold = 0;
 		this.resultAcc = 0;
 		this.confirmReset = false;
@@ -2771,6 +2433,7 @@ var Game = class {
 		if (!demo && !live) return false;
 		if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0)) return false;
 		if (this.stones.length >= 6) return false;
+		if (!demo) ev = this.assistAim(ev);
 		this.aimX = ev.aimX;
 		this.aimY = ev.aimY;
 		this.charge = 0;
@@ -2781,8 +2444,25 @@ var Game = class {
 		};
 		this.releaseLeft = demo || immediate ? 0 : .08;
 		if (this.releaseLeft <= 0) this.releaseQueued(0);
-		if (!demo && this.phase === "practice") this.practiceLeft = 1.2;
+		if (!demo && this.phase === "practice") {
+			this.practiceThrows += 1;
+			if (this.practiceThrows >= PRACTICE_THROWS) this.practiceLeft = 1.4;
+		}
 		return true;
+	}
+	/** 아이용 보정: 급소가 열렸을 때 이마 근처를 노리면 이마로 붙인다. */
+	assistAim(ev) {
+		if (!this.critOpen()) return ev;
+		const F = GOLIATH_LOCAL.forehead;
+		const fx = this.goliathX + F.x;
+		const fy = 70 + this.goliathBob + F.y;
+		const p = aimPoint(ev.aimX, ev.aimY);
+		if (Math.hypot(p.x - fx, (p.y - fy) * 1.3) > AIM_ASSIST_PX) return ev;
+		return {
+			...ev,
+			aimX: Math.max(-1, Math.min(1, (fx - WORLD_W / 2) / 280)),
+			aimY: Math.max(-1, Math.min(1, (fy - 670) / 340))
+		};
 	}
 	decayThrow(dt) {
 		if (this.followLeft > 0) {
@@ -3230,7 +2910,8 @@ var Game = class {
 			Math.ceil(snap.freezeLeft * 5),
 			snap.inputVia,
 			snap.verse.ref,
-			snap.scores.length
+			snap.scores.length,
+			Math.round(snap.handsUpProgress * 20)
 		].join("|");
 		if (!force && key === this.lastUiKey) return;
 		this.lastUiKey = key;
@@ -3266,7 +2947,8 @@ var Game = class {
 			freezeCd: this.freezeCd,
 			freezeFound: this.freezeFound,
 			inputVia: this.inputVia,
-			checkMode: this.checkMode
+			checkMode: this.checkMode,
+			handsUpProgress: this.handsUpProgress
 		};
 	}
 	goliathPose() {
@@ -3300,8 +2982,13 @@ var Game = class {
 		if (this.modelState === "failed") return this.modelError || "모션을 다시 준비해 주세요";
 		if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
 		if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
-		if (this.phase === "start") return "양손을 머리 위로 들어 시작";
-		if (this.phase === "practice") return "팔을 뒤로 젖혔다가 앞으로 휘두르세요";
+		if (this.tooFar) return "조금 더 앞으로 와 주세요";
+		if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
+		if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
+		if (this.phase === "practice") {
+			if (this.armed) return "좋아요! 이제 앞으로 힘껏 던지세요";
+			return `손을 머리 위로 들었다가 앞으로 던지세요 (${this.practiceThrows}/${PRACTICE_THROWS})`;
+		}
 		if (this.phase === "play") {
 			if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
 			if (this.critOpen()) return "금빛이 보일 때 이마를 노려요";
@@ -3309,9 +2996,9 @@ var Game = class {
 			if (this.shieldUp) return "방패를 피하세요";
 			if (this.aiAct === "left") return "왼쪽으로 피합니다";
 			if (this.aiAct === "right") return "오른쪽으로 피합니다";
-			return "조준한 곳으로 돌이 날아갑니다";
+			if (this.armed) return "던지세요!";
+			return "손을 든 높이로 돌이 날아갑니다";
 		}
-		if (this.phase === "attract") return "카메라 앞에 서면 시작합니다";
 		return "";
 	}
 };
@@ -3405,7 +3092,7 @@ function Ribbon({ children, tone = "don" }) {
 }
 function Title({ size = "lg" }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
-		className: `t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : "text-4xl"}`,
+		className: `t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`,
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: "text-sun",
@@ -3437,7 +3124,7 @@ function LogoBadge({ size = 96 }) {
 		})
 	});
 }
-function VerseBlock({ ui, large }) {
+function VerseBlock({ ui, large, compact }) {
 	const words = ui.verse.text.trim().split(/\s+/);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "t-panel relative w-full px-5 pt-7 pb-4 text-center",
@@ -3450,7 +3137,7 @@ function VerseBlock({ ui, large }) {
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("blockquote", {
-				className: `font-display leading-snug text-ink ${large ? "text-2xl" : "text-xl"}`,
+				className: `font-display leading-snug text-ink ${large ? "text-2xl" : compact ? "text-lg" : "text-xl"}`,
 				style: {
 					wordBreak: "keep-all",
 					lineBreak: "strict"
@@ -3474,6 +3161,48 @@ function HintPill({ children }) {
 		children
 	});
 }
+/** 제작사 표기. full이면 사업자 정보까지. */
+function Credit({ full }) {
+	if (!full) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "flex items-center justify-center gap-2 text-[11px] font-bold text-fg-muted",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "제작" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+			src: PRODUCER.logo,
+			alt: PRODUCER.name,
+			className: "h-3.5 w-auto"
+		})]
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "w-full rounded-2xl border-4 border-ink bg-paper/95 px-4 py-2.5 text-center",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "flex items-center justify-center gap-2",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: "font-display text-sm text-fg-muted",
+				children: "제작"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+				src: PRODUCER.logo,
+				alt: PRODUCER.name,
+				className: "h-5 w-auto"
+			})]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+			className: "mt-1.5 text-[10px] leading-relaxed text-fg-muted text-pretty",
+			style: { wordBreak: "keep-all" },
+			children: [
+				"상호 ",
+				PRODUCER.name,
+				" · 대표 ",
+				PRODUCER.ceo,
+				" · 사업자등록번호 ",
+				PRODUCER.bizNo,
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+				PRODUCER.address,
+				" · ",
+				PRODUCER.phone,
+				" · ",
+				PRODUCER.email
+			]
+		})]
+	});
+}
 function Boot({ ui, onBegin }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 		type: "button",
@@ -3485,7 +3214,7 @@ function Boot({ ui, onBegin }) {
 			stop(e);
 			onBegin();
 		},
-		className: "pointer-events-auto flex h-full w-full touch-manipulation flex-col items-center justify-center gap-7 bg-ink/40 px-7 text-center",
+		className: "pointer-events-auto relative flex h-full w-full touch-manipulation flex-col items-center justify-center gap-6 bg-ink/40 px-7 pb-28 text-center",
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 104 }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -3502,6 +3231,10 @@ function Boot({ ui, onBegin }) {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: "t-btn animate-throb bg-don px-9 py-4 text-2xl text-cream",
 				children: "화면을 눌러 시작"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "absolute inset-x-4 bottom-4",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Credit, { full: true })
 			})
 		]
 	});
@@ -3512,19 +3245,28 @@ var MEDAL = [
 	"bg-[#e0955a]"
 ];
 function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
-	const top = ui.scores.slice(0, 8);
+	const top = ui.scores.slice(0, 5);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
-			className: "pointer-events-none flex flex-col items-center gap-3 px-5 pt-5",
+			className: "pointer-events-none flex flex-col items-center gap-2 px-4 pt-4",
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex items-center gap-3",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 56 }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Title, { size: "md" })]
+				className: "flex items-center gap-2 pr-12",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 46 }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Title, { size: "sm" })]
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "mt-4 w-full",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, { ui })
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, {
+					ui,
+					compact: true
+				})
 			})]
 		}),
-		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "flex-1" }),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "flex flex-1 items-center justify-center",
+			children: !ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HandsUpPrompt, {
+				progress: ui.handsUpProgress,
+				small: true
+			})
+		}),
 		ui.banner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: "mb-3 px-5",
 			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HintPill, { children: ui.banner })
@@ -3542,11 +3284,11 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 						stop(e);
 						onStart();
 					},
-					className: "t-btn h-16 w-full touch-manipulation bg-don text-2xl text-cream",
+					className: "t-btn h-14 w-full touch-manipulation bg-don text-2xl text-cream",
 					children: "시작하기"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "mt-3 text-center text-sm font-bold text-fg-muted",
+					className: "mt-2.5 text-center text-sm font-bold text-fg-muted",
 					children: ui.motionHint
 				}),
 				ui.checkMode ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
@@ -3575,7 +3317,7 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
-					className: "mt-2 space-y-1.5",
+					className: "mt-1.5 space-y-1",
 					children: [top.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
 						className: "py-2 text-center font-display text-lg text-fg-muted",
 						children: "첫 번째 용사를 기다립니다"
@@ -3583,11 +3325,11 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 						className: "flex items-center gap-3",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: `flex size-8 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`,
+								className: `flex size-7 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`,
 								children: i + 1
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "flex-1 font-display text-xl tabular-nums",
+								className: "flex-1 font-display text-lg tabular-nums",
 								children: row.score.toLocaleString("ko-KR")
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -3608,6 +3350,10 @@ function Attract({ ui, onStart, onAskReset, onRetryCamera, onRetryMotion }) {
 					onClick: onRetryMotion,
 					className: "mt-2 h-10 w-full text-sm font-bold text-fg-muted underline",
 					children: "모션 다시 준비"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "mt-2.5 border-t-2 border-dashed border-ink/20 pt-2",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Credit, {})
 				})
 			]
 		})
@@ -3626,11 +3372,7 @@ function Start({ ui, onStart, onRetryCamera, onRetryMotion, onOpenWindow }) {
 				className: "mt-2 w-full",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, { ui })
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(HandsUpMark, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-				className: "t-outline font-display text-3xl text-cream",
-				children: "양손 번쩍! 하면 연습 시작"
-			}),
+			!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HandsUpPrompt, { progress: ui.handsUpProgress }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				onPointerUp: (e) => {
@@ -3723,53 +3465,95 @@ function ModelHelp({ ui, onRetry }) {
 		]
 	});
 }
-function HandsUpMark() {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-		viewBox: "0 0 120 130",
-		className: "animate-bob h-28 w-24",
-		"aria-hidden": "true",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("g", {
-				fill: "none",
-				stroke: "var(--color-ink)",
-				strokeWidth: "18",
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" })
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("g", {
-				fill: "none",
-				stroke: "var(--color-cream)",
-				strokeWidth: "9",
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M60 62v30M60 72L34 40M60 72l26-32M60 92l-16 26M60 92l16 26" })
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-				cx: "60",
-				cy: "40",
-				r: "17",
-				fill: "var(--color-sun)",
-				stroke: "var(--color-ink)",
-				strokeWidth: "5"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-				cx: "30",
-				cy: "34",
-				r: "9",
-				fill: "var(--color-don)",
-				stroke: "var(--color-ink)",
-				strokeWidth: "4"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-				cx: "90",
-				cy: "34",
-				r: "9",
-				fill: "var(--color-don)",
-				stroke: "var(--color-ink)",
-				strokeWidth: "4"
-			})
-		]
+/** 양손 번쩍 그림과 유지 게이지. 다 차면 연습이 시작된다. */
+function HandsUpPrompt({ progress, label = true, small }) {
+	const R = 56;
+	const len = 2 * Math.PI * R;
+	const holding = progress > .02;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "flex flex-col items-center gap-2",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+			viewBox: "0 0 140 140",
+			className: `${small ? "size-28" : "size-36"} ${holding ? "" : "animate-bob"}`,
+			"aria-hidden": "true",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "70",
+					cy: "70",
+					r: R,
+					fill: "var(--color-paper)",
+					stroke: "var(--color-ink)",
+					strokeWidth: "18"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "70",
+					cy: "70",
+					r: R,
+					fill: "none",
+					stroke: "var(--color-cream)",
+					strokeWidth: "9"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "70",
+					cy: "70",
+					r: R,
+					fill: "none",
+					stroke: "var(--color-don)",
+					strokeWidth: "9",
+					strokeLinecap: "round",
+					strokeDasharray: `${len * progress} ${len}`,
+					transform: "rotate(-90 70 70)"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", {
+					transform: "translate(10 6)",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("g", {
+							fill: "none",
+							stroke: "var(--color-ink)",
+							strokeWidth: "16",
+							strokeLinecap: "round",
+							strokeLinejoin: "round",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M60 64v26M60 74L38 46M60 74l22-28M60 90l-13 22M60 90l13 22" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("g", {
+							fill: "none",
+							stroke: "var(--color-orange)",
+							strokeWidth: "8",
+							strokeLinecap: "round",
+							strokeLinejoin: "round",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M60 64v26M60 74L38 46M60 74l22-28M60 90l-13 22M60 90l13 22" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+							cx: "60",
+							cy: "46",
+							r: "14",
+							fill: "var(--color-sun)",
+							stroke: "var(--color-ink)",
+							strokeWidth: "5"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+							cx: "35",
+							cy: "40",
+							r: "8",
+							fill: "var(--color-don)",
+							stroke: "var(--color-ink)",
+							strokeWidth: "4"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+							cx: "85",
+							cy: "40",
+							r: "8",
+							fill: "var(--color-don)",
+							stroke: "var(--color-ink)",
+							strokeWidth: "4"
+						})
+					]
+				})
+			]
+		}), label && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+			className: `animate-pop t-outline font-display text-cream ${small ? "text-2xl" : "text-3xl"}`,
+			children: holding ? "그대로 유지!" : "양손 번쩍!"
+		}, holding ? "hold" : "idle")]
 	});
 }
 function Practice({ ui, onSkip }) {
@@ -3814,12 +3598,16 @@ function Countdown({ n }) {
 			children: n > 0 ? n : "시작!"
 		}, n), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "t-panel max-w-[80%] px-5 py-3 text-center",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 				className: "font-display text-xl",
-				children: "금빛 표적이 뜰 때 이마 = 크리티컬!"
+				style: { wordBreak: "keep-all" },
+				children: ["금빛 표적이 뜨면 ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: "whitespace-nowrap",
+					children: "이마 = 크리티컬!"
+				})]
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "mt-1 text-sm text-fg-muted",
-				children: "하얀 점선이 가는 곳으로 돌이 날아갑니다"
+				children: "손을 든 높이로 돌이 날아갑니다"
 			})]
 		})]
 	});
@@ -3961,6 +3749,676 @@ function Result({ ui, onNext }) {
 		]
 	});
 }
+var NOSE = 0;
+var SHOULDER = [11, 12];
+var ELBOW = [13, 14];
+var WRIST = [15, 16];
+var PINKY = [17, 18];
+var INDEX = [19, 20];
+var MOTION = {
+	/** 이 높이(어깨선 위)부터 장전. */
+	cockHeight: -.25,
+	/** 손이 몸 뒤로 이만큼(미터) 젖혀져도 장전. */
+	cockBackZ: .15,
+	/** 장전 후 이 시간 안에 던지지 않으면 풀린다. */
+	cockHoldMs: 700,
+	/** 투척: 아래로 내리는 속도(s/초)와 꼭대기에서 내려온 거리. */
+	releaseDownSpeed: 4,
+	releaseDrop: .7,
+	/** 투척: 카메라 쪽으로 미는 속도(m/초). */
+	releaseForwardSpeed: 1.6,
+	/** 장전 없이 크게 휘두른 경우(옆던지기·아래던지기). */
+	swingSpeed: 7.5,
+	swingTravel: 1.3,
+	throwCooldownMs: 420,
+	/** 시작 동작: 두 손을 어깨선 위 이만큼(머리 위). */
+	handsUpHeight: -.9,
+	/** 너무 멀다고 보는 어깨너비(화면 높이 대비). */
+	nearScale: .09,
+	minScale: .055,
+	centerSlack: .28
+};
+var clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+/** 떨림은 줄이고 빠른 움직임은 늦추지 않는 필터. */
+var OneEuro = class {
+	x = null;
+	dx = 0;
+	t = 0;
+	minCutoff;
+	beta;
+	dCutoff;
+	constructor(minCutoff = 1.4, beta = .7, dCutoff = 1) {
+		this.minCutoff = minCutoff;
+		this.beta = beta;
+		this.dCutoff = dCutoff;
+	}
+	reset() {
+		this.x = null;
+		this.dx = 0;
+	}
+	filter(v, tMs) {
+		if (this.x === null) {
+			this.x = v;
+			this.t = tMs;
+			return v;
+		}
+		const dt = Math.max(.001, (tMs - this.t) / 1e3);
+		this.t = tMs;
+		const a = (cut) => 1 / (1 + 1 / (2 * Math.PI * cut * dt));
+		const dv = (v - this.x) / dt;
+		this.dx += a(this.dCutoff) * (dv - this.dx);
+		const cut = this.minCutoff + this.beta * Math.abs(this.dx);
+		this.x += a(cut) * (v - this.x);
+		return this.x;
+	}
+};
+var newHand = () => ({
+	hist: [],
+	ready: false,
+	readyT: 0,
+	cocked: false,
+	lastCockT: 0,
+	peakHy: 0,
+	peakAim: {
+		aimX: 0,
+		aimY: 0
+	}
+});
+/** 몸 좌표의 손 위치 → 조준. 손을 든 높이가 세로, 몸이 선 자리와 손의 좌우가 가로. */
+function aimFromHand(hxs, hy, bodyX) {
+	return {
+		aimX: clamp(hxs * .6 + (bodyX - .5) * 2.2, -1, 1),
+		aimY: clamp((hy + .35) / .95, -1, 1)
+	};
+}
+var MotionTracker = class {
+	hands = [newHand(), newHand()];
+	scale = 0;
+	presentFrames = 0;
+	absentFrames = 0;
+	present = false;
+	cooldownUntil = 0;
+	activeSide = 1;
+	fx = new OneEuro();
+	fy = new OneEuro();
+	reset() {
+		this.hands = [newHand(), newHand()];
+		this.cooldownUntil = 0;
+		this.fx.reset();
+		this.fy.reset();
+	}
+	update(body, t) {
+		const none = {
+			present: this.present,
+			tooFar: false,
+			offCenter: false,
+			handsUp: false,
+			armed: false,
+			chestStill: false,
+			aim: null,
+			throwEvent: null
+		};
+		if (!body) {
+			this.markAbsent();
+			none.present = this.present;
+			return none;
+		}
+		const { img, aspect } = body;
+		const P = (i) => img[i] ?? {
+			x: 0,
+			y: 0,
+			v: 0
+		};
+		const ls = P(SHOULDER[0]);
+		const rs = P(SHOULDER[1]);
+		const rawScale = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
+		if (!(ls.v > .4 && rs.v > .4 && rawScale > MOTION.minScale && (P(NOSE).v > .3 || P(23).v > .3))) {
+			this.markAbsent();
+			none.present = this.present;
+			return none;
+		}
+		this.absentFrames = 0;
+		this.presentFrames += 1;
+		if (this.presentFrames >= 3) this.present = true;
+		this.scale = this.scale > 0 ? this.scale + (rawScale - this.scale) * .25 : rawScale;
+		const s = this.scale;
+		const cxN = (ls.x + rs.x) / 2;
+		const cx = cxN * aspect;
+		const cy = (ls.y + rs.y) / 2;
+		const z = (i) => body.worldZ?.[i] ?? 0;
+		const samples = [0, 1].map((side) => {
+			const sh = P(SHOULDER[side]);
+			const pt = handPoint(body, side);
+			if (!pt) return null;
+			return {
+				t,
+				hx: (pt.X - cx) / s,
+				hy: (pt.Y - cy) / s,
+				hxs: (pt.X - sh.x * aspect) / s,
+				dz: body.worldZ ? pt.z - z(SHOULDER[side]) : 0,
+				conf: pt.conf,
+				fromWrist: pt.fromWrist
+			};
+		});
+		let throwEvent = null;
+		let bestPower = 0;
+		for (const side of [0, 1]) {
+			const sample = samples[side];
+			const hand = this.hands[side];
+			if (!sample || sample.conf < .3) {
+				if (hand.cocked && t - hand.lastCockT > MOTION.cockHoldMs) hand.cocked = false;
+				continue;
+			}
+			hand.hist.push(sample);
+			while (hand.hist.length > 0 && t - hand.hist[0].t > 600) hand.hist.shift();
+			const ev = this.stepHand(hand, sample, cxN, t);
+			if (ev && ev.power > bestPower) {
+				bestPower = ev.power;
+				throwEvent = ev;
+				this.activeSide = side;
+			}
+		}
+		const [L, R] = samples;
+		const handsUp = !!L && !!R && L.fromWrist && R.fromWrist && L.conf > .45 && R.conf > .45 && L.hy < MOTION.handsUpHeight && R.hy < MOTION.handsUpHeight;
+		if (handsUp) {
+			throwEvent = null;
+			for (const h of this.hands) {
+				h.cocked = false;
+				h.ready = false;
+			}
+		}
+		if (throwEvent) {
+			this.cooldownUntil = t + MOTION.throwCooldownMs;
+			for (const h of this.hands) h.cocked = false;
+		}
+		const chestStill = !!L && !!R && L.conf > .5 && R.conf > .5 && Math.abs(L.hx - R.hx) < .55 && Math.abs(L.hy - R.hy) < .45 && L.hy > .1 && L.hy < 1.8 && R.hy > .1 && R.hy < 1.8 && speedOf(this.hands[0].hist) < 1.2 && speedOf(this.hands[1].hist) < 1.2;
+		const armed = !handsUp && this.hands.some((h) => h.cocked);
+		let side = this.activeSide;
+		const cockedSide = this.hands.findIndex((h) => h.cocked);
+		if (cockedSide >= 0) side = cockedSide;
+		else if (L && R) side = L.hy < R.hy ? 0 : 1;
+		else if (L) side = 0;
+		else if (R) side = 1;
+		this.activeSide = side;
+		const h = samples[side];
+		let aim = null;
+		if (h && h.conf >= .3) {
+			const raw = aimFromHand(h.hxs, h.hy, cxN);
+			aim = {
+				aimX: this.fx.filter(raw.aimX, t),
+				aimY: this.fy.filter(raw.aimY, t)
+			};
+		}
+		return {
+			present: this.present,
+			tooFar: s < MOTION.nearScale,
+			offCenter: Math.abs(cxN - .5) > MOTION.centerSlack,
+			handsUp,
+			armed,
+			chestStill,
+			aim,
+			throwEvent
+		};
+	}
+	markAbsent() {
+		this.presentFrames = 0;
+		this.absentFrames += 1;
+		if (this.absentFrames > 10) {
+			this.present = false;
+			this.hands = [newHand(), newHand()];
+			this.scale = 0;
+		}
+	}
+	stepHand(hand, cur, bodyX, t) {
+		if (!hand.ready) {
+			if (cur.hy > 0) {
+				hand.ready = true;
+				hand.readyT = t;
+			}
+			return null;
+		}
+		const isCock = cur.hy < MOTION.cockHeight || cur.dz > MOTION.cockBackZ;
+		const aimNow = aimFromHand(cur.hxs, cur.hy, bodyX);
+		if (isCock) {
+			if (!hand.cocked) {
+				hand.cocked = true;
+				hand.peakHy = cur.hy;
+				hand.peakAim = aimNow;
+			}
+			hand.lastCockT = t;
+			if (cur.hy <= hand.peakHy) {
+				hand.peakHy = cur.hy;
+				hand.peakAim = aimNow;
+			}
+		} else if (hand.cocked && t - hand.lastCockT > MOTION.cockHoldMs) hand.cocked = false;
+		if (t < this.cooldownUntil) return null;
+		const v = velocity(hand.hist, .05);
+		if (!v) return null;
+		if (hand.cocked) {
+			const drop = cur.hy - hand.peakHy;
+			const down = v.vy > MOTION.releaseDownSpeed && drop > MOTION.releaseDrop;
+			const forward = v.vdz < -MOTION.releaseForwardSpeed && drop > .3;
+			if (down || forward) {
+				const strength = Math.max(v.vy / 10, -v.vdz / 4, Math.hypot(v.vx, v.vy) / 11);
+				hand.cocked = false;
+				return {
+					...hand.peakAim,
+					power: clamp(.45 + strength * .55, .45, 1)
+				};
+			}
+			return null;
+		}
+		const speed = Math.hypot(v.vx, v.vy);
+		if (t - hand.readyT > 400 && speed > MOTION.swingSpeed && travelOf(hand.hist, .25) > MOTION.swingTravel) return {
+			...aimNow,
+			power: clamp(.45 + speed / 12 * .55, .45, 1)
+		};
+		return null;
+	}
+};
+/** 손 위치: 손목·새끼·검지 평균. 너무 빨라 손이 번지면 팔꿈치 방향으로 짐작한다. */
+function handPoint(body, side) {
+	const { img, aspect } = body;
+	const z = (i) => body.worldZ?.[i] ?? 0;
+	let sw = 0;
+	let sx = 0;
+	let sy = 0;
+	let sz = 0;
+	let best = 0;
+	for (const i of [
+		WRIST[side],
+		PINKY[side],
+		INDEX[side]
+	]) {
+		const p = img[i];
+		if (!p || p.v < .3) continue;
+		const w = i === WRIST[side] ? p.v * 1.5 : p.v;
+		sw += w;
+		sx += p.x * aspect * w;
+		sy += p.y * w;
+		sz += z(i) * w;
+		best = Math.max(best, p.v);
+	}
+	if (sw >= .45) return {
+		X: sx / sw,
+		Y: sy / sw,
+		z: sz / sw,
+		conf: best,
+		fromWrist: true
+	};
+	const e = img[ELBOW[side]];
+	const sh = img[SHOULDER[side]];
+	if (!e || !sh || e.v < .4 || sh.v < .4) return null;
+	const k = .85;
+	return {
+		X: (e.x + (e.x - sh.x) * k) * aspect,
+		Y: e.y + (e.y - sh.y) * k,
+		z: z(ELBOW[side]) + (z(ELBOW[side]) - z(SHOULDER[side])) * k,
+		conf: e.v * .6,
+		fromWrist: false
+	};
+}
+/** 최근 window초 사이 속도(s/초, m/초). */
+function velocity(hist, window) {
+	if (hist.length < 2) return null;
+	const cur = hist[hist.length - 1];
+	let ref = null;
+	for (let i = hist.length - 2; i >= 0; i--) if (cur.t - hist[i].t >= window * 1e3) {
+		ref = hist[i];
+		break;
+	}
+	if (!ref) return null;
+	const dt = (cur.t - ref.t) / 1e3;
+	if (dt > .25) return null;
+	return {
+		vx: (cur.hx - ref.hx) / dt,
+		vy: (cur.hy - ref.hy) / dt,
+		vdz: (cur.dz - ref.dz) / dt
+	};
+}
+function speedOf(hist) {
+	const v = velocity(hist, .1);
+	return v ? Math.hypot(v.vx, v.vy) : 0;
+}
+function travelOf(hist, window) {
+	if (hist.length < 2) return 0;
+	const cur = hist[hist.length - 1];
+	let d = 0;
+	for (let i = hist.length - 1; i > 0; i--) {
+		if (cur.t - hist[i - 1].t > window * 1e3) break;
+		d += Math.hypot(hist[i].hx - hist[i - 1].hx, hist[i].hy - hist[i - 1].hy);
+	}
+	return d;
+}
+var EMPTY = {
+	present: false,
+	handsUp: false,
+	throwEvent: null,
+	skeleton: null,
+	armed: false,
+	chestStill: false,
+	aim: null,
+	tooFar: false,
+	offCenter: false
+};
+/** 초당 추론 횟수 상한. 빠른 팔 동작을 놓치지 않을 만큼. */
+var INFER_MS = 30;
+/** 추론용으로 줄인 영상의 긴 변. 멀리 선 아이의 손목까지 보이게. */
+var INFER_LONG = 480;
+var PoseController = class {
+	video = null;
+	status = "off";
+	poseReady = false;
+	modelError = null;
+	error = null;
+	landmarker = null;
+	stream = null;
+	disconnected = false;
+	motion = new MotionTracker();
+	lastTs = 0;
+	lastInfer = 0;
+	inferCanvas = null;
+	present = false;
+	lastFrame = EMPTY;
+	resetMotion() {
+		this.motion.reset();
+	}
+	hasStream() {
+		return Boolean(this.stream);
+	}
+	trackLive() {
+		const track = this.stream?.getVideoTracks()[0];
+		return Boolean(track && track.readyState === "live");
+	}
+	takeDisconnect() {
+		const track = this.stream?.getVideoTracks()[0];
+		if (this.status === "live" && track && track.readyState === "ended") this.disconnected = true;
+		if (!this.disconnected) return false;
+		this.disconnected = false;
+		this.status = "off";
+		this.poseReady = false;
+		this.present = false;
+		this.motion.reset();
+		this.lastFrame = EMPTY;
+		return true;
+	}
+	async start(video, onCamera) {
+		this.video = video;
+		this.status = "loading";
+		this.error = null;
+		try {
+			await this.openCamera(video);
+			this.status = "live";
+			onCamera?.();
+		} catch (err) {
+			this.status = "denied";
+			this.error = explainCameraError(err);
+			this.poseReady = false;
+			this.modelError = null;
+			return;
+		}
+		await this.loadModel();
+	}
+	async loadModel() {
+		if (this.status !== "live") return;
+		this.poseReady = false;
+		this.modelError = null;
+		this.landmarker?.close?.();
+		this.landmarker = null;
+		try {
+			const vision = await import("../_libs/mediapipe__tasks-vision.mjs").then((n) => n.t);
+			const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
+			const opts = {
+				baseOptions: {
+					modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
+					delegate: "GPU"
+				},
+				runningMode: "VIDEO",
+				numPoses: 2,
+				minPoseDetectionConfidence: .5,
+				minPosePresenceConfidence: .5,
+				minTrackingConfidence: .5
+			};
+			try {
+				this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
+			} catch {
+				this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+					...opts,
+					baseOptions: {
+						...opts.baseOptions,
+						delegate: "CPU"
+					}
+				});
+			}
+			this.poseReady = true;
+			this.modelError = null;
+		} catch {
+			this.landmarker = null;
+			this.poseReady = false;
+			this.modelError = "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
+		}
+	}
+	async openCamera(video) {
+		this.stopStream();
+		if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(/* @__PURE__ */ new Error("unsupported"), { name: "SecurityError" });
+		video.setAttribute("playsinline", "true");
+		video.setAttribute("autoplay", "true");
+		video.muted = true;
+		video.playsInline = true;
+		const tries = [
+			{
+				audio: false,
+				video: {
+					width: { ideal: 1280 },
+					height: { ideal: 720 },
+					frameRate: { ideal: 30 },
+					facingMode: "user"
+				}
+			},
+			{
+				audio: false,
+				video: true
+			},
+			{
+				audio: false,
+				video: { facingMode: { ideal: "user" } }
+			}
+		];
+		let lastErr = null;
+		for (const constraints of tries) try {
+			const stream = await withTimeout(navigator.mediaDevices.getUserMedia(constraints), 12e3);
+			this.stream = stream;
+			video.srcObject = stream;
+			stream.getVideoTracks().forEach((track) => {
+				track.onended = () => {
+					this.disconnected = true;
+				};
+			});
+			await playVideo(video);
+			return;
+		} catch (err) {
+			lastErr = err;
+			const name = errorName(err);
+			if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") throw err;
+		}
+		throw lastErr ?? Object.assign(/* @__PURE__ */ new Error("camera"), { name: "NotFoundError" });
+	}
+	stopStream() {
+		this.stream?.getTracks().forEach((t) => {
+			t.onended = null;
+			t.stop();
+		});
+		this.stream = null;
+		if (this.video) this.video.srcObject = null;
+	}
+	stop() {
+		this.landmarker?.close?.();
+		this.landmarker = null;
+		this.stopStream();
+		this.status = "off";
+		this.poseReady = false;
+		this.modelError = null;
+	}
+	tick(now) {
+		const video = this.video;
+		if (!video || video.readyState < 2 || !this.landmarker) {
+			this.motion.reset();
+			this.present = false;
+			this.lastFrame = EMPTY;
+			return this.lastFrame;
+		}
+		if (now - this.lastInfer < INFER_MS && this.lastFrame.skeleton) return {
+			...this.lastFrame,
+			throwEvent: null
+		};
+		this.lastInfer = now;
+		const ts = now <= this.lastTs ? this.lastTs + 1 : now;
+		this.lastTs = ts;
+		const source = this.inferSource(video);
+		const aspect = source.width && source.height ? source.width / source.height : 4 / 3;
+		let poses = [];
+		let worlds = [];
+		try {
+			const result = this.landmarker.detectForVideo(source, ts);
+			poses = result.landmarks ?? [];
+			worlds = result.worldLandmarks ?? [];
+		} catch {
+			this.lastFrame = {
+				...EMPTY,
+				present: this.present
+			};
+			return this.lastFrame;
+		}
+		const pick = pickMain(poses, aspect);
+		if (pick < 0) {
+			const m = this.motion.update(null, now);
+			this.present = m.present;
+			this.lastFrame = {
+				...EMPTY,
+				present: m.present
+			};
+			return this.lastFrame;
+		}
+		const raw = poses[pick];
+		const world = worlds[pick];
+		const img = raw.map((p) => ({
+			x: 1 - p.x,
+			y: p.y,
+			v: p.visibility ?? 1
+		}));
+		const input = {
+			t: now,
+			aspect,
+			img,
+			worldZ: world ? world.map((p) => p.z) : null
+		};
+		const m = this.motion.update(input, now);
+		this.present = m.present;
+		const skeleton = [
+			0,
+			11,
+			12,
+			13,
+			14,
+			15,
+			16,
+			23,
+			24
+		].map((i) => img[i]);
+		this.lastFrame = {
+			present: m.present,
+			handsUp: m.handsUp,
+			throwEvent: m.throwEvent,
+			skeleton,
+			armed: m.armed,
+			chestStill: m.chestStill,
+			aim: m.aim,
+			tooFar: m.tooFar,
+			offCenter: m.offCenter
+		};
+		return this.lastFrame;
+	}
+	/** 영상 비율을 그대로 둔 채 줄인다. 찌그러진 영상은 관절을 틀리게 읽는다. */
+	inferSource(video) {
+		const vw = video.videoWidth;
+		const vh = video.videoHeight;
+		if (vw < 2 || vh < 2) return video;
+		const k = Math.min(1, INFER_LONG / Math.max(vw, vh));
+		const w = Math.round(vw * k);
+		const h = Math.round(vh * k);
+		if (!this.inferCanvas) this.inferCanvas = document.createElement("canvas");
+		if (this.inferCanvas.width !== w || this.inferCanvas.height !== h) {
+			this.inferCanvas.width = w;
+			this.inferCanvas.height = h;
+		}
+		const ctx = this.inferCanvas.getContext("2d");
+		if (!ctx) return video;
+		ctx.drawImage(video, 0, 0, w, h);
+		return this.inferCanvas;
+	}
+};
+/** 여러 명이 잡히면 어깨가 가장 넓은(가장 가까운) 사람, 비슷하면 가운데 사람. */
+function pickMain(poses, aspect) {
+	let best = -1;
+	let bestScore = 0;
+	poses.forEach((p, i) => {
+		const ls = p[11];
+		const rs = p[12];
+		if (!ls || !rs || (ls.visibility ?? 1) < .4 || (rs.visibility ?? 1) < .4) return;
+		const score = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y) - Math.abs((ls.x + rs.x) / 2 - .5) * .08;
+		if (score > bestScore) {
+			bestScore = score;
+			best = i;
+		}
+	});
+	return best;
+}
+function errorName(err) {
+	if (err && typeof err === "object" && "name" in err) return String(err.name);
+	return "";
+}
+function withTimeout(promise, ms) {
+	return new Promise((resolve, reject) => {
+		const id = window.setTimeout(() => {
+			reject(Object.assign(/* @__PURE__ */ new Error("timeout"), { name: "TimeoutError" }));
+		}, ms);
+		promise.then((value) => {
+			window.clearTimeout(id);
+			resolve(value);
+		}, (err) => {
+			window.clearTimeout(id);
+			reject(err);
+		});
+	});
+}
+async function playVideo(video) {
+	try {
+		await video.play();
+	} catch {
+		await new Promise((r) => window.setTimeout(r, 120));
+		await video.play();
+	}
+}
+function isFramed() {
+	try {
+		return window.self !== window.top;
+	} catch {
+		return true;
+	}
+}
+function explainCameraError(err) {
+	const name = errorName(err);
+	if (!navigator.mediaDevices?.getUserMedia) return "이 주소에서는 카메라를 쓸 수 없습니다. Chrome으로 열고, 주소가 https 또는 localhost인지 확인하세요.";
+	if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+		if (isFramed()) return "이 미리보기 창은 카메라를 막습니다. 아래 ‘새 창에서 열기’를 누르세요.";
+		return "브라우저가 카메라를 막았습니다. 주소창 왼쪽 자물쇠/카메라 아이콘에서 허용을 고른 뒤 다시 시도하세요.";
+	}
+	if (name === "NotFoundError" || name === "DevicesNotFoundError") return "연결된 웹캠이 없습니다. 카메라를 꽂고 다시 시도하세요.";
+	if (name === "NotReadableError" || name === "TrackStartError") return "다른 프로그램이 카메라를 사용 중입니다. Zoom/Teams를 끄고 다시 시도하세요.";
+	if (name === "TimeoutError") return "카메라 응답이 없습니다. 권한 창이 다른 창 뒤에 가려졌는지 확인하세요.";
+	if (name === "SecurityError") return "보안 주소가 아니라 카메라를 켤 수 없습니다. Chrome에서 https로 여세요.";
+	return "카메라를 켜지 못했습니다. 주소창에서 카메라 권한을 확인하세요.";
+}
 function syncPose(g, pose) {
 	if (!g) return;
 	if (pose.status === "denied") {
@@ -4004,7 +4462,8 @@ var initialUi = () => ({
 	freezeCd: 0,
 	freezeFound: false,
 	inputVia: "webcam",
-	checkMode: false
+	checkMode: false,
+	handsUpProgress: 0
 });
 function GameApp() {
 	const wrapRef = (0, import_react.useRef)(null);
@@ -4015,6 +4474,10 @@ function GameApp() {
 	const poseRef = (0, import_react.useRef)(null);
 	const startingRef = (0, import_react.useRef)(false);
 	const [ui, setUi] = (0, import_react.useState)(initialUi);
+	const [showVideo, setShowVideo] = (0, import_react.useState)(false);
+	(0, import_react.useEffect)(() => {
+		setShowVideo(new URLSearchParams(window.location.search).get("camera") === "1");
+	}, []);
 	(0, import_react.useEffect)(() => {
 		const canvas = canvasRef.current;
 		const wrap = wrapRef.current;
@@ -4054,7 +4517,7 @@ function GameApp() {
 				}
 			}
 			if (game.phase !== lastPhase) {
-				if (game.phase === "play" || game.phase === "practice" || game.phase === "attract") pose.resetMotion();
+				if (game.phase === "practice" || game.phase === "attract") pose.resetMotion();
 				lastPhase = game.phase;
 			}
 			game.update(now);
@@ -4149,6 +4612,7 @@ function GameApp() {
 		window.open(window.location.href, "_blank", "noopener,noreferrer");
 	};
 	const pipLow = ui.phase === "play" || ui.phase === "practice" || ui.phase === "countdown";
+	const pipLabel = ui.modelState === "failed" ? "모션 실패" : ui.modelState === "loading" || ui.cameraState === "loading" ? "준비 중" : !ui.personPresent ? "어디 있나요?" : ui.armed && pipLow ? "던질 준비!" : "인식됨";
 	const showPip = ui.cameraState === "live" || ui.cameraState === "loading" ? ui.phase === "attract" || ui.phase === "start" || ui.phase === "practice" || ui.phase === "countdown" || ui.phase === "play" : false;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "flex h-dvh w-full items-center justify-center bg-bg",
@@ -4166,25 +4630,28 @@ function GameApp() {
 					className: "absolute inset-0 size-full touch-none"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: `pointer-events-none absolute z-10 w-32 ${pipLow ? "bottom-24 left-3" : "top-24 left-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
+					className: `pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[38%] right-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: `relative h-24 w-32 overflow-hidden rounded-2xl border-[5px] bg-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "border-ink" : "border-ink/70"}`,
+						className: `relative h-28 w-24 overflow-hidden rounded-2xl border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${ui.personPresent ? "bg-[#4a2414]" : "bg-[#4a2414]/70"}`,
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("video", {
 							ref: videoRef,
 							className: "absolute inset-0 size-full object-cover",
-							style: { transform: "scaleX(-1)" },
+							style: {
+								transform: "scaleX(-1)",
+								opacity: showVideo ? 1 : 0
+							},
 							playsInline: true,
 							muted: true,
 							autoPlay: true
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("canvas", {
 							ref: pipRef,
-							width: 320,
-							height: 240,
+							width: 240,
+							height: 280,
 							className: "absolute inset-0 size-full"
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: `mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs ${ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`,
-						children: ui.modelState === "failed" ? "모션 실패" : ui.modelState === "loading" ? "모션 준비 중" : ui.personPresent ? "인식됨" : "상반신을 보여 주세요"
+						className: `relative mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`,
+						children: pipLabel
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Overlays, {

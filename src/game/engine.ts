@@ -8,7 +8,7 @@ import {
   WORLD_W,
 } from "./constants";
 import { drawWorld } from "./draw";
-import { aimFromWrist, type PoseFrame, type ThrowEvent } from "./pose";
+import type { PoseFrame, ThrowEvent } from "./pose";
 import {
   AIM_Y_ORIGIN,
   AIM_Y_SPAN,
@@ -27,6 +27,11 @@ import {
 import { addScore, clearScores, loadScores, type InputVia, type ScoreRecord } from "./scores";
 import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, Stone, UiSnap } from "./types";
 import { VERSES, randomVerse, type Verse } from "./verses";
+
+const HANDS_UP_SECONDS = 1;
+const PRACTICE_THROWS = 2;
+const PRACTICE_MAX_SECONDS = 15;
+const AIM_ASSIST_PX = 110;
 
 export class Game {
   phase: Phase = "boot";
@@ -78,8 +83,14 @@ export class Game {
   private demoAcc = 0;
   private countdownAcc = 0;
   private resultAcc = 0;
+  /** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
   private handsHold = 0;
-  private personHold = 0;
+  private handsLost = 0;
+  handsUpProgress = 0;
+  tooFar = false;
+  offCenter = false;
+  private practiceThrows = 0;
+  private practiceIdle = 0;
   private vacantHold = 0;
   private charging = false;
   private chargeX = 0;
@@ -223,6 +234,8 @@ export class Game {
 
   notePose(frame: PoseFrame): void {
     this.personPresent = frame.present;
+    this.tooFar = frame.present && frame.tooFar;
+    this.offCenter = frame.present && frame.offCenter;
     if (!frame.present) {
       this.armed = false;
       this.chestStill = false;
@@ -231,7 +244,7 @@ export class Game {
       if (live && !this.checkMode && this.cameraState === "live") {
         const t = performance.now();
         if (this.absentHold === 0) this.absentHold = t;
-        if (t - this.absentHold > 1200) {
+        if (t - this.absentHold > 1500) {
           this.abortRound("사람이 화면에서 벗어나 이번 경기는 기록하지 않습니다");
           return;
         }
@@ -245,39 +258,48 @@ export class Game {
     }
     this.absentHold = 0;
     this.armed = frame.armed;
-    this.chestStill = frame.present && frame.chestStill;
-    if (frame.skeleton && frame.skeleton.length > 6 && !this.queued) {
-      const shoulderY = ((frame.skeleton[1]?.y ?? 0.45) + (frame.skeleton[2]?.y ?? 0.45)) / 2;
-      const lw = frame.skeleton[5];
-      const rw = frame.skeleton[6];
-      const hand = lw && rw ? (lw.y < rw.y ? lw : rw) : lw ?? rw;
-      if (hand && !this.pointerHolding) {
-        const aimed = aimFromWrist(hand.x, hand.y, shoulderY, 0);
-        this.aimX += (aimed.aimX - this.aimX) * 0.35;
-        this.aimY += (aimed.aimY - this.aimY) * 0.35;
-      }
+    this.chestStill = frame.chestStill;
+    if (frame.aim && !this.queued && !this.pointerHolding) {
+      this.aimX = frame.aim.aimX;
+      this.aimY = frame.aim.aimY;
     }
     if ((this.phase === "play" || this.phase === "practice") && frame.armed) {
-      this.charge = Math.max(this.charge, 0.82);
+      this.charge = Math.max(this.charge, 0.6);
     }
-    const now = performance.now();
-    if (this.phase === "attract") {
-      if (frame.present && frame.handsUp && this.poseReady) {
-        if (this.personHold === 0) this.personHold = now;
-        if (now - this.personHold > 700) this.goStart();
-      } else this.personHold = 0;
-    }
-    if (this.phase === "start" && frame.handsUp && frame.present) {
-      if (this.handsHold === 0) this.handsHold = now;
-      if (now - this.handsHold > 700) this.goPractice();
-    } else if (this.phase === "start") {
-      this.handsHold = 0;
-    }
+    this.handsUpSeen = frame.handsUp && !frame.tooFar;
     if ((this.phase === "play" || this.phase === "practice") && frame.throwEvent) {
       if (!this.checkMode) this.inputVia = "webcam";
       this.launch(frame.throwEvent);
     }
-    if (this.phase === "result" && frame.present) this.vacantHold = 0;
+    if (this.phase === "result") this.vacantHold = 0;
+  }
+
+  private handsUpSeen = false;
+
+  /** 시작 동작: 양손을 머리 위로 1초 유지. 0.25초 이내로 놓친 것은 봐준다. */
+  private stepHandsUp(dt: number): void {
+    const waiting = this.phase === "attract" || this.phase === "start";
+    if (!waiting || !this.poseReady || this.cameraState !== "live") {
+      this.handsHold = 0;
+      this.handsLost = 0;
+      this.handsUpProgress = 0;
+      return;
+    }
+    if (this.handsUpSeen && this.personPresent) {
+      this.handsHold += dt;
+      this.handsLost = 0;
+    } else {
+      this.handsLost += dt;
+      if (this.handsLost > 0.25) this.handsHold = Math.max(0, this.handsHold - dt * 2);
+    }
+    this.handsUpProgress = Math.min(1, this.handsHold / HANDS_UP_SECONDS);
+    if (this.handsHold >= HANDS_UP_SECONDS) {
+      this.handsHold = 0;
+      this.handsUpProgress = 0;
+      this.audio.play("start");
+      if (this.phase === "attract") this.goStart();
+      this.goPractice();
+    }
   }
 
   pointerDown(x: number, y: number, id: number): void {
@@ -450,9 +472,15 @@ export class Game {
       }
     }
 
-    if (this.phase === "practice" && this.practiceLeft > 0) {
-      this.practiceLeft -= real;
-      if (this.practiceLeft <= 0) this.goCountdown();
+    this.stepHandsUp(real);
+    if (this.phase === "practice") {
+      this.practiceIdle += real;
+      if (this.practiceLeft > 0) {
+        this.practiceLeft -= real;
+        if (this.practiceLeft <= 0) this.goCountdown();
+      } else if (this.practiceIdle > PRACTICE_MAX_SECONDS) {
+        this.goCountdown();
+      }
     }
 
     if (this.phase === "result") {
@@ -518,6 +546,8 @@ export class Game {
     this.stones = [];
     this.queued = null;
     this.practiceLeft = 0;
+    this.practiceThrows = 0;
+    this.practiceIdle = 0;
     this.absentHold = 0;
     this.score = 0;
     this.combo = 0;
@@ -602,7 +632,7 @@ export class Game {
     this.freezeHold = 0;
     this.freezeCd = 0;
     this.absentHold = 0;
-    this.personHold = 0;
+    this.handsHold = 0;
     this.handsHold = 0;
     this.throwCool = 0;
     this.hitStop = 0;
@@ -650,7 +680,7 @@ export class Game {
   private goAttract(): void {
     this.audio.stopBeat();
     this.phase = "attract";
-    this.personHold = 0;
+    this.handsHold = 0;
     this.vacantHold = 0;
     this.resultAcc = 0;
     this.confirmReset = false;
@@ -695,6 +725,7 @@ export class Game {
     if (!demo && !live) return false;
     if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0)) return false;
     if (this.stones.length >= MAX_STONES) return false;
+    if (!demo) ev = this.assistAim(ev);
     this.aimX = ev.aimX;
     this.aimY = ev.aimY;
     this.charge = 0;
@@ -702,8 +733,26 @@ export class Game {
     this.queued = { ev, demo };
     this.releaseLeft = demo || immediate ? 0 : 0.08;
     if (this.releaseLeft <= 0) this.releaseQueued(0);
-    if (!demo && this.phase === "practice") this.practiceLeft = 1.2;
+    if (!demo && this.phase === "practice") {
+      this.practiceThrows += 1;
+      if (this.practiceThrows >= PRACTICE_THROWS) this.practiceLeft = 1.4;
+    }
     return true;
+  }
+
+  /** 아이용 보정: 급소가 열렸을 때 이마 근처를 노리면 이마로 붙인다. */
+  private assistAim(ev: ThrowEvent): ThrowEvent {
+    if (!this.critOpen()) return ev;
+    const F = GOLIATH_LOCAL.forehead;
+    const fx = this.goliathX + F.x;
+    const fy = 70 + this.goliathBob + F.y;
+    const p = aimPoint(ev.aimX, ev.aimY);
+    if (Math.hypot(p.x - fx, (p.y - fy) * 1.3) > AIM_ASSIST_PX) return ev;
+    return {
+      ...ev,
+      aimX: Math.max(-1, Math.min(1, (fx - WORLD_W / 2) / 280)),
+      aimY: Math.max(-1, Math.min(1, (fy - AIM_Y_ORIGIN) / AIM_Y_SPAN)),
+    };
   }
 
   private decayThrow(dt: number): void {
@@ -1144,6 +1193,7 @@ export class Game {
       snap.inputVia,
       snap.verse.ref,
       snap.scores.length,
+      Math.round(snap.handsUpProgress * 20),
     ].join("|");
     if (!force && key === this.lastUiKey) return;
     this.lastUiKey = key;
@@ -1181,6 +1231,7 @@ export class Game {
       freezeFound: this.freezeFound,
       inputVia: this.inputVia,
       checkMode: this.checkMode,
+      handsUpProgress: this.handsUpProgress,
     };
   }
 
@@ -1217,8 +1268,13 @@ export class Game {
     if (this.modelState === "failed") return this.modelError || "모션을 다시 준비해 주세요";
     if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
     if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
-    if (this.phase === "start") return "양손을 머리 위로 들어 시작";
-    if (this.phase === "practice") return "팔을 뒤로 젖혔다가 앞으로 휘두르세요";
+    if (this.tooFar) return "조금 더 앞으로 와 주세요";
+    if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
+    if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
+    if (this.phase === "practice") {
+      if (this.armed) return "좋아요! 이제 앞으로 힘껏 던지세요";
+      return `손을 머리 위로 들었다가 앞으로 던지세요 (${this.practiceThrows}/${PRACTICE_THROWS})`;
+    }
     if (this.phase === "play") {
       if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
       if (this.critOpen()) return "금빛이 보일 때 이마를 노려요";
@@ -1226,9 +1282,9 @@ export class Game {
       if (this.shieldUp) return "방패를 피하세요";
       if (this.aiAct === "left") return "왼쪽으로 피합니다";
       if (this.aiAct === "right") return "오른쪽으로 피합니다";
-      return "조준한 곳으로 돌이 날아갑니다";
+      if (this.armed) return "던지세요!";
+      return "손을 든 높이로 돌이 날아갑니다";
     }
-    if (this.phase === "attract") return "카메라 앞에 서면 시작합니다";
     return "";
   }
 }
