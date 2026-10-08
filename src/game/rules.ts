@@ -35,8 +35,9 @@ export type CombatBand = {
 };
 
 export function combatBand(elapsed: number): CombatBand {
-  if (elapsed < 8) return { idle: 0.45, guard: 0.35, dodge: 0.2, tell: 0.55, dodgeDist: 80, open: 1.2 };
-  if (elapsed < 20) return { idle: 0.25, guard: 0.4, dodge: 0.35, tell: 0.45, dodgeDist: 110, open: 1.0 };
+  // 20초 판 기준: 0~5초 쉬움, 5~13초 보통, 그 뒤 어려움
+  if (elapsed < 5) return { idle: 0.45, guard: 0.35, dodge: 0.2, tell: 0.55, dodgeDist: 80, open: 1.2 };
+  if (elapsed < 13) return { idle: 0.25, guard: 0.4, dodge: 0.35, tell: 0.45, dodgeDist: 110, open: 1.0 };
   return { idle: 0.15, guard: 0.4, dodge: 0.45, tell: 0.35, dodgeDist: 140, open: 0.9 };
 }
 

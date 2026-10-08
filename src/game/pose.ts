@@ -1,5 +1,5 @@
 import { preferredCameraId } from "./kiosk";
-import { MotionTracker, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
+import { MotionTracker, pickPlayer, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
 
 export type { Aim, Landmark, ThrowEvent };
 
@@ -14,6 +14,7 @@ export type PoseFrame = {
   /** 지금 손 위치가 가리키는 조준. 사람이 없으면 null. */
   aim: Aim | null;
   tooFar: boolean;
+  lowInFrame: boolean;
   offCenter: boolean;
 };
 
@@ -26,6 +27,7 @@ const EMPTY: PoseFrame = {
   chestStill: false,
   aim: null,
   tooFar: false,
+  lowInFrame: false,
   offCenter: false,
 };
 
@@ -33,8 +35,10 @@ type RawPoint = { x: number; y: number; z?: number; visibility?: number };
 
 /** 초당 추론 횟수 상한. 빠른 팔 동작을 놓치지 않을 만큼. */
 const INFER_MS = 30;
-/** 추론용으로 줄인 영상의 긴 변. 멀리 선 아이의 손목까지 보이게. */
-const INFER_LONG = 480;
+/** 추론용으로 줄인 영상의 긴 변. 멀리 서거나 작은 아이의 손목까지 보이게. */
+const INFER_LONG = 640;
+/** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
+const CAMERA_SHAPE = { width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 }, frameRate: { ideal: 30 } };
 
 export class PoseController {
   video: HTMLVideoElement | null = null;
@@ -55,6 +59,7 @@ export class PoseController {
   private stream: MediaStream | null = null;
   private disconnected = false;
   private motion = new MotionTracker();
+  private lastCenter: number | null = null;
   private lastTs = 0;
   private lastInfer = 0;
   private inferCanvas: HTMLCanvasElement | null = null;
@@ -122,9 +127,10 @@ export class PoseController {
         runningMode: "VIDEO" as const,
         // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다
         numPoses: 2,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
+        minPoseDetectionConfidence: 0.4,
+        minPosePresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4,
       };
       try {
         this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
@@ -157,11 +163,11 @@ export class PoseController {
     const chosen = preferredCameraId();
     const tries: MediaStreamConstraints[] = [
       ...(chosen
-        ? [{ audio: false, video: { deviceId: { exact: chosen }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } }]
+        ? [{ audio: false, video: { deviceId: { exact: chosen }, ...CAMERA_SHAPE } }]
         : []),
       {
         audio: false,
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" },
+        video: { ...CAMERA_SHAPE, facingMode: "user" },
       },
       { audio: false, video: true },
       { audio: false, video: { facingMode: { ideal: "user" } } },
@@ -240,7 +246,8 @@ export class PoseController {
       return this.lastFrame;
     }
 
-    const pick = pickMain(poses, aspect);
+    const pick = pickPlayer(poses, aspect, this.lastCenter);
+    this.lastCenter = pick >= 0 ? ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2 : null;
     if (pick < 0) {
       const m = this.motion.update(null, now);
       this.present = m.present;
@@ -263,6 +270,7 @@ export class PoseController {
       chestStill: m.chestStill,
       aim: m.aim,
       tooFar: m.tooFar,
+      lowInFrame: m.lowInFrame,
       offCenter: m.offCenter,
     };
     return this.lastFrame;
@@ -286,25 +294,6 @@ export class PoseController {
     ctx.drawImage(video, 0, 0, w, h);
     return this.inferCanvas;
   }
-}
-
-/** 여러 명이 잡히면 어깨가 가장 넓은(가장 가까운) 사람, 비슷하면 가운데 사람. */
-function pickMain(poses: RawPoint[][], aspect: number): number {
-  let best = -1;
-  let bestScore = 0;
-  poses.forEach((p, i) => {
-    const ls = p[11];
-    const rs = p[12];
-    if (!ls || !rs || (ls.visibility ?? 1) < 0.4 || (rs.visibility ?? 1) < 0.4) return;
-    const width = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
-    const center = Math.abs((ls.x + rs.x) / 2 - 0.5);
-    const score = width - center * 0.08;
-    if (score > bestScore) {
-      bestScore = score;
-      best = i;
-    }
-  });
-  return best;
 }
 
 function errorName(err: unknown): string {

@@ -27,6 +27,8 @@ export type BodyInput = {
 export type MotionResult = {
   present: boolean;
   tooFar: boolean;
+  /** 몸이 화면 아래로 잘려 있다(키가 작거나 카메라가 높다). */
+  lowInFrame: boolean;
   offCenter: boolean;
   handsUp: boolean;
   /** 던질 손이 장전된 상태. */
@@ -63,8 +65,10 @@ export const MOTION = {
   /** 시작 동작: 두 손을 어깨선 위 이만큼(머리 위). */
   handsUpHeight: -0.9,
   /** 너무 멀다고 보는 어깨너비(화면 높이 대비). */
-  nearScale: 0.09,
-  minScale: 0.055,
+  nearScale: 0.07,
+  minScale: 0.045,
+  /** 어깨선이 화면 아래쪽 이 높이보다 낮으면 "한 걸음 뒤로" 안내(카메라가 높이 달린 키오스크). */
+  lowShoulderY: 0.7,
   centerSlack: 0.28,
 };
 
@@ -168,6 +172,7 @@ export class MotionTracker {
     const none: MotionResult = {
       present: this.present,
       tooFar: false,
+      lowInFrame: false,
       offCenter: false,
       handsUp: false,
       armed: false,
@@ -293,6 +298,7 @@ export class MotionTracker {
     return {
       present: this.present,
       tooFar: s < MOTION.nearScale,
+      lowInFrame: cy > MOTION.lowShoulderY,
       offCenter: Math.abs(cxN - 0.5) > MOTION.centerSlack,
       handsUp,
       armed,
@@ -428,4 +434,38 @@ function travelOf(hist: HandSample[], window: number): number {
     d += Math.hypot(hist[i].hx - hist[i - 1].hx, hist[i].hy - hist[i - 1].hy);
   }
   return d;
+}
+
+type RawPoint = { x: number; y: number; visibility?: number };
+
+/** 화면에 여러 명이 잡힐 때 누구를 플레이어로 볼지.
+ * - 양손을 머리 위로 든 사람(시작 동작)을 가장 먼저 고른다. 아이 뒤에 선 어른보다 손을 든 아이가 우선.
+ * - 이미 따라가던 사람이 비슷한 자리에 있으면 계속 그 사람(중간에 어른이 다가와도 안 바뀜).
+ * - 그 밖에는 가까운(어깨가 넓은) 사람, 비슷하면 가운데 사람.
+ * x는 카메라 원본 좌표(반전 전) 기준. lastCenter도 같은 좌표.
+ */
+export function pickPlayer(poses: RawPoint[][], aspect: number, lastCenter: number | null): number {
+  let best = -1;
+  let bestScore = -Infinity;
+  poses.forEach((p, i) => {
+    const ls = p[11];
+    const rs = p[12];
+    const v = (q: RawPoint | undefined) => q?.visibility ?? 1;
+    if (!ls || !rs || v(ls) < 0.4 || v(rs) < 0.4) return;
+    const width = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
+    const cx = (ls.x + rs.x) / 2;
+    const nose = p[0];
+    const lw = p[15];
+    const rw = p[16];
+    const headY = nose && v(nose) > 0.3 ? nose.y : Math.min(ls.y, rs.y) - width * 0.6;
+    const handsUp = !!lw && !!rw && v(lw) > 0.5 && v(rw) > 0.5 && lw.y < headY && rw.y < headY;
+    let score = width - Math.abs(cx - 0.5) * 0.25;
+    if (handsUp) score += 0.3;
+    if (lastCenter !== null && Math.abs(cx - lastCenter) < 0.12) score += 0.15;
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  });
+  return best;
 }

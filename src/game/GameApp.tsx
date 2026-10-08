@@ -42,6 +42,7 @@ const initialUi = (): UiSnap => ({
   savedName: null,
   scores: [],
   muted: false,
+  sound: "none",
   confirmReset: false,
   banner: null,
   motionHint: "",
@@ -97,6 +98,10 @@ export function GameApp() {
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = true;
+      // 화면 UI는 rem 단위라 글자 크기 하나로 통째로 커진다.
+      // 휴대폰(약 430px 폭)을 기준으로, 1080px 세로 키오스크에서는 약 2.5배.
+      const ui = Math.max(0.85, Math.min(3, r.width / 430));
+      document.documentElement.style.fontSize = `${(16 * ui).toFixed(2)}px`;
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -123,8 +128,8 @@ export function GameApp() {
         }
       }
       if (game.phase !== lastPhase) {
-        // 연습·대기로 넘어갈 때만 초기화한다. 카운트다운 중 장전한 손은 경기 시작과 함께 바로 던질 수 있다.
-        if (game.phase === "practice" || game.phase === "attract") pose.resetMotion();
+        // 시작 동작(양손 번쩍) 직후 팔을 내리는 것이 던지기로 읽히지 않게, 카운트다운에서 초기화한다
+        if (game.phase === "countdown" || game.phase === "attract") pose.resetMotion();
         lastPhase = game.phase;
       }
       game.update(now);
@@ -166,6 +171,13 @@ export function GameApp() {
       if (document.visibilityState === "visible") audio.unlock();
     };
     document.addEventListener("visibilitychange", onVis);
+    // 어디든 처음 누르거나 키를 치면 막힌 소리를 푼다(무인 자동 시작 대비)
+    const wake = () => {
+      audio.unlock();
+      window.setTimeout(() => game.nudgeUi(), 150);
+    };
+    window.addEventListener("pointerdown", wake, { capture: true });
+    window.addEventListener("keydown", wake, { capture: true });
 
     return () => {
       cancelAnimationFrame(raf);
@@ -175,6 +187,9 @@ export function GameApp() {
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pointerdown", wake, { capture: true });
+      window.removeEventListener("keydown", wake, { capture: true });
+      document.documentElement.style.fontSize = "";
       pose.stop();
     };
   }, []);
@@ -285,10 +300,10 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
-          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[40%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "bottom-24 left-3" : "top-[35%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
         >
           <div
-            className="relative h-28 w-36 overflow-hidden rounded-2xl border-[5px] border-ink bg-ink shadow-[0_5px_0_var(--color-ink)]"
+            className="relative h-48 w-36 overflow-hidden rounded-2xl border-[0.3125rem] border-ink bg-ink shadow-[0_0.3125rem_0_var(--color-ink)]"
           >
             <video
               ref={videoRef}
@@ -298,10 +313,10 @@ export function GameApp() {
               muted
               autoPlay
             />
-            <canvas ref={pipRef} width={288} height={224} className="absolute inset-0 size-full" />
+            <canvas ref={pipRef} width={360} height={480} className="absolute inset-0 size-full" />
           </div>
           <p
-            className={`relative mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}
+            className={`relative mx-auto -mt-3 w-fit rounded-full border-[0.1875rem] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`}
           >
             {pipLabel}
           </p>
@@ -322,6 +337,7 @@ export function GameApp() {
           onSaveName={(name) => gameRef.current?.saveName(name)}
           onSkipName={() => gameRef.current?.skipName()}
           onRemoveRecord={(at) => gameRef.current?.removeRecord(at)}
+          onTestSound={() => gameRef.current?.testSound()}
           onNext={() => gameRef.current?.nextPlayer()}
           onMute={() => gameRef.current?.toggleMute()}
           onAskReset={() => gameRef.current?.askReset()}

@@ -98,6 +98,8 @@ export type UiSnap = {
   savedName: string | null;
   scores: ScoreRecord[];
   muted: boolean;
+  /** 브라우저 소리 상태. blocked면 화면을 한 번 눌러야 들린다. */
+  sound: "none" | "running" | "blocked";
   confirmReset: boolean;
   banner: string | null;
   motionHint: string;

@@ -1,7 +1,10 @@
 export const WORLD_W = 1080;
 export const WORLD_H = 1920;
 
-export const ROUND_SECONDS = 30;
+/** 현장 요청(2026-10-08)으로 30초 → 20초. */
+export const ROUND_SECONDS = 20;
+/** 남은 시간이 이만큼이면 시계가 빨개지고 초읽기 소리가 난다. */
+export const URGENT_SECONDS = 5;
 export const THROW_COOLDOWN = 0.7;
 export const MAX_STONES = 6;
 export const GRAVITY = 1520;
@@ -25,7 +28,7 @@ export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = "alllove-david-goliath-scores-v2";
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.2.0";
 
 export const CHURCH_NAME = "모두애침례교회";
 export const CHURCH_NAME_SHORT = "모두애교회";

@@ -5,6 +5,10 @@
 
 param([int]$Port = 8723)
 
+# Set DG_SHUTDOWN_DRYRUN=1 to test the power-off button without turning the PC off.
+$dryRun = ($env:DG_SHUTDOWN_DRYRUN -eq '1')
+$shutdownSeconds = 15
+
 $ErrorActionPreference = 'Stop'
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'app'))
 
@@ -44,6 +48,31 @@ function Get-Mime([string]$file) {
   return 'application/octet-stream'
 }
 
+# Power-off API for the in-game button (offline kiosk only).
+# Only same-page requests: POST + custom header (other sites cannot send it without CORS approval,
+# which this server never gives) + Origin, when present, must be this server.
+# Returns @(status, json) or $null when the path is not an API path.
+function Invoke-Api([string]$method, [string]$rawPath, [string]$actionHeader, [string]$origin) {
+  $path = ($rawPath -split '\?')[0]
+  if (-not $path.StartsWith('/api/')) { return $null }
+  if ($method -ne 'POST') { return @(405, '{"ok":false,"error":"method"}') }
+  if ($actionHeader -ne 'power') { return @(403, '{"ok":false,"error":"header"}') }
+  if ($origin -and $origin -ne "http://localhost:$Port" -and $origin -ne "http://127.0.0.1:$Port") {
+    return @(403, '{"ok":false,"error":"origin"}')
+  }
+  if ($path -eq '/api/shutdown') {
+    if ($dryRun) { Write-Host "[dry-run] shutdown /s /t $shutdownSeconds" }
+    else { Start-Process -FilePath 'shutdown.exe' -ArgumentList @('/s', '/t', "$shutdownSeconds") -WindowStyle Hidden }
+    return @(200, "{""ok"":true,""seconds"":$shutdownSeconds,""dryRun"":$($dryRun.ToString().ToLower())}")
+  }
+  if ($path -eq '/api/shutdown/cancel') {
+    if ($dryRun) { Write-Host '[dry-run] shutdown /a' }
+    else { Start-Process -FilePath 'shutdown.exe' -ArgumentList @('/a') -WindowStyle Hidden }
+    return @(200, '{"ok":true}')
+  }
+  return @(404, '{"ok":false,"error":"path"}')
+}
+
 # Preferred: HttpListener (http.sys handles many connections at once).
 # http://localhost:<port>/ does not need administrator rights.
 $listener = $null
@@ -62,6 +91,15 @@ if ($listener) {
       $ctx = $listener.GetContext()
       $res = $ctx.Response
       try {
+        $api = Invoke-Api $ctx.Request.HttpMethod $ctx.Request.RawUrl $ctx.Request.Headers['X-DG-Action'] $ctx.Request.Headers['Origin']
+        if ($null -ne $api) {
+          $res.StatusCode = $api[0]
+          $res.ContentType = 'application/json; charset=utf-8'
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes($api[1])
+          $res.ContentLength64 = $bytes.Length
+          $res.OutputStream.Write($bytes, 0, $bytes.Length)
+          continue
+        }
         $file = Resolve-AppFile $ctx.Request.RawUrl
         if ($null -eq $file) {
           $res.StatusCode = 404
@@ -105,15 +143,27 @@ while ($true) {
     $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::ASCII, $false, 8192, $true)
     $line = $reader.ReadLine()
     if ($line) {
+      $headers = @{}
       while ($true) {
         $h = $reader.ReadLine()
         if ($null -eq $h -or $h -eq '') { break }
+        $i = $h.IndexOf(':')
+        if ($i -gt 0) { $headers[$h.Substring(0, $i).Trim().ToLowerInvariant()] = $h.Substring($i + 1).Trim() }
       }
       $parts = $line -split ' '
       $method = $parts[0]
+      $target = ''
+      if ($parts.Length -ge 2) { $target = $parts[1] }
+      $api = Invoke-Api $method $target $headers['x-dg-action'] $headers['origin']
       $file = $null
-      if ($parts.Length -ge 2) { $file = Resolve-AppFile $parts[1] }
-      if ($null -eq $file) {
+      if ($null -eq $api -and $target) { $file = Resolve-AppFile $target }
+      if ($null -ne $api) {
+        $body = [System.Text.Encoding]::UTF8.GetBytes($api[1])
+        $head = "HTTP/1.1 $($api[0]) OK`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($head)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Write($body, 0, $body.Length)
+      } elseif ($null -eq $file) {
         $head = "HTTP/1.1 404 Not Found`r`nContent-Length: 0`r`nConnection: close`r`n`r`n"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($head)
         $stream.Write($bytes, 0, $bytes.Length)

@@ -4,6 +4,7 @@ import {
   GRAVITY,
   MAX_STONES,
   ROUND_SECONDS,
+  URGENT_SECONDS,
   WORLD_H,
   WORLD_W,
 } from "./constants";
@@ -96,6 +97,7 @@ export class Game {
   private handsLost = 0;
   handsUpProgress = 0;
   tooFar = false;
+  lowInFrame = false;
   offCenter = false;
   private practiceThrows = 0;
   private practiceIdle = 0;
@@ -124,7 +126,7 @@ export class Game {
   private releaseLeft = 0;
   private followLeft = 0;
   private recoverLeft = 0;
-  private lastUrgentTick = 11;
+  private lastUrgentTick = URGENT_SECONDS + 1;
   private downedLife = 0;
   private playStart = 0;
   private lastNow = 0;
@@ -211,18 +213,19 @@ export class Game {
       this.checkMode = true;
       this.inputVia = "pointer";
     }
-    if (this.phase === "attract") {
-      this.goStart();
-      if (!cameraReady) this.goPractice();
-      return;
-    }
-    this.goPractice();
+    // 현장 요청: 연습 없이 바로 본 게임(3초 카운트다운)으로
+    this.goGame();
+  }
+
+  /** 대기·준비 화면에서 곧장 카운트다운으로. */
+  private goGame(): void {
+    if (this.phase === "attract") this.goStart();
+    this.goCountdown();
   }
 
   uiAdvance(): void {
     if (this.phase === "boot") this.begin();
-    else if (this.phase === "attract") this.goStart();
-    else if (this.phase === "start") this.goPractice();
+    else if (this.phase === "attract" || this.phase === "start") this.goGame();
     else if (this.phase === "result") this.goAttract();
   }
 
@@ -243,6 +246,7 @@ export class Game {
   notePose(frame: PoseFrame): void {
     this.personPresent = frame.present;
     this.tooFar = frame.present && frame.tooFar;
+    this.lowInFrame = frame.present && frame.lowInFrame;
     this.offCenter = frame.present && frame.offCenter;
     if (!frame.present) {
       this.armed = false;
@@ -308,8 +312,7 @@ export class Game {
       this.handsHold = 0;
       this.handsUpProgress = 0;
       this.audio.play("start");
-      if (this.phase === "attract") this.goStart();
-      this.goPractice();
+      this.goGame();
     }
   }
 
@@ -361,8 +364,9 @@ export class Game {
     return this.launch({ power, aimX, aimY }, false, true);
   }
 
+  /** 예전 이름 유지(점검 스크립트용). 연습 없이 바로 게임. */
   startPractice(): void {
-    this.goPractice();
+    this.goGame();
   }
 
   skipPractice(): void {
@@ -371,6 +375,16 @@ export class Game {
 
   nextPlayer(): void {
     this.goAttract();
+  }
+
+  /** 화면 표시만 다시 계산(소리 상태 등). */
+  nudgeUi(): void {
+    this.pushUi(true);
+  }
+
+  testSound(): void {
+    this.audio.test();
+    this.pushUi(true);
   }
 
   toggleMute(): void {
@@ -432,7 +446,7 @@ export class Game {
 
     if (this.phase === "play" && this.playStart > 0) {
       this.timeLeft = Math.max(0, ROUND_SECONDS - (now - this.playStart) / 1000);
-      if (this.timeLeft <= 10 && this.timeLeft > 0) {
+      if (this.timeLeft <= URGENT_SECONDS && this.timeLeft > 0) {
         const sec = Math.ceil(this.timeLeft);
         if (sec < this.lastUrgentTick) {
           this.lastUrgentTick = sec;
@@ -585,23 +599,6 @@ export class Game {
     this.pushUi(true);
   }
 
-  private goPractice(): void {
-    if (this.phase === "practice" || this.phase === "countdown" || this.phase === "play") return;
-    if (!this.readyToStart()) return;
-    this.phase = "practice";
-    this.stones = [];
-    this.queued = null;
-    this.practiceLeft = 0;
-    this.practiceThrows = 0;
-    this.practiceIdle = 0;
-    this.absentHold = 0;
-    this.score = 0;
-    this.combo = 0;
-    this.banner = "한 번 던져 보세요";
-    this.bannerLife = 2;
-    this.pushUi(true);
-  }
-
   private goCountdown(): void {
     if (this.phase === "countdown" || this.phase === "play") return;
     if (!this.readyToStart()) return;
@@ -650,7 +647,7 @@ export class Game {
     this.recoverLeft = 0;
     this.aimX = 0;
     this.aimY = 0.15;
-    this.lastUrgentTick = 11;
+    this.lastUrgentTick = URGENT_SECONDS + 1;
     this.freezeLeft = 0;
     this.freezeCd = 0;
     this.freezeHold = 0;
@@ -1232,6 +1229,7 @@ export class Game {
       snap.personPresent ? 1 : 0,
       snap.cameraState,
       snap.muted ? 1 : 0,
+      snap.sound,
       snap.confirmReset ? 1 : 0,
       snap.banner ?? "",
       snap.motionHint,
@@ -1273,6 +1271,7 @@ export class Game {
       savedName: this.savedName,
       scores: this.scores,
       muted: this.audio.muted,
+      sound: this.audio.state,
       confirmReset: this.confirmReset,
       banner: this.banner,
       motionHint: this.motionHint(),
@@ -1327,6 +1326,7 @@ export class Game {
     if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
     if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
     if (this.tooFar) return "조금 더 앞으로 와 주세요";
+    if (this.lowInFrame && this.phase !== "play") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
     if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
     if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
     if (this.phase === "practice") {

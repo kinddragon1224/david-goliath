@@ -1,7 +1,7 @@
-import { Volume2, VolumeX } from "lucide-react";
+import { Power, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { APP_VERSION, CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
-import { listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
+import { APP_VERSION, URGENT_SECONDS, CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
+import { isKiosk, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { formatScoreDate, monthCsv, monthKey, monthLabel, monthlyRows, shiftMonth, type ScoreRecord } from "./scores";
 import type { UiSnap } from "./types";
@@ -22,6 +22,7 @@ type Props = {
   onSaveName: (name: string) => void;
   onSkipName: () => void;
   onRemoveRecord: (at: number) => void;
+  onTestSound: () => void;
 };
 
 export function Overlays({
@@ -40,6 +41,7 @@ export function Overlays({
   onSaveName,
   onSkipName,
   onRemoveRecord,
+  onTestSound,
 }: Props) {
   const [adminOpen, setAdminOpen] = useState(false);
   return (
@@ -50,8 +52,15 @@ export function Overlays({
         className="t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center bg-cream text-ink"
         aria-label={ui.muted ? "소리 켜기" : "소리 끄기"}
       >
-        {ui.muted ? <VolumeX className="size-5" strokeWidth={3} /> : <Volume2 className="size-5" strokeWidth={3} />}
+        {ui.muted || ui.sound === "blocked" ? <VolumeX className="size-5" strokeWidth={3} /> : <Volume2 className="size-5" strokeWidth={3} />}
       </button>
+      {ui.sound === "blocked" && !ui.muted && (
+        <p className="pointer-events-none absolute top-16 right-3 z-20 rounded-full border-[0.1875rem] border-ink bg-don px-2.5 py-0.5 font-display text-xs text-cream">
+          화면을 한 번 누르면 소리가 나요
+        </p>
+      )}
+
+      {(ui.phase === "boot" || ui.phase === "attract" || (ui.phase === "result" && !ui.naming)) && <PowerControl />}
 
       {ui.phase === "boot" && <Boot ui={ui} onBegin={onBegin} />}
       {ui.phase === "attract" && (
@@ -82,6 +91,8 @@ export function Overlays({
           onClose={() => setAdminOpen(false)}
           onRemove={onRemoveRecord}
           onAskReset={onAskReset}
+          onTestSound={onTestSound}
+          sound={ui.muted ? "muted" : ui.sound}
         />
       )}
 
@@ -117,7 +128,7 @@ function Ribbon({ children, tone = "don" }: { children: ReactNode; tone?: "don" 
   const fg = tone === "sun" ? "text-ink" : "text-cream";
   return (
     <span
-      className={`inline-block rounded-full border-4 border-ink px-5 py-1 font-display text-lg leading-tight ${bg} ${fg}`}
+      className={`inline-block rounded-full border-[0.25rem] border-ink px-5 py-1 font-display text-lg leading-tight ${bg} ${fg}`}
     >
       {children}
     </span>
@@ -127,7 +138,7 @@ function Ribbon({ children, tone = "don" }: { children: ReactNode; tone?: "don" 
 function Title({ size = "lg" }: { size?: "lg" | "md" | "sm" }) {
   return (
     <h1
-      className={`t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`}
+      className={`t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_0.375rem_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`}
     >
       <span className="text-sun">다윗</span>과 <span className="text-don">골리앗</span>
       <span className="sr-only">{GAME_TITLE}</span>
@@ -138,7 +149,7 @@ function Title({ size = "lg" }: { size?: "lg" | "md" | "sm" }) {
 function LogoBadge({ size = 96 }: { size?: number }) {
   return (
     <div
-      className="flex items-center justify-center overflow-hidden rounded-full border-[5px] border-ink bg-white shadow-[0_5px_0_var(--color-ink)]"
+      className="flex items-center justify-center overflow-hidden rounded-full border-[0.3125rem] border-ink bg-white shadow-[0_0.3125rem_0_var(--color-ink)]"
       style={{ width: size, height: size }}
     >
       <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="size-full scale-125 object-cover" />
@@ -172,7 +183,7 @@ function VerseBlock({ ui, large, compact }: { ui: UiSnap; large?: boolean; compa
 function HintPill({ children }: { children: ReactNode }) {
   if (!children) return null;
   return (
-    <p className="mx-auto w-fit max-w-[92%] rounded-full border-4 border-ink bg-cream px-4 py-1.5 text-center text-sm font-bold text-ink text-pretty">
+    <p className="mx-auto w-fit max-w-[92%] rounded-full border-[0.25rem] border-ink bg-cream px-4 py-1.5 text-center text-sm font-bold text-ink text-pretty">
       {children}
     </p>
   );
@@ -182,19 +193,19 @@ function HintPill({ children }: { children: ReactNode }) {
 function Credit({ full }: { full?: boolean }) {
   if (!full) {
     return (
-      <div className="flex items-center justify-center gap-2 text-[11px] font-bold text-fg-muted">
+      <div className="flex items-center justify-center gap-2 text-[0.6875rem] font-bold text-fg-muted">
         <span>제작</span>
         <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-3.5 w-auto" />
       </div>
     );
   }
   return (
-    <div className="w-full rounded-2xl border-4 border-ink bg-paper/95 px-4 py-2.5 text-center">
+    <div className="w-full rounded-2xl border-[0.25rem] border-ink bg-paper/95 px-4 py-2.5 text-center">
       <div className="flex items-center justify-center gap-2">
         <span className="font-display text-sm text-fg-muted">제작</span>
         <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-5 w-auto" />
       </div>
-      <p className="mt-1.5 text-[10px] leading-relaxed text-fg-muted text-pretty" style={{ wordBreak: "keep-all" }}>
+      <p className="mt-1.5 text-[0.625rem] leading-relaxed text-fg-muted text-pretty" style={{ wordBreak: "keep-all" }}>
         상호 {PRODUCER.name} · 대표 {PRODUCER.ceo} · 사업자등록번호 {PRODUCER.bizNo}
         <br />
         {PRODUCER.address} · {PRODUCER.phone} · {PRODUCER.email}
@@ -253,7 +264,7 @@ function Attract({
   return (
     <>
       <header className="pointer-events-none flex flex-col items-center gap-2 px-4 pt-4">
-        <div className="flex items-center gap-2 pr-12">
+        <div className="flex items-center gap-2 px-12">
           <LogoBadge size={46} />
           <Title size="sm" />
         </div>
@@ -313,7 +324,7 @@ function Attract({
           {top.map((row, i) => (
             <li key={`${row.at}-${i}`} className="flex items-center gap-3">
               <span
-                className={`flex size-7 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`}
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full border-[0.1875rem] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`}
               >
                 {i + 1}
               </span>
@@ -334,7 +345,7 @@ function Attract({
             모션 다시 준비
           </button>
         )}
-        <div className="mt-2.5 border-t-2 border-dashed border-ink/20 pt-2">
+        <div className="mt-2.5 border-t-[0.125rem] border-dashed border-ink/20 pt-2">
           <Credit />
         </div>
       </section>
@@ -383,7 +394,7 @@ function Start({
         }}
         className="t-btn h-16 w-full max-w-xs touch-manipulation bg-don text-2xl text-cream"
       >
-        연습 던지기
+        게임 시작
       </button>
       <HintPill>{ui.checkMode ? "화면을 밀어 던지는 중입니다" : ui.motionHint}</HintPill>
       {!ui.checkMode && ui.cameraState === "denied" && (
@@ -441,7 +452,7 @@ function ModelHelp({ ui, onRetry }: { ui: UiSnap; onRetry: () => void }) {
   );
 }
 
-/** 양손 번쩍 그림과 유지 게이지. 다 차면 연습이 시작된다. */
+/** 양손 번쩍 그림과 유지 게이지. 다 차면 바로 게임이 시작된다. */
 function HandsUpPrompt({ progress, label = true, small }: { progress: number; label?: boolean; small?: boolean }) {
   const R = 56;
   const len = 2 * Math.PI * R;
@@ -487,7 +498,7 @@ function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
   return (
     <div className="pointer-events-none flex h-full flex-col">
       <div className="flex justify-center pt-5">
-        <span className="t-outline font-display text-6xl text-ka drop-shadow-[0_5px_0_var(--color-ink)]">연습</span>
+        <span className="t-outline font-display text-6xl text-ka drop-shadow-[0_0.3125rem_0_var(--color-ink)]">연습</span>
       </div>
       <div className="flex-1" />
       <div className="t-panel pointer-events-auto mx-4 mb-6 px-5 py-4 text-center">
@@ -506,7 +517,7 @@ function Countdown({ n }: { n: number }) {
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-ink/25">
       <p
         key={n}
-        className="animate-pop t-outline font-display text-[11rem] leading-none tabular-nums text-sun drop-shadow-[0_8px_0_var(--color-ink)]"
+        className="animate-pop t-outline font-display text-[11rem] leading-none tabular-nums text-sun drop-shadow-[0_0.5rem_0_var(--color-ink)]"
       >
         {n > 0 ? n : "시작!"}
       </p>
@@ -523,13 +534,13 @@ function Countdown({ n }: { n: number }) {
 /** 태고 북 모양 시계. */
 function DrumTimer({ timeLeft }: { timeLeft: number }) {
   const sec = Math.ceil(timeLeft);
-  const urgent = timeLeft <= 10;
+  const urgent = timeLeft <= URGENT_SECONDS;
   return (
     <div
-      className={`relative flex size-24 shrink-0 items-center justify-center rounded-full border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${urgent ? "animate-throb bg-don" : "bg-don"}`}
+      className={`relative flex size-24 shrink-0 items-center justify-center rounded-full border-[0.3125rem] border-ink shadow-[0_0.3125rem_0_var(--color-ink)] ${urgent ? "animate-throb bg-don" : "bg-don"}`}
     >
-      <div className="absolute inset-[9px] rounded-full border-[4px] border-ink bg-cream" />
-      <div className="absolute inset-[22px] rounded-full bg-[#f6e2bf]" />
+      <div className="absolute inset-[0.5625rem] rounded-full border-[0.25rem] border-ink bg-cream" />
+      <div className="absolute inset-[1.375rem] rounded-full bg-[#f6e2bf]" />
       <span
         key={urgent ? sec : undefined}
         className={`relative font-display text-4xl leading-none tabular-nums ${urgent ? "animate-pop text-don" : "text-ink"}`}
@@ -545,7 +556,7 @@ function Hud({ ui }: { ui: UiSnap }) {
     <>
       <div className="flex items-start gap-2 px-3 pt-3 pr-16">
         <DrumTimer timeLeft={ui.timeLeft} />
-        <div className="mt-2 flex-1 rounded-2xl border-[5px] border-ink bg-gradient-to-b from-don to-don-dark px-4 py-1.5 text-right shadow-[0_5px_0_var(--color-ink)]">
+        <div className="mt-2 flex-1 rounded-2xl border-[0.3125rem] border-ink bg-gradient-to-b from-don to-don-dark px-4 py-1.5 text-right shadow-[0_0.3125rem_0_var(--color-ink)]">
           <p className="font-display text-sm leading-tight text-cream/90">점수 · 크리티컬 {ui.foreheadHits}</p>
           <p className="t-outline-sm font-display text-4xl leading-none tabular-nums text-cream">
             {ui.score.toLocaleString("ko-KR")}
@@ -562,14 +573,14 @@ function Hud({ ui }: { ui: UiSnap }) {
         {ui.banner && (
           <p
             key={ui.banner}
-            className="animate-pop t-outline absolute inset-x-0 top-3 text-center font-display text-5xl text-cream drop-shadow-[0_5px_0_var(--color-ink)]"
+            className="animate-pop t-outline absolute inset-x-0 top-3 text-center font-display text-5xl text-cream drop-shadow-[0_0.3125rem_0_var(--color-ink)]"
           >
             {ui.banner}
           </p>
         )}
         {ui.freezeLeft > 0 && (
           <p className="absolute inset-x-0 top-20 text-center">
-            <span className="rounded-full border-4 border-ink bg-ka px-4 py-1 font-display text-lg text-cream">
+            <span className="rounded-full border-[0.25rem] border-ink bg-ka px-4 py-1 font-display text-lg text-cream">
               집중 {ui.freezeLeft.toFixed(1)}
             </span>
           </p>
@@ -590,11 +601,11 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
     <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-ink/55 px-5 pt-20 pb-6 text-center">
       <div className="t-panel relative w-full px-5 pt-9 pb-5">
         <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-          <span className="inline-block rounded-full border-[5px] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
+          <span className="inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
             {isBest ? "최고 기록!" : "결과 발표"}
           </span>
         </div>
-        <p className="animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_6px_0_var(--color-ink)]">
+        <p className="animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_0.375rem_0_var(--color-ink)]">
           {ui.score.toLocaleString("ko-KR")}
         </p>
         <p className="mt-3 font-display text-lg text-fg-muted">
@@ -607,11 +618,11 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
                 : "기록되지 않았습니다"}
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border-4 border-ink bg-sun px-3 py-2">
+          <div className="rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2">
             <dt className="font-display text-sm">크리티컬</dt>
             <dd className="font-display text-3xl tabular-nums">{ui.foreheadHits}</dd>
           </div>
-          <div className="rounded-2xl border-4 border-ink bg-ka px-3 py-2 text-cream">
+          <div className="rounded-2xl border-[0.25rem] border-ink bg-ka px-3 py-2 text-cream">
             <dt className="font-display text-sm">최대 콤보</dt>
             <dd className="t-outline-sm font-display text-3xl tabular-nums">{ui.maxCombo}</dd>
           </div>
@@ -641,13 +652,13 @@ function NameEntry({ ui, onSave, onSkip }: { ui: UiSnap; onSave: (name: string) 
     if (next.length <= MAX) setName(next);
     setShift(false);
   };
-  const key = "h-12 min-w-0 flex-1 rounded-xl border-[3px] border-ink font-display text-2xl shadow-[0_3px_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
+  const key = "h-12 min-w-0 flex-1 rounded-xl border-[0.1875rem] border-ink font-display text-2xl shadow-[0_0.1875rem_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
   const ready = name.trim().length > 0;
   return (
     <div className="pointer-events-auto flex h-full flex-col items-center justify-center gap-4 overflow-y-auto bg-ink/60 px-3 pt-16 pb-4 text-center">
       <div className="t-panel relative w-full px-4 pt-8 pb-4">
         <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-          <span className="inline-block rounded-full border-[5px] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
+          <span className="inline-block rounded-full border-[0.3125rem] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
             이달 {ui.monthRank}위!
           </span>
         </div>
@@ -661,7 +672,7 @@ function NameEntry({ ui, onSave, onSkip }: { ui: UiSnap; onSave: (name: string) 
           autoComplete="off"
           aria-label="이름"
           placeholder="이름을 눌러 주세요"
-          className="mt-3 h-14 w-full rounded-2xl border-4 border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
+          className="mt-3 h-14 w-full rounded-2xl border-[0.25rem] border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
         />
       </div>
       <div className="w-full space-y-1.5">
@@ -709,11 +720,15 @@ function AdminPanel({
   onClose,
   onRemove,
   onAskReset,
+  onTestSound,
+  sound,
 }: {
   scores: ScoreRecord[];
   onClose: () => void;
   onRemove: (at: number) => void;
   onAskReset: () => void;
+  onTestSound: () => void;
+  sound: UiSnap["sound"] | "muted";
 }) {
   const [month, setMonth] = useState(() => monthKey(Date.now()));
   const [armed, setArmed] = useState<number | null>(null);
@@ -741,7 +756,7 @@ function AdminPanel({
             닫기
           </button>
         </div>
-        <div className="mt-3 flex items-center justify-between rounded-2xl border-4 border-ink bg-sun px-2 py-1">
+        <div className="mt-3 flex items-center justify-between rounded-2xl border-[0.25rem] border-ink bg-sun px-2 py-1">
           <button type="button" onClick={() => setMonth((m) => shiftMonth(m, -1))} className="size-10 font-display text-2xl" aria-label="이전 달">
             ◀
           </button>
@@ -759,7 +774,7 @@ function AdminPanel({
               <span className="w-6 text-right font-display tabular-nums">{i + 1}</span>
               <span className={`min-w-0 flex-1 truncate font-display text-lg ${r.name ? "" : "text-fg-muted"}`}>{r.name ?? "이름 없음"}</span>
               <span className="font-display tabular-nums">{r.score.toLocaleString("ko-KR")}</span>
-              <span className="w-24 text-right text-[11px] text-fg-muted">{formatScoreDate(r.at)}</span>
+              <span className="w-24 text-right text-[0.6875rem] text-fg-muted">{formatScoreDate(r.at)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -768,7 +783,7 @@ function AdminPanel({
                     setArmed(null);
                   } else setArmed(r.at);
                 }}
-                className={`h-8 shrink-0 rounded-lg border-2 border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`}
+                className={`h-8 shrink-0 rounded-lg border-[0.125rem] border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`}
               >
                 {armed === r.at ? "정말 삭제" : "삭제"}
               </button>
@@ -788,7 +803,7 @@ function AdminPanel({
                 setPreferredCamera(e.target.value || null);
                 window.location.reload();
               }}
-              className="h-10 min-w-0 flex-1 rounded-lg border-[3px] border-ink bg-white px-2"
+              className="h-10 min-w-0 flex-1 rounded-lg border-[0.1875rem] border-ink bg-white px-2"
             >
               <option value="">자동 선택</option>
               {cameras.map((c) => (
@@ -799,6 +814,15 @@ function AdminPanel({
             </select>
           </label>
         )}
+        <div className="mt-3 flex items-center gap-2 text-sm font-bold">
+          <span className="shrink-0">소리</span>
+          <span className={`min-w-0 flex-1 truncate ${sound === "running" ? "text-ka-dark" : "text-don"}`}>
+            {sound === "running" ? "켜짐" : sound === "muted" ? "음소거됨(오른쪽 위 버튼)" : sound === "blocked" ? "브라우저가 막음" : "아직 시작 안 됨"}
+          </span>
+          <button type="button" onClick={onTestSound} className="h-10 shrink-0 rounded-lg border-[0.1875rem] border-ink bg-cream px-3">
+            소리 확인
+          </button>
+        </div>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-fg-muted">버전 {APP_VERSION}</span>
           <button type="button" onClick={onAskReset} className="h-10 text-sm font-bold text-fg-muted underline">
@@ -807,5 +831,144 @@ function AdminPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+/* ───────── 전원 끄기 (오프라인 설치판 전용) ───────── */
+
+const POWER_TAPS = 5;
+
+type PowerStep = "idle" | "confirm" | "sending" | "counting" | "failed";
+
+/** 왼쪽 위 전원 버튼. 아이들이 실수로 끄지 않게 연속 5번 누른 뒤 한 번 더 확인한다.
+ * 게임 중(카운트다운·경기·이름 입력)에는 아예 보이지 않는다.
+ * 실제 종료는 설치판 server.ps1의 /api/shutdown 이 15초 뒤 PC를 끄고, 그 사이 취소할 수 있다.
+ */
+function PowerControl() {
+  const [taps, setTaps] = useState(0);
+  const [lastTap, setLastTap] = useState(0);
+  const [step, setStep] = useState<PowerStep>("idle");
+  const [left, setLeft] = useState(0);
+  const [kiosk] = useState(() => isKiosk());
+
+  // 2초 동안 안 누르면 횟수를 처음부터
+  useEffect(() => {
+    if (taps === 0 || step !== "idle") return;
+    const id = window.setTimeout(() => setTaps(0), 2000);
+    return () => window.clearTimeout(id);
+  }, [taps, lastTap, step]);
+
+  useEffect(() => {
+    if (step !== "counting") return;
+    if (left <= 0) return;
+    const id = window.setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [step, left]);
+
+  useEffect(() => {
+    if (taps < POWER_TAPS) return;
+    setTaps(0);
+    setStep("confirm");
+  }, [taps]);
+
+  if (!kiosk) return null;
+
+  const call = async (path: string) => {
+    const res = await fetch(path, { method: "POST", headers: { "X-DG-Action": "power" } });
+    if (!res.ok) throw new Error(String(res.status));
+    return (await res.json()) as { ok: boolean; seconds?: number };
+  };
+
+  // 빠르게 연달아 눌러도 횟수를 놓치지 않게 이전 값 기준으로 센다
+  const tap = () => {
+    setLastTap(Date.now());
+    setTaps((n) => n + 1);
+  };
+
+  const confirm = async () => {
+    setStep("sending");
+    try {
+      const r = await call("/api/shutdown");
+      setLeft(r.seconds ?? 15);
+      setStep("counting");
+    } catch {
+      setStep("failed");
+    }
+  };
+
+  const cancel = async () => {
+    if (step === "counting") {
+      try {
+        await call("/api/shutdown/cancel");
+      } catch {
+        /* 취소 요청 실패는 아래 안내로 대신한다 */
+      }
+    }
+    setStep("idle");
+    setTaps(0);
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={tap}
+        aria-label="전원 끄기(연속 5번)"
+        className="t-btn pointer-events-auto absolute top-3 left-3 z-20 flex size-12 items-center justify-center bg-cream text-ink"
+      >
+        <Power className="size-5" strokeWidth={3} />
+      </button>
+      {taps > 0 && step === "idle" && (
+        <p key={taps} className="animate-pop pointer-events-none absolute top-16 left-3 z-20 rounded-full border-[0.1875rem] border-ink bg-cream px-2.5 py-0.5 font-display text-xs">
+          전원 끄기: {POWER_TAPS - taps}번 더
+        </p>
+      )}
+      {step !== "idle" && (
+        <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-ink/70 px-6">
+          <div className="t-panel relative w-full max-w-sm px-5 pt-10 pb-5 text-center">
+            <div className="absolute -top-8 left-1/2 flex size-16 -translate-x-1/2 items-center justify-center rounded-full border-[0.3125rem] border-ink bg-don text-cream shadow-[0_0.3125rem_0_var(--color-ink)]">
+              <Power className="size-8" strokeWidth={3} />
+            </div>
+            {step === "confirm" || step === "sending" ? (
+              <>
+                <p className="font-display text-2xl">게임 PC를 끌까요?</p>
+                <p className="mt-2 text-sm text-fg-muted">점수 기록은 그대로 남아요. 끈 뒤 다시 켜면 게임이 자동으로 시작돼요.</p>
+                <div className="mt-6 flex gap-3">
+                  <button type="button" onClick={cancel} className="t-btn h-14 flex-1 bg-cream text-xl">
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirm}
+                    disabled={step === "sending"}
+                    className="t-btn h-14 flex-1 bg-don text-xl text-cream disabled:opacity-60"
+                  >
+                    전원 끄기
+                  </button>
+                </div>
+              </>
+            ) : step === "counting" ? (
+              <>
+                <p className="font-display text-2xl">
+                  <span className="t-outline-sm text-4xl tabular-nums text-sun">{Math.max(0, left)}</span>초 뒤 꺼집니다
+                </p>
+                <p className="mt-2 text-sm text-fg-muted">잘못 눌렀다면 아래를 눌러 취소하세요.</p>
+                <button type="button" onClick={cancel} className="t-btn mt-6 h-14 w-full bg-cream text-xl">
+                  끄기 취소
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="font-display text-2xl">이 화면에서는 끌 수 없어요</p>
+                <p className="mt-2 text-sm text-fg-muted">설치판(start.bat)으로 실행했을 때만 전원을 끌 수 있습니다. 윈도우 시작 메뉴에서 꺼 주세요.</p>
+                <button type="button" onClick={cancel} className="t-btn mt-6 h-14 w-full bg-cream text-xl">
+                  닫기
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

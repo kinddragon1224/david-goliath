@@ -82,6 +82,19 @@ var createLucideIcon = (iconName, iconNode) => {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Power = createLucideIcon("power", [["path", {
+	d: "M12 2v10",
+	key: "mnfbl"
+}], ["path", {
+	d: "M18.4 6.6a9 9 0 1 1-12.77.04",
+	key: "obofu9"
+}]]);
+/**
+* @license lucide-react v0.510.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var TriangleAlert = createLucideIcon("triangle-alert", [
 	["path", {
 		d: "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3",
@@ -143,4 +156,4 @@ var VolumeX = createLucideIcon("volume-x", [
 	}]
 ]);
 //#endregion
-export { Volume2 as n, TriangleAlert as r, VolumeX as t };
+export { Power as i, Volume2 as n, TriangleAlert as r, VolumeX as t };

@@ -2,6 +2,11 @@ import { BEAT_BPM } from "./constants";
 
 type SfxName = "throw" | "hitSoft" | "hitShield" | "hitHead" | "stagger" | "tick" | "start" | "end" | "combo" | "freeze";
 
+/** 전체 음량. 키오스크 스피커에서 잘 들리게 예전(0.22)보다 키웠다. */
+const VOLUME = 0.42;
+
+export type SoundState = "none" | "running" | "blocked";
+
 export class GameAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -15,7 +20,7 @@ export class GameAudio {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx({ latencyHint: "interactive" });
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.22;
+      this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
@@ -24,12 +29,30 @@ export class GameAudio {
   setMuted(next: boolean): void {
     this.muted = next;
     if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(next ? 0 : 0.22, this.ctx.currentTime, 0.03);
+      this.master.gain.setTargetAtTime(next ? 0 : VOLUME, this.ctx.currentTime, 0.03);
     }
+  }
+
+  /** 브라우저가 소리를 막고 있으면 "blocked". 화면을 한 번 누르거나 키를 누르면 풀린다. */
+  get state(): SoundState {
+    if (!this.ctx) return "none";
+    return this.ctx.state === "running" ? "running" : "blocked";
+  }
+
+  /** 운영자 화면의 소리 확인용. */
+  test(): void {
+    this.unlock();
+    const was = this.muted;
+    this.muted = false;
+    this.play("start");
+    this.play("hitHead");
+    this.muted = was;
   }
 
   play(name: SfxName): void {
     if (!this.ctx || !this.master || this.muted) return;
+    // 터치 없이 동작만으로 시작해 막혀 있었다면 다시 깨워 본다
+    if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
     const ctx = this.ctx;
     const t = ctx.currentTime;
     switch (name) {

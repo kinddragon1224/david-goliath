@@ -181,3 +181,44 @@ test("머리 위에서 손을 좌우로 흔들어도 안 나간다", () => {
   );
   assert.equal(events.length, 0);
 });
+
+/* ── 여러 명 중 플레이어 고르기 ── */
+import { pickPlayer } from "./motion.ts";
+
+type P = { x: number; y: number; visibility: number };
+function person(cx: number, width: number, opts: { handsUp?: boolean; y?: number } = {}): P[] {
+  const pts: P[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, visibility: 0 }));
+  const y = opts.y ?? 0.5;
+  const half = width / 2 / (4 / 3);
+  pts[0] = { x: cx, y: y - width * 0.7, visibility: 0.9 };
+  pts[11] = { x: cx - half, y, visibility: 0.9 };
+  pts[12] = { x: cx + half, y, visibility: 0.9 };
+  const hy = opts.handsUp ? y - width * 1.4 : y + width * 1.5;
+  pts[15] = { x: cx - half, y: hy, visibility: 0.9 };
+  pts[16] = { x: cx + half, y: hy, visibility: 0.9 };
+  return pts;
+}
+
+test("아이 바로 뒤에 어른이 서 있어도, 양손을 든 아이를 플레이어로 고른다", () => {
+  const kid = person(0.5, 0.16, { handsUp: true, y: 0.75 });
+  const adult = person(0.56, 0.3, { y: 0.45 });
+  assert.equal(pickPlayer([adult, kid], 4 / 3, null), 1);
+});
+
+test("한 번 고른 아이는 어른이 다가와도 계속 따라간다", () => {
+  const kid = person(0.5, 0.16, { y: 0.75 });
+  const adult = person(0.62, 0.24, { y: 0.45 });
+  assert.equal(pickPlayer([adult, kid], 4 / 3, 0.5), 1);
+});
+
+test("아무도 손을 안 들면 가까운(어깨가 넓은) 사람", () => {
+  const near = person(0.45, 0.3);
+  const far = person(0.55, 0.12);
+  assert.equal(pickPlayer([far, near], 4 / 3, null), 1);
+});
+
+test("작은 아이(멀리, 화면에 작게)도 사람으로 잡고 던지기를 읽는다", () => {
+  const { events, last } = run(overhand(-1.1, 0.06), 1800);
+  assert.equal(events.length, 1);
+  assert.equal(last?.present, true);
+});

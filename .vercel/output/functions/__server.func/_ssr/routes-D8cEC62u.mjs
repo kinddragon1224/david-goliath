@@ -1,7 +1,7 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
-import { n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-DOKsnMCp.js
+import { i as Power, n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-D8cEC62u.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -11,7 +11,7 @@ var GRAVITY = 1520;
 var LEADERBOARD_KEEP = 5e3;
 var SCORES_KEY = "alllove-david-goliath-scores-v2";
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-var APP_VERSION = "1.1.0";
+var APP_VERSION = "1.2.0";
 var CHURCH_NAME = "모두애침례교회";
 var GAME_TITLE = "다윗과 골리앗";
 /** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
@@ -24,6 +24,8 @@ var PRODUCER = {
 	phone: "010-5169-1596",
 	email: "therumen.edu@gmail.com"
 };
+/** 전체 음량. 키오스크 스피커에서 잘 들리게 예전(0.22)보다 키웠다. */
+var VOLUME = .42;
 var GameAudio = class {
 	ctx = null;
 	master = null;
@@ -36,17 +38,32 @@ var GameAudio = class {
 			const Ctx = window.AudioContext || window.webkitAudioContext;
 			this.ctx = new Ctx({ latencyHint: "interactive" });
 			this.master = this.ctx.createGain();
-			this.master.gain.value = .22;
+			this.master.gain.value = this.muted ? 0 : VOLUME;
 			this.master.connect(this.ctx.destination);
 		}
 		if (this.ctx.state === "suspended") this.ctx.resume();
 	};
 	setMuted(next) {
 		this.muted = next;
-		if (this.master && this.ctx) this.master.gain.setTargetAtTime(next ? 0 : .22, this.ctx.currentTime, .03);
+		if (this.master && this.ctx) this.master.gain.setTargetAtTime(next ? 0 : VOLUME, this.ctx.currentTime, .03);
+	}
+	/** 브라우저가 소리를 막고 있으면 "blocked". 화면을 한 번 누르거나 키를 누르면 풀린다. */
+	get state() {
+		if (!this.ctx) return "none";
+		return this.ctx.state === "running" ? "running" : "blocked";
+	}
+	/** 운영자 화면의 소리 확인용. */
+	test() {
+		this.unlock();
+		const was = this.muted;
+		this.muted = false;
+		this.play("start");
+		this.play("hitHead");
+		this.muted = was;
 	}
 	play(name) {
 		if (!this.ctx || !this.master || this.muted) return;
+		if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
 		const t = this.ctx.currentTime;
 		switch (name) {
 			case "throw":
@@ -359,7 +376,7 @@ function hitPoints(part, combo) {
 	return Math.round(BASE$1[part] * comboMultiplier(combo));
 }
 function combatBand(elapsed) {
-	if (elapsed < 8) return {
+	if (elapsed < 5) return {
 		idle: .45,
 		guard: .35,
 		dodge: .2,
@@ -367,7 +384,7 @@ function combatBand(elapsed) {
 		dodgeDist: 80,
 		open: 1.2
 	};
-	if (elapsed < 20) return {
+	if (elapsed < 13) return {
 		idle: .25,
 		guard: .4,
 		dodge: .35,
@@ -1846,7 +1863,7 @@ var Game = class {
 	score = 0;
 	combo = 0;
 	comboTimer = 0;
-	timeLeft = 30;
+	timeLeft = 20;
 	countdown = 3;
 	verse = VERSES[0];
 	personPresent = false;
@@ -1900,6 +1917,7 @@ var Game = class {
 	handsLost = 0;
 	handsUpProgress = 0;
 	tooFar = false;
+	lowInFrame = false;
 	offCenter = false;
 	practiceThrows = 0;
 	practiceIdle = 0;
@@ -1928,7 +1946,7 @@ var Game = class {
 	releaseLeft = 0;
 	followLeft = 0;
 	recoverLeft = 0;
-	lastUrgentTick = 11;
+	lastUrgentTick = 6;
 	downedLife = 0;
 	playStart = 0;
 	lastNow = 0;
@@ -2007,17 +2025,16 @@ var Game = class {
 			this.checkMode = true;
 			this.inputVia = "pointer";
 		}
-		if (this.phase === "attract") {
-			this.goStart();
-			if (!cameraReady) this.goPractice();
-			return;
-		}
-		this.goPractice();
+		this.goGame();
+	}
+	/** 대기·준비 화면에서 곧장 카운트다운으로. */
+	goGame() {
+		if (this.phase === "attract") this.goStart();
+		this.goCountdown();
 	}
 	uiAdvance() {
 		if (this.phase === "boot") this.begin();
-		else if (this.phase === "attract") this.goStart();
-		else if (this.phase === "start") this.goPractice();
+		else if (this.phase === "attract" || this.phase === "start") this.goGame();
 		else if (this.phase === "result") this.goAttract();
 	}
 	setPerson(present) {
@@ -2035,6 +2052,7 @@ var Game = class {
 	notePose(frame) {
 		this.personPresent = frame.present;
 		this.tooFar = frame.present && frame.tooFar;
+		this.lowInFrame = frame.present && frame.lowInFrame;
 		this.offCenter = frame.present && frame.offCenter;
 		if (!frame.present) {
 			this.armed = false;
@@ -2094,8 +2112,7 @@ var Game = class {
 			this.handsHold = 0;
 			this.handsUpProgress = 0;
 			this.audio.play("start");
-			if (this.phase === "attract") this.goStart();
-			this.goPractice();
+			this.goGame();
 		}
 	}
 	pointerDown(x, y, id) {
@@ -2150,14 +2167,23 @@ var Game = class {
 			aimY
 		}, false, true);
 	}
+	/** 예전 이름 유지(점검 스크립트용). 연습 없이 바로 게임. */
 	startPractice() {
-		this.goPractice();
+		this.goGame();
 	}
 	skipPractice() {
 		if (this.phase === "practice") this.goCountdown();
 	}
 	nextPlayer() {
 		this.goAttract();
+	}
+	/** 화면 표시만 다시 계산(소리 상태 등). */
+	nudgeUi() {
+		this.pushUi(true);
+	}
+	testSound() {
+		this.audio.test();
+		this.pushUi(true);
 	}
 	toggleMute() {
 		this.audio.setMuted(!this.audio.muted);
@@ -2208,8 +2234,8 @@ var Game = class {
 		if (this.hitStop > 0) this.hitStop = Math.max(0, this.hitStop - real);
 		this.time += real;
 		if (this.phase === "play" && this.playStart > 0) {
-			this.timeLeft = Math.max(0, 30 - (now - this.playStart) / 1e3);
-			if (this.timeLeft <= 10 && this.timeLeft > 0) {
+			this.timeLeft = Math.max(0, 20 - (now - this.playStart) / 1e3);
+			if (this.timeLeft <= 5 && this.timeLeft > 0) {
 				const sec = Math.ceil(this.timeLeft);
 				if (sec < this.lastUrgentTick) {
 					this.lastUrgentTick = sec;
@@ -2343,22 +2369,6 @@ var Game = class {
 		this.queued = null;
 		this.pushUi(true);
 	}
-	goPractice() {
-		if (this.phase === "practice" || this.phase === "countdown" || this.phase === "play") return;
-		if (!this.readyToStart()) return;
-		this.phase = "practice";
-		this.stones = [];
-		this.queued = null;
-		this.practiceLeft = 0;
-		this.practiceThrows = 0;
-		this.practiceIdle = 0;
-		this.absentHold = 0;
-		this.score = 0;
-		this.combo = 0;
-		this.banner = "한 번 던져 보세요";
-		this.bannerLife = 2;
-		this.pushUi(true);
-	}
 	goCountdown() {
 		if (this.phase === "countdown" || this.phase === "play") return;
 		if (!this.readyToStart()) return;
@@ -2375,7 +2385,7 @@ var Game = class {
 		this.phase = "play";
 		this.playStart = now;
 		this.roundOpen = true;
-		this.timeLeft = 30;
+		this.timeLeft = 20;
 		this.score = 0;
 		this.combo = 0;
 		this.comboTimer = 0;
@@ -2406,7 +2416,7 @@ var Game = class {
 		this.recoverLeft = 0;
 		this.aimX = 0;
 		this.aimY = .15;
-		this.lastUrgentTick = 11;
+		this.lastUrgentTick = 6;
 		this.freezeLeft = 0;
 		this.freezeCd = 0;
 		this.freezeHold = 0;
@@ -2826,7 +2836,7 @@ var Game = class {
 			this.lean = Math.sin(this.time * .6) * .02;
 			return;
 		}
-		const elapsed = this.phase === "practice" ? 4 : Math.max(0, 30 - this.timeLeft);
+		const elapsed = this.phase === "practice" ? 4 : Math.max(0, 20 - this.timeLeft);
 		let left = dt;
 		let guard = 0;
 		while (left > 1e-4 && guard < 6) {
@@ -2990,6 +3000,7 @@ var Game = class {
 			snap.personPresent ? 1 : 0,
 			snap.cameraState,
 			snap.muted ? 1 : 0,
+			snap.sound,
 			snap.confirmReset ? 1 : 0,
 			snap.banner ?? "",
 			snap.motionHint,
@@ -3030,6 +3041,7 @@ var Game = class {
 			savedName: this.savedName,
 			scores: this.scores,
 			muted: this.audio.muted,
+			sound: this.audio.state,
 			confirmReset: this.confirmReset,
 			banner: this.banner,
 			motionHint: this.motionHint(),
@@ -3081,6 +3093,7 @@ var Game = class {
 		if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
 		if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
 		if (this.tooFar) return "조금 더 앞으로 와 주세요";
+		if (this.lowInFrame && this.phase !== "play") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
 		if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
 		if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
 		if (this.phase === "practice") {
@@ -3344,7 +3357,7 @@ var SHIFTED = {
 	ㅐ: "ㅒ",
 	ㅔ: "ㅖ"
 };
-function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice, onSaveName, onSkipName, onRemoveRecord }) {
+function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice, onSaveName, onSkipName, onRemoveRecord, onTestSound }) {
 	const [adminOpen, setAdminOpen] = (0, import_react.useState)(false);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "pointer-events-none absolute inset-0 flex flex-col text-fg",
@@ -3354,7 +3367,7 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 				onClick: onMute,
 				className: "t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center bg-cream text-ink",
 				"aria-label": ui.muted ? "소리 켜기" : "소리 끄기",
-				children: ui.muted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, {
+				children: ui.muted || ui.sound === "blocked" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, {
 					className: "size-5",
 					strokeWidth: 3
 				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, {
@@ -3362,6 +3375,11 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 					strokeWidth: 3
 				})
 			}),
+			ui.sound === "blocked" && !ui.muted && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "pointer-events-none absolute top-16 right-3 z-20 rounded-full border-[0.1875rem] border-ink bg-don px-2.5 py-0.5 font-display text-xs text-cream",
+				children: "화면을 한 번 누르면 소리가 나요"
+			}),
+			(ui.phase === "boot" || ui.phase === "attract" || ui.phase === "result" && !ui.naming) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerControl, {}),
 			ui.phase === "boot" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Boot, {
 				ui,
 				onBegin
@@ -3398,7 +3416,9 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 				scores: ui.scores,
 				onClose: () => setAdminOpen(false),
 				onRemove: onRemoveRecord,
-				onAskReset
+				onAskReset,
+				onTestSound,
+				sound: ui.muted ? "muted" : ui.sound
 			}),
 			ui.confirmReset && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-ink/60 px-8",
@@ -3439,13 +3459,13 @@ function stop(e) {
 }
 function Ribbon({ children, tone = "don" }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-		className: `inline-block rounded-full border-4 border-ink px-5 py-1 font-display text-lg leading-tight ${tone === "ka" ? "bg-ka" : tone === "sun" ? "bg-sun" : "bg-don"} ${tone === "sun" ? "text-ink" : "text-cream"}`,
+		className: `inline-block rounded-full border-[0.25rem] border-ink px-5 py-1 font-display text-lg leading-tight ${tone === "ka" ? "bg-ka" : tone === "sun" ? "bg-sun" : "bg-don"} ${tone === "sun" ? "text-ink" : "text-cream"}`,
 		children
 	});
 }
 function Title({ size = "lg" }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
-		className: `t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_6px_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`,
+		className: `t-outline font-display leading-none whitespace-nowrap text-cream drop-shadow-[0_0.375rem_0_var(--color-ink)] ${size === "lg" ? "text-5xl" : size === "md" ? "text-4xl" : "text-3xl"}`,
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: "text-sun",
@@ -3465,7 +3485,7 @@ function Title({ size = "lg" }) {
 }
 function LogoBadge({ size = 96 }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: "flex items-center justify-center overflow-hidden rounded-full border-[5px] border-ink bg-white shadow-[0_5px_0_var(--color-ink)]",
+		className: "flex items-center justify-center overflow-hidden rounded-full border-[0.3125rem] border-ink bg-white shadow-[0_0.3125rem_0_var(--color-ink)]",
 		style: {
 			width: size,
 			height: size
@@ -3510,14 +3530,14 @@ function VerseBlock({ ui, large, compact }) {
 function HintPill({ children }) {
 	if (!children) return null;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-		className: "mx-auto w-fit max-w-[92%] rounded-full border-4 border-ink bg-cream px-4 py-1.5 text-center text-sm font-bold text-ink text-pretty",
+		className: "mx-auto w-fit max-w-[92%] rounded-full border-[0.25rem] border-ink bg-cream px-4 py-1.5 text-center text-sm font-bold text-ink text-pretty",
 		children
 	});
 }
 /** 제작사 표기. full이면 사업자 정보까지. */
 function Credit({ full }) {
 	if (!full) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "flex items-center justify-center gap-2 text-[11px] font-bold text-fg-muted",
+		className: "flex items-center justify-center gap-2 text-[0.6875rem] font-bold text-fg-muted",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "제작" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 			src: PRODUCER.logo,
 			alt: PRODUCER.name,
@@ -3525,7 +3545,7 @@ function Credit({ full }) {
 		})]
 	});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "w-full rounded-2xl border-4 border-ink bg-paper/95 px-4 py-2.5 text-center",
+		className: "w-full rounded-2xl border-[0.25rem] border-ink bg-paper/95 px-4 py-2.5 text-center",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "flex items-center justify-center gap-2",
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -3537,7 +3557,7 @@ function Credit({ full }) {
 				className: "h-5 w-auto"
 			})]
 		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-			className: "mt-1.5 text-[10px] leading-relaxed text-fg-muted text-pretty",
+			className: "mt-1.5 text-[0.625rem] leading-relaxed text-fg-muted text-pretty",
 			style: { wordBreak: "keep-all" },
 			children: [
 				"상호 ",
@@ -3604,7 +3624,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 			className: "pointer-events-none flex flex-col items-center gap-2 px-4 pt-4",
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex items-center gap-2 pr-12",
+				className: "flex items-center gap-2 px-12",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 46 }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Title, { size: "sm" })]
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "mt-4 w-full",
@@ -3679,7 +3699,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 						className: "flex items-center gap-3",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: `flex size-7 shrink-0 items-center justify-center rounded-full border-[3px] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`,
+								className: `flex size-7 shrink-0 items-center justify-center rounded-full border-[0.1875rem] border-ink font-display text-base ${MEDAL[i] ?? "bg-cream"}`,
 								children: i + 1
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -3706,7 +3726,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 					children: "모션 다시 준비"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "mt-2.5 border-t-2 border-dashed border-ink/20 pt-2",
+					className: "mt-2.5 border-t-[0.125rem] border-dashed border-ink/20 pt-2",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Credit, {})
 				})
 			]
@@ -3738,7 +3758,7 @@ function Start({ ui, onStart, onRetryCamera, onRetryMotion, onOpenWindow }) {
 					onStart();
 				},
 				className: "t-btn h-16 w-full max-w-xs touch-manipulation bg-don text-2xl text-cream",
-				children: "연습 던지기"
+				children: "게임 시작"
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(HintPill, { children: ui.checkMode ? "화면을 밀어 던지는 중입니다" : ui.motionHint }),
 			!ui.checkMode && ui.cameraState === "denied" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CameraHelp, {
@@ -3819,7 +3839,7 @@ function ModelHelp({ ui, onRetry }) {
 		]
 	});
 }
-/** 양손 번쩍 그림과 유지 게이지. 다 차면 연습이 시작된다. */
+/** 양손 번쩍 그림과 유지 게이지. 다 차면 바로 게임이 시작된다. */
 function HandsUpPrompt({ progress, label = true, small }) {
 	const R = 56;
 	const len = 2 * Math.PI * R;
@@ -3917,7 +3937,7 @@ function Practice({ ui, onSkip }) {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "flex justify-center pt-5",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "t-outline font-display text-6xl text-ka drop-shadow-[0_5px_0_var(--color-ink)]",
+					className: "t-outline font-display text-6xl text-ka drop-shadow-[0_0.3125rem_0_var(--color-ink)]",
 					children: "연습"
 				})
 			}),
@@ -3948,7 +3968,7 @@ function Countdown({ n }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "flex h-full flex-col items-center justify-center gap-6 bg-ink/25",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-			className: "animate-pop t-outline font-display text-[11rem] leading-none tabular-nums text-sun drop-shadow-[0_8px_0_var(--color-ink)]",
+			className: "animate-pop t-outline font-display text-[11rem] leading-none tabular-nums text-sun drop-shadow-[0_0.5rem_0_var(--color-ink)]",
 			children: n > 0 ? n : "시작!"
 		}, n), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "t-panel max-w-[80%] px-5 py-3 text-center",
@@ -3969,12 +3989,12 @@ function Countdown({ n }) {
 /** 태고 북 모양 시계. */
 function DrumTimer({ timeLeft }) {
 	const sec = Math.ceil(timeLeft);
-	const urgent = timeLeft <= 10;
+	const urgent = timeLeft <= 5;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: `relative flex size-24 shrink-0 items-center justify-center rounded-full border-[5px] border-ink shadow-[0_5px_0_var(--color-ink)] ${urgent ? "animate-throb bg-don" : "bg-don"}`,
+		className: `relative flex size-24 shrink-0 items-center justify-center rounded-full border-[0.3125rem] border-ink shadow-[0_0.3125rem_0_var(--color-ink)] ${urgent ? "animate-throb bg-don" : "bg-don"}`,
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-[9px] rounded-full border-[4px] border-ink bg-cream" }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-[22px] rounded-full bg-[#f6e2bf]" }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-[0.5625rem] rounded-full border-[0.25rem] border-ink bg-cream" }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-[1.375rem] rounded-full bg-[#f6e2bf]" }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: `relative font-display text-4xl leading-none tabular-nums ${urgent ? "animate-pop text-don" : "text-ink"}`,
 				children: sec
@@ -3987,7 +4007,7 @@ function Hud({ ui }) {
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "flex items-start gap-2 px-3 pt-3 pr-16",
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DrumTimer, { timeLeft: ui.timeLeft }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "mt-2 flex-1 rounded-2xl border-[5px] border-ink bg-gradient-to-b from-don to-don-dark px-4 py-1.5 text-right shadow-[0_5px_0_var(--color-ink)]",
+				className: "mt-2 flex-1 rounded-2xl border-[0.3125rem] border-ink bg-gradient-to-b from-don to-don-dark px-4 py-1.5 text-right shadow-[0_0.3125rem_0_var(--color-ink)]",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 					className: "font-display text-sm leading-tight text-cream/90",
 					children: ["점수 · 크리티컬 ", ui.foreheadHits]
@@ -4011,13 +4031,13 @@ function Hud({ ui }) {
 					})]
 				}, ui.combo),
 				ui.banner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "animate-pop t-outline absolute inset-x-0 top-3 text-center font-display text-5xl text-cream drop-shadow-[0_5px_0_var(--color-ink)]",
+					className: "animate-pop t-outline absolute inset-x-0 top-3 text-center font-display text-5xl text-cream drop-shadow-[0_0.3125rem_0_var(--color-ink)]",
 					children: ui.banner
 				}, ui.banner),
 				ui.freezeLeft > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "absolute inset-x-0 top-20 text-center",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-						className: "rounded-full border-4 border-ink bg-ka px-4 py-1 font-display text-lg text-cream",
+						className: "rounded-full border-[0.25rem] border-ink bg-ka px-4 py-1 font-display text-lg text-cream",
 						children: ["집중 ", ui.freezeLeft.toFixed(1)]
 					})
 				})
@@ -4042,12 +4062,12 @@ function Result({ ui, onNext }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "absolute -top-6 left-1/2 -translate-x-1/2",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "inline-block rounded-full border-[5px] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
+							className: "inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
 							children: isBest ? "최고 기록!" : "결과 발표"
 						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_6px_0_var(--color-ink)]",
+						className: "animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_0.375rem_0_var(--color-ink)]",
 						children: ui.score.toLocaleString("ko-KR")
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
@@ -4057,7 +4077,7 @@ function Result({ ui, onNext }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dl", {
 						className: "mt-4 grid grid-cols-2 gap-3",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "rounded-2xl border-4 border-ink bg-sun px-3 py-2",
+							className: "rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
 								className: "font-display text-sm",
 								children: "크리티컬"
@@ -4066,7 +4086,7 @@ function Result({ ui, onNext }) {
 								children: ui.foreheadHits
 							})]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "rounded-2xl border-4 border-ink bg-ka px-3 py-2 text-cream",
+							className: "rounded-2xl border-[0.25rem] border-ink bg-ka px-3 py-2 text-cream",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
 								className: "font-display text-sm",
 								children: "최대 콤보"
@@ -4112,7 +4132,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 		if (next.length <= MAX) setName(next);
 		setShift(false);
 	};
-	const key = "h-12 min-w-0 flex-1 rounded-xl border-[3px] border-ink font-display text-2xl shadow-[0_3px_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
+	const key = "h-12 min-w-0 flex-1 rounded-xl border-[0.1875rem] border-ink font-display text-2xl shadow-[0_0.1875rem_0_var(--color-ink)] active:translate-y-0.5 active:shadow-none";
 	const ready = name.trim().length > 0;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "pointer-events-auto flex h-full flex-col items-center justify-center gap-4 overflow-y-auto bg-ink/60 px-3 pt-16 pb-4 text-center",
@@ -4123,7 +4143,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "absolute -top-6 left-1/2 -translate-x-1/2",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "inline-block rounded-full border-[5px] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
+							className: "inline-block rounded-full border-[0.3125rem] border-ink bg-don px-6 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
 							children: [
 								"이달 ",
 								ui.monthRank,
@@ -4150,7 +4170,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 						autoComplete: "off",
 						"aria-label": "이름",
 						placeholder: "이름을 눌러 주세요",
-						className: "mt-3 h-14 w-full rounded-2xl border-4 border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
+						className: "mt-3 h-14 w-full rounded-2xl border-[0.25rem] border-ink bg-white px-4 text-center font-display text-3xl text-ink outline-none placeholder:text-lg placeholder:text-fg-muted/60"
 					})
 				]
 			}),
@@ -4200,7 +4220,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 		]
 	});
 }
-function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
+function AdminPanel({ scores, onClose, onRemove, onAskReset, onTestSound, sound }) {
 	const [month, setMonth] = (0, import_react.useState)(() => monthKey(Date.now()));
 	const [armed, setArmed] = (0, import_react.useState)(null);
 	const [cameras, setCameras] = (0, import_react.useState)([]);
@@ -4236,7 +4256,7 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "mt-3 flex items-center justify-between rounded-2xl border-4 border-ink bg-sun px-2 py-1",
+					className: "mt-3 flex items-center justify-between rounded-2xl border-[0.25rem] border-ink bg-sun px-2 py-1",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
@@ -4284,7 +4304,7 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 								children: r.score.toLocaleString("ko-KR")
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "w-24 text-right text-[11px] text-fg-muted",
+								className: "w-24 text-right text-[0.6875rem] text-fg-muted",
 								children: formatScoreDate(r.at)
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -4295,7 +4315,7 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 										setArmed(null);
 									} else setArmed(r.at);
 								},
-								className: `h-8 shrink-0 rounded-lg border-2 border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`,
+								className: `h-8 shrink-0 rounded-lg border-[0.125rem] border-ink px-2 text-xs font-bold ${armed === r.at ? "bg-don text-cream" : "bg-cream"}`,
 								children: armed === r.at ? "정말 삭제" : "삭제"
 							})
 						]
@@ -4320,7 +4340,7 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 							setPreferredCamera(e.target.value || null);
 							window.location.reload();
 						},
-						className: "h-10 min-w-0 flex-1 rounded-lg border-[3px] border-ink bg-white px-2",
+						className: "h-10 min-w-0 flex-1 rounded-lg border-[0.1875rem] border-ink bg-white px-2",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
 							value: "",
 							children: "자동 선택"
@@ -4329,6 +4349,25 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 							children: c.label
 						}, c.id))]
 					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mt-3 flex items-center gap-2 text-sm font-bold",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "shrink-0",
+							children: "소리"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: `min-w-0 flex-1 truncate ${sound === "running" ? "text-ka-dark" : "text-don"}`,
+							children: sound === "running" ? "켜짐" : sound === "muted" ? "음소거됨(오른쪽 위 버튼)" : sound === "blocked" ? "브라우저가 막음" : "아직 시작 안 됨"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: onTestSound,
+							className: "h-10 shrink-0 rounded-lg border-[0.1875rem] border-ink bg-cream px-3",
+							children: "소리 확인"
+						})
+					]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "mt-2 flex items-center justify-between",
@@ -4345,6 +4384,158 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset }) {
 			]
 		})
 	});
+}
+var POWER_TAPS = 5;
+/** 왼쪽 위 전원 버튼. 아이들이 실수로 끄지 않게 연속 5번 누른 뒤 한 번 더 확인한다.
+* 게임 중(카운트다운·경기·이름 입력)에는 아예 보이지 않는다.
+* 실제 종료는 설치판 server.ps1의 /api/shutdown 이 15초 뒤 PC를 끄고, 그 사이 취소할 수 있다.
+*/
+function PowerControl() {
+	const [taps, setTaps] = (0, import_react.useState)(0);
+	const [lastTap, setLastTap] = (0, import_react.useState)(0);
+	const [step, setStep] = (0, import_react.useState)("idle");
+	const [left, setLeft] = (0, import_react.useState)(0);
+	const [kiosk] = (0, import_react.useState)(() => isKiosk());
+	(0, import_react.useEffect)(() => {
+		if (taps === 0 || step !== "idle") return;
+		const id = window.setTimeout(() => setTaps(0), 2e3);
+		return () => window.clearTimeout(id);
+	}, [
+		taps,
+		lastTap,
+		step
+	]);
+	(0, import_react.useEffect)(() => {
+		if (step !== "counting") return;
+		if (left <= 0) return;
+		const id = window.setTimeout(() => setLeft((n) => n - 1), 1e3);
+		return () => window.clearTimeout(id);
+	}, [step, left]);
+	(0, import_react.useEffect)(() => {
+		if (taps < POWER_TAPS) return;
+		setTaps(0);
+		setStep("confirm");
+	}, [taps]);
+	if (!kiosk) return null;
+	const call = async (path) => {
+		const res = await fetch(path, {
+			method: "POST",
+			headers: { "X-DG-Action": "power" }
+		});
+		if (!res.ok) throw new Error(String(res.status));
+		return await res.json();
+	};
+	const tap = () => {
+		setLastTap(Date.now());
+		setTaps((n) => n + 1);
+	};
+	const confirm = async () => {
+		setStep("sending");
+		try {
+			const r = await call("/api/shutdown");
+			setLeft(r.seconds ?? 15);
+			setStep("counting");
+		} catch {
+			setStep("failed");
+		}
+	};
+	const cancel = async () => {
+		if (step === "counting") try {
+			await call("/api/shutdown/cancel");
+		} catch {}
+		setStep("idle");
+		setTaps(0);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			onClick: tap,
+			"aria-label": "전원 끄기(연속 5번)",
+			className: "t-btn pointer-events-auto absolute top-3 left-3 z-20 flex size-12 items-center justify-center bg-cream text-ink",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Power, {
+				className: "size-5",
+				strokeWidth: 3
+			})
+		}),
+		taps > 0 && step === "idle" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+			className: "animate-pop pointer-events-none absolute top-16 left-3 z-20 rounded-full border-[0.1875rem] border-ink bg-cream px-2.5 py-0.5 font-display text-xs",
+			children: [
+				"전원 끄기: ",
+				POWER_TAPS - taps,
+				"번 더"
+			]
+		}, taps),
+		step !== "idle" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-ink/70 px-6",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "t-panel relative w-full max-w-sm px-5 pt-10 pb-5 text-center",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "absolute -top-8 left-1/2 flex size-16 -translate-x-1/2 items-center justify-center rounded-full border-[0.3125rem] border-ink bg-don text-cream shadow-[0_0.3125rem_0_var(--color-ink)]",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Power, {
+						className: "size-8",
+						strokeWidth: 3
+					})
+				}), step === "confirm" || step === "sending" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "font-display text-2xl",
+						children: "게임 PC를 끌까요?"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "mt-2 text-sm text-fg-muted",
+						children: "점수 기록은 그대로 남아요. 끈 뒤 다시 켜면 게임이 자동으로 시작돼요."
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "mt-6 flex gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: cancel,
+							className: "t-btn h-14 flex-1 bg-cream text-xl",
+							children: "취소"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: confirm,
+							disabled: step === "sending",
+							className: "t-btn h-14 flex-1 bg-don text-xl text-cream disabled:opacity-60",
+							children: "전원 끄기"
+						})]
+					})
+				] }) : step === "counting" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+						className: "font-display text-2xl",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "t-outline-sm text-4xl tabular-nums text-sun",
+							children: Math.max(0, left)
+						}), "초 뒤 꺼집니다"]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "mt-2 text-sm text-fg-muted",
+						children: "잘못 눌렀다면 아래를 눌러 취소하세요."
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: cancel,
+						className: "t-btn mt-6 h-14 w-full bg-cream text-xl",
+						children: "끄기 취소"
+					})
+				] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "font-display text-2xl",
+						children: "이 화면에서는 끌 수 없어요"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "mt-2 text-sm text-fg-muted",
+						children: "설치판(start.bat)으로 실행했을 때만 전원을 끌 수 있습니다. 윈도우 시작 메뉴에서 꺼 주세요."
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: cancel,
+						className: "t-btn mt-6 h-14 w-full bg-cream text-xl",
+						children: "닫기"
+					})
+				] })]
+			})
+		})
+	] });
 }
 var NOSE = 0;
 var SHOULDER = [11, 12];
@@ -4371,8 +4562,10 @@ var MOTION = {
 	/** 시작 동작: 두 손을 어깨선 위 이만큼(머리 위). */
 	handsUpHeight: -.9,
 	/** 너무 멀다고 보는 어깨너비(화면 높이 대비). */
-	nearScale: .09,
-	minScale: .055,
+	nearScale: .07,
+	minScale: .045,
+	/** 어깨선이 화면 아래쪽 이 높이보다 낮으면 "한 걸음 뒤로" 안내(카메라가 높이 달린 키오스크). */
+	lowShoulderY: .7,
 	centerSlack: .28
 };
 var clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -4448,6 +4641,7 @@ var MotionTracker = class {
 		const none = {
 			present: this.present,
 			tooFar: false,
+			lowInFrame: false,
 			offCenter: false,
 			handsUp: false,
 			armed: false,
@@ -4549,6 +4743,7 @@ var MotionTracker = class {
 		return {
 			present: this.present,
 			tooFar: s < MOTION.nearScale,
+			lowInFrame: cy > MOTION.lowShoulderY,
 			offCenter: Math.abs(cxN - .5) > MOTION.centerSlack,
 			handsUp,
 			armed,
@@ -4689,6 +4884,37 @@ function travelOf(hist, window) {
 	}
 	return d;
 }
+/** 화면에 여러 명이 잡힐 때 누구를 플레이어로 볼지.
+* - 양손을 머리 위로 든 사람(시작 동작)을 가장 먼저 고른다. 아이 뒤에 선 어른보다 손을 든 아이가 우선.
+* - 이미 따라가던 사람이 비슷한 자리에 있으면 계속 그 사람(중간에 어른이 다가와도 안 바뀜).
+* - 그 밖에는 가까운(어깨가 넓은) 사람, 비슷하면 가운데 사람.
+* x는 카메라 원본 좌표(반전 전) 기준. lastCenter도 같은 좌표.
+*/
+function pickPlayer(poses, aspect, lastCenter) {
+	let best = -1;
+	let bestScore = -Infinity;
+	poses.forEach((p, i) => {
+		const ls = p[11];
+		const rs = p[12];
+		const v = (q) => q?.visibility ?? 1;
+		if (!ls || !rs || v(ls) < .4 || v(rs) < .4) return;
+		const width = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
+		const cx = (ls.x + rs.x) / 2;
+		const nose = p[0];
+		const lw = p[15];
+		const rw = p[16];
+		const headY = nose && v(nose) > .3 ? nose.y : Math.min(ls.y, rs.y) - width * .6;
+		const handsUp = !!lw && !!rw && v(lw) > .5 && v(rw) > .5 && lw.y < headY && rw.y < headY;
+		let score = width - Math.abs(cx - .5) * .25;
+		if (handsUp) score += .3;
+		if (lastCenter !== null && Math.abs(cx - lastCenter) < .12) score += .15;
+		if (score > bestScore) {
+			bestScore = score;
+			best = i;
+		}
+	});
+	return best;
+}
 var EMPTY = {
 	present: false,
 	handsUp: false,
@@ -4698,12 +4924,20 @@ var EMPTY = {
 	chestStill: false,
 	aim: null,
 	tooFar: false,
+	lowInFrame: false,
 	offCenter: false
 };
 /** 초당 추론 횟수 상한. 빠른 팔 동작을 놓치지 않을 만큼. */
 var INFER_MS = 30;
-/** 추론용으로 줄인 영상의 긴 변. 멀리 선 아이의 손목까지 보이게. */
-var INFER_LONG = 480;
+/** 추론용으로 줄인 영상의 긴 변. 멀리 서거나 작은 아이의 손목까지 보이게. */
+var INFER_LONG = 640;
+/** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
+var CAMERA_SHAPE = {
+	width: { ideal: 1280 },
+	height: { ideal: 960 },
+	aspectRatio: { ideal: 4 / 3 },
+	frameRate: { ideal: 30 }
+};
 var PoseController = class {
 	video = null;
 	status = "off";
@@ -4714,6 +4948,7 @@ var PoseController = class {
 	stream = null;
 	disconnected = false;
 	motion = new MotionTracker();
+	lastCenter = null;
 	lastTs = 0;
 	lastInfer = 0;
 	inferCanvas = null;
@@ -4774,9 +5009,9 @@ var PoseController = class {
 				},
 				runningMode: "VIDEO",
 				numPoses: 2,
-				minPoseDetectionConfidence: .5,
-				minPosePresenceConfidence: .5,
-				minTrackingConfidence: .5
+				minPoseDetectionConfidence: .4,
+				minPosePresenceConfidence: .4,
+				minTrackingConfidence: .4
 			};
 			try {
 				this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
@@ -4810,17 +5045,13 @@ var PoseController = class {
 				audio: false,
 				video: {
 					deviceId: { exact: chosen },
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
-					frameRate: { ideal: 30 }
+					...CAMERA_SHAPE
 				}
 			}] : [],
 			{
 				audio: false,
 				video: {
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
-					frameRate: { ideal: 30 },
+					...CAMERA_SHAPE,
 					facingMode: "user"
 				}
 			},
@@ -4898,7 +5129,8 @@ var PoseController = class {
 			};
 			return this.lastFrame;
 		}
-		const pick = pickMain(poses, aspect);
+		const pick = pickPlayer(poses, aspect, this.lastCenter);
+		this.lastCenter = pick >= 0 ? ((poses[pick][11]?.x ?? .5) + (poses[pick][12]?.x ?? .5)) / 2 : null;
 		if (pick < 0) {
 			const m = this.motion.update(null, now);
 			this.present = m.present;
@@ -4943,6 +5175,7 @@ var PoseController = class {
 			chestStill: m.chestStill,
 			aim: m.aim,
 			tooFar: m.tooFar,
+			lowInFrame: m.lowInFrame,
 			offCenter: m.offCenter
 		};
 		return this.lastFrame;
@@ -4966,22 +5199,6 @@ var PoseController = class {
 		return this.inferCanvas;
 	}
 };
-/** 여러 명이 잡히면 어깨가 가장 넓은(가장 가까운) 사람, 비슷하면 가운데 사람. */
-function pickMain(poses, aspect) {
-	let best = -1;
-	let bestScore = 0;
-	poses.forEach((p, i) => {
-		const ls = p[11];
-		const rs = p[12];
-		if (!ls || !rs || (ls.visibility ?? 1) < .4 || (rs.visibility ?? 1) < .4) return;
-		const score = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y) - Math.abs((ls.x + rs.x) / 2 - .5) * .08;
-		if (score > bestScore) {
-			bestScore = score;
-			best = i;
-		}
-	});
-	return best;
-}
 function errorName(err) {
 	if (err && typeof err === "object" && "name" in err) return String(err.name);
 	return "";
@@ -5047,7 +5264,7 @@ var initialUi = () => ({
 	score: 0,
 	combo: 0,
 	maxCombo: 0,
-	timeLeft: 30,
+	timeLeft: 20,
 	countdown: 3,
 	verse: VERSES[0],
 	personPresent: false,
@@ -5059,6 +5276,7 @@ var initialUi = () => ({
 	savedName: null,
 	scores: [],
 	muted: false,
+	sound: "none",
 	confirmReset: false,
 	banner: null,
 	motionHint: "",
@@ -5109,6 +5327,8 @@ function GameApp() {
 			canvas.height = Math.max(1, Math.floor(r.height * dpr));
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			ctx.imageSmoothingEnabled = true;
+			const ui = Math.max(.85, Math.min(3, r.width / 430));
+			document.documentElement.style.fontSize = `${(16 * ui).toFixed(2)}px`;
 		};
 		resize();
 		const ro = new ResizeObserver(resize);
@@ -5132,7 +5352,7 @@ function GameApp() {
 				}
 			}
 			if (game.phase !== lastPhase) {
-				if (game.phase === "practice" || game.phase === "attract") pose.resetMotion();
+				if (game.phase === "countdown" || game.phase === "attract") pose.resetMotion();
 				lastPhase = game.phase;
 			}
 			game.update(now);
@@ -5172,6 +5392,12 @@ function GameApp() {
 			if (document.visibilityState === "visible") audio.unlock();
 		};
 		document.addEventListener("visibilitychange", onVis);
+		const wake = () => {
+			audio.unlock();
+			window.setTimeout(() => game.nudgeUi(), 150);
+		};
+		window.addEventListener("pointerdown", wake, { capture: true });
+		window.addEventListener("keydown", wake, { capture: true });
 		return () => {
 			cancelAnimationFrame(raf);
 			ro.disconnect();
@@ -5180,6 +5406,9 @@ function GameApp() {
 			canvas.removeEventListener("pointerup", onUp);
 			canvas.removeEventListener("pointercancel", onUp);
 			document.removeEventListener("visibilitychange", onVis);
+			window.removeEventListener("pointerdown", wake, { capture: true });
+			window.removeEventListener("keydown", wake, { capture: true });
+			document.documentElement.style.fontSize = "";
 			pose.stop();
 		};
 	}, []);
@@ -5268,9 +5497,9 @@ function GameApp() {
 					className: "absolute inset-0 size-full touch-none"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: `pointer-events-none absolute z-10 transition-opacity ${pipLow ? "top-[34%] left-3" : "top-[40%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
+					className: `pointer-events-none absolute z-10 transition-opacity ${pipLow ? "bottom-24 left-3" : "top-[35%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`,
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative h-28 w-36 overflow-hidden rounded-2xl border-[5px] border-ink bg-ink shadow-[0_5px_0_var(--color-ink)]",
+						className: "relative h-48 w-36 overflow-hidden rounded-2xl border-[0.3125rem] border-ink bg-ink shadow-[0_0.3125rem_0_var(--color-ink)]",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("video", {
 							ref: videoRef,
 							className: "absolute inset-0 size-full object-cover",
@@ -5283,12 +5512,12 @@ function GameApp() {
 							autoPlay: true
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("canvas", {
 							ref: pipRef,
-							width: 288,
-							height: 224,
+							width: 360,
+							height: 480,
 							className: "absolute inset-0 size-full"
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: `relative mx-auto -mt-3 w-fit rounded-full border-[3px] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`,
+						className: `relative mx-auto -mt-3 w-fit rounded-full border-[0.1875rem] border-ink px-2.5 py-0.5 text-center font-display text-xs whitespace-nowrap ${ui.armed && pipLow ? "bg-don text-cream" : ui.personPresent ? "bg-sun text-ink" : "bg-cream text-ink"}`,
 						children: pipLabel
 					})]
 				}),
@@ -5308,6 +5537,7 @@ function GameApp() {
 					onSaveName: (name) => gameRef.current?.saveName(name),
 					onSkipName: () => gameRef.current?.skipName(),
 					onRemoveRecord: (at) => gameRef.current?.removeRecord(at),
+					onTestSound: () => gameRef.current?.testSound(),
 					onNext: () => gameRef.current?.nextPlayer(),
 					onMute: () => gameRef.current?.toggleMute(),
 					onAskReset: () => gameRef.current?.askReset(),
