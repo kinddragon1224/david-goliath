@@ -28,7 +28,7 @@ export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = "alllove-david-goliath-scores-v2";
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.2.1";
 
 export const CHURCH_NAME = "모두애침례교회";
 export const CHURCH_NAME_SHORT = "모두애교회";

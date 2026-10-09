@@ -76,7 +76,7 @@ export function Overlays({
         <Start ui={ui} onStart={onStart} onRetryCamera={onRetryCamera} onRetryMotion={onRetryMotion} onOpenWindow={onOpenWindow} />
       )}
       {ui.phase === "practice" && <Practice ui={ui} onSkip={onSkipPractice} />}
-      {ui.phase === "countdown" && <Countdown n={ui.countdown} />}
+      {ui.phase === "countdown" && (ui.waitingForPlayer ? <WaitForPlayer /> : <Countdown n={ui.countdown} />)}
       {ui.phase === "play" && <Hud ui={ui} />}
       {ui.phase === "result" &&
         (ui.naming ? (
@@ -507,6 +507,23 @@ function Practice({ ui, onSkip }: { ui: UiSnap; onSkip: () => void }) {
         <button type="button" onClick={onSkip} className="t-btn mt-4 h-14 bg-sun px-7 text-xl">
           바로 시작!
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** 화면을 눌러 시작했는데 카메라에 사람이 아직 안 보일 때. */
+function WaitForPlayer() {
+  return (
+    <div className="flex h-full flex-col items-center justify-start gap-6 bg-ink/35 px-6 pt-[22%]">
+      <p className="animate-bob t-outline font-display text-5xl leading-tight text-sun text-center drop-shadow-[0_0.5rem_0_var(--color-ink)]">
+        발자국 위에
+        <br />
+        서 주세요!
+      </p>
+      <div className="t-panel max-w-[85%] px-5 py-3 text-center">
+        <p className="font-display text-xl">카메라에 몸이 보이면 바로 시작해요</p>
+        <p className="mt-1 text-sm text-fg-muted">머리부터 허리까지 "내 모습"에 나오게 서 주세요</p>
       </div>
     </div>
   );

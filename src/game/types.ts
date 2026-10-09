@@ -118,4 +118,6 @@ export type UiSnap = {
   checkMode: boolean;
   /** 양손 번쩍 유지 정도 0..1. */
   handsUpProgress: number;
+  /** 카운트다운 중인데 카메라에 사람이 안 보여 기다리는 중. */
+  waitingForPlayer: boolean;
 };

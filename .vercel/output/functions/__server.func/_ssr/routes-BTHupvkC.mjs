@@ -1,7 +1,7 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { i as Power, n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-D8cEC62u.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-BTHupvkC.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -11,7 +11,7 @@ var GRAVITY = 1520;
 var LEADERBOARD_KEEP = 5e3;
 var SCORES_KEY = "alllove-david-goliath-scores-v2";
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-var APP_VERSION = "1.2.0";
+var APP_VERSION = "1.2.1";
 var CHURCH_NAME = "모두애침례교회";
 var GAME_TITLE = "다윗과 골리앗";
 /** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
@@ -1852,6 +1852,10 @@ function randomVerse(except) {
 	return pool[Math.floor(Math.random() * pool.length)] ?? VERSES[0];
 }
 var HANDS_UP_SECONDS = 1;
+/** 경기 중 사람이 이만큼 안 보이면 이번 판을 취소한다. 작은 아이 인식이 잠깐 끊기는 것은 봐준다. */
+var ABSENT_ABORT_MS = 4e3;
+/** 카운트다운에서 사람을 기다리는 최대 시간. */
+var PLAYER_WAIT_SECONDS = 12;
 var PRACTICE_THROWS = 2;
 var PRACTICE_MAX_SECONDS = 15;
 var AIM_ASSIST_PX = 110;
@@ -1914,6 +1918,7 @@ var Game = class {
 	resultAcc = 0;
 	/** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
 	handsHold = 0;
+	playerWait = 0;
 	handsLost = 0;
 	handsUpProgress = 0;
 	tooFar = false;
@@ -2058,10 +2063,10 @@ var Game = class {
 			this.armed = false;
 			this.chestStill = false;
 			this.freezeHold = 0;
-			if ((this.phase === "play" || this.phase === "countdown" || this.phase === "practice") && !this.checkMode && this.cameraState === "live") {
+			if (this.phase === "play" && !this.checkMode && this.cameraState === "live") {
 				const t = performance.now();
 				if (this.absentHold === 0) this.absentHold = t;
-				if (t - this.absentHold > 1500) {
+				if (t - this.absentHold > ABSENT_ABORT_MS) {
 					this.abortRound("사람이 화면에서 벗어나 이번 경기는 기록하지 않습니다");
 					return;
 				}
@@ -2295,7 +2300,18 @@ var Game = class {
 				}, true);
 			}
 		}
-		if (this.phase === "countdown") {
+		if (this.phase === "countdown" && this.waitingForPlayer()) {
+			this.countdownAcc = 0;
+			this.countdown = 3;
+			this.playerWait += real;
+			if (this.playerWait > PLAYER_WAIT_SECONDS) {
+				this.goAttract();
+				this.banner = "카메라 앞에 서면 다시 시작할 수 있어요";
+				this.bannerLife = 3;
+			}
+			this.pushUi();
+		} else if (this.phase === "countdown") {
+			this.playerWait = 0;
 			this.countdownAcc += real;
 			if (this.countdownAcc >= 1) {
 				this.countdownAcc = 0;
@@ -2369,10 +2385,15 @@ var Game = class {
 		this.queued = null;
 		this.pushUi(true);
 	}
+	/** 카운트다운을 멈추고 사람을 기다려야 하나(카메라로 하는 판인데 사람이 안 보임). */
+	waitingForPlayer() {
+		return this.phase === "countdown" && !this.checkMode && this.cameraState === "live" && this.poseReady && !this.personPresent;
+	}
 	goCountdown() {
 		if (this.phase === "countdown" || this.phase === "play") return;
 		if (!this.readyToStart()) return;
 		this.phase = "countdown";
+		this.playerWait = 0;
 		this.countdown = 3;
 		this.countdownAcc = 0;
 		this.stones = [];
@@ -3017,7 +3038,8 @@ var Game = class {
 			snap.scores.length,
 			snap.naming ? 1 : 0,
 			snap.savedName ?? "",
-			Math.round(snap.handsUpProgress * 20)
+			Math.round(snap.handsUpProgress * 20),
+			snap.waitingForPlayer ? 1 : 0
 		].join("|");
 		if (!force && key === this.lastUiKey) return;
 		this.lastUiKey = key;
@@ -3058,7 +3080,8 @@ var Game = class {
 			freezeFound: this.freezeFound,
 			inputVia: this.inputVia,
 			checkMode: this.checkMode,
-			handsUpProgress: this.handsUpProgress
+			handsUpProgress: this.handsUpProgress,
+			waitingForPlayer: this.waitingForPlayer()
 		};
 	}
 	goliathPose() {
@@ -3402,7 +3425,7 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 				ui,
 				onSkip: onSkipPractice
 			}),
-			ui.phase === "countdown" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Countdown, { n: ui.countdown }),
+			ui.phase === "countdown" && (ui.waitingForPlayer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WaitForPlayer, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Countdown, { n: ui.countdown })),
 			ui.phase === "play" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Hud, { ui }),
 			ui.phase === "result" && (ui.naming ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NameEntry, {
 				ui,
@@ -3962,6 +3985,29 @@ function Practice({ ui, onSkip }) {
 				]
 			})
 		]
+	});
+}
+/** 화면을 눌러 시작했는데 카메라에 사람이 아직 안 보일 때. */
+function WaitForPlayer() {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "flex h-full flex-col items-center justify-start gap-6 bg-ink/35 px-6 pt-[22%]",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+			className: "animate-bob t-outline font-display text-5xl leading-tight text-sun text-center drop-shadow-[0_0.5rem_0_var(--color-ink)]",
+			children: [
+				"발자국 위에",
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+				"서 주세요!"
+			]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "t-panel max-w-[85%] px-5 py-3 text-center",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "font-display text-xl",
+				children: "카메라에 몸이 보이면 바로 시작해요"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+				className: "mt-1 text-sm text-fg-muted",
+				children: "머리부터 허리까지 \"내 모습\"에 나오게 서 주세요"
+			})]
+		})]
 	});
 }
 function Countdown({ n }) {
@@ -5293,7 +5339,8 @@ var initialUi = () => ({
 	freezeFound: false,
 	inputVia: "webcam",
 	checkMode: false,
-	handsUpProgress: 0
+	handsUpProgress: 0,
+	waitingForPlayer: false
 });
 function GameApp() {
 	const wrapRef = (0, import_react.useRef)(null);

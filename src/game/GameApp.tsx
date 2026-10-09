@@ -60,6 +60,7 @@ const initialUi = (): UiSnap => ({
   inputVia: "webcam",
   checkMode: false,
   handsUpProgress: 0,
+  waitingForPlayer: false,
 });
 
 export function GameApp() {

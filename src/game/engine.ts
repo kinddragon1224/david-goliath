@@ -31,6 +31,10 @@ import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, 
 import { VERSES, randomVerse, type Verse } from "./verses";
 
 const HANDS_UP_SECONDS = 1;
+/** 경기 중 사람이 이만큼 안 보이면 이번 판을 취소한다. 작은 아이 인식이 잠깐 끊기는 것은 봐준다. */
+const ABSENT_ABORT_MS = 4000;
+/** 카운트다운에서 사람을 기다리는 최대 시간. */
+const PLAYER_WAIT_SECONDS = 12;
 const PRACTICE_THROWS = 2;
 const PRACTICE_MAX_SECONDS = 15;
 const AIM_ASSIST_PX = 110;
@@ -94,6 +98,7 @@ export class Game {
   private resultAcc = 0;
   /** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
   private handsHold = 0;
+  private playerWait = 0;
   private handsLost = 0;
   handsUpProgress = 0;
   tooFar = false;
@@ -252,11 +257,11 @@ export class Game {
       this.armed = false;
       this.chestStill = false;
       this.freezeHold = 0;
-      const live = this.phase === "play" || this.phase === "countdown" || this.phase === "practice";
-      if (live && !this.checkMode && this.cameraState === "live") {
+      // 카운트다운 중에는 취소하지 않고 기다린다(update에서 처리). 경기 중에만 오래 안 보이면 취소.
+      if (this.phase === "play" && !this.checkMode && this.cameraState === "live") {
         const t = performance.now();
         if (this.absentHold === 0) this.absentHold = t;
-        if (t - this.absentHold > 1500) {
+        if (t - this.absentHold > ABSENT_ABORT_MS) {
           this.abortRound("사람이 화면에서 벗어나 이번 경기는 기록하지 않습니다");
           return;
         }
@@ -516,7 +521,19 @@ export class Game {
       }
     }
 
-    if (this.phase === "countdown") {
+    if (this.phase === "countdown" && this.waitingForPlayer()) {
+      // 화면을 눌러 시작한 사람이 발자국 자리로 갈 때까지 숫자를 멈춘다
+      this.countdownAcc = 0;
+      this.countdown = 3;
+      this.playerWait += real;
+      if (this.playerWait > PLAYER_WAIT_SECONDS) {
+        this.goAttract();
+        this.banner = "카메라 앞에 서면 다시 시작할 수 있어요";
+        this.bannerLife = 3;
+      }
+      this.pushUi();
+    } else if (this.phase === "countdown") {
+      this.playerWait = 0;
       this.countdownAcc += real;
       if (this.countdownAcc >= 1) {
         this.countdownAcc = 0;
@@ -599,10 +616,16 @@ export class Game {
     this.pushUi(true);
   }
 
+  /** 카운트다운을 멈추고 사람을 기다려야 하나(카메라로 하는 판인데 사람이 안 보임). */
+  waitingForPlayer(): boolean {
+    return this.phase === "countdown" && !this.checkMode && this.cameraState === "live" && this.poseReady && !this.personPresent;
+  }
+
   private goCountdown(): void {
     if (this.phase === "countdown" || this.phase === "play") return;
     if (!this.readyToStart()) return;
     this.phase = "countdown";
+    this.playerWait = 0;
     this.countdown = 3;
     this.countdownAcc = 0;
     this.stones = [];
@@ -1247,6 +1270,7 @@ export class Game {
       snap.naming ? 1 : 0,
       snap.savedName ?? "",
       Math.round(snap.handsUpProgress * 20),
+      snap.waitingForPlayer ? 1 : 0,
     ].join("|");
     if (!force && key === this.lastUiKey) return;
     this.lastUiKey = key;
@@ -1289,6 +1313,7 @@ export class Game {
       inputVia: this.inputVia,
       checkMode: this.checkMode,
       handsUpProgress: this.handsUpProgress,
+      waitingForPlayer: this.waitingForPlayer(),
     };
   }
 
