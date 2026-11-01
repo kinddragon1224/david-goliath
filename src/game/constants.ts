@@ -1,3 +1,5 @@
+import { EDITION } from "./edition";
+
 export const WORLD_W = 1080;
 export const WORLD_H = 1920;
 
@@ -25,14 +27,12 @@ export const NAME_RANK_LIMIT = 10;
 /** 이름 입력을 아무도 안 하면 이 시간 뒤 건너뛴다. */
 export const NAME_ENTRY_SECONDS = 60;
 export const LEADERBOARD_SHOW = 5;
-export const SCORES_KEY = "alllove-david-goliath-scores-v2";
+/** 판마다 따로 저장(교회판은 예전 이름 그대로라 기존 기록 유지). */
+export const SCORES_KEY = EDITION.scoresKey;
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.2.1";
+export const APP_VERSION = "1.3.0";
 
-export const CHURCH_NAME = "모두애침례교회";
-export const CHURCH_NAME_SHORT = "모두애교회";
-export const CHURCH_NAME_EN = "ALL LOVE CHURCH";
 export const GAME_TITLE = "다윗과 골리앗";
 
 /** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */

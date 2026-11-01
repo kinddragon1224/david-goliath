@@ -2,8 +2,9 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
+import { EDITION } from "@/game/edition";
 
-const APP_NAME = "다윗과 골리앗 · 모두애침례교회";
+const APP_NAME = EDITION.appName;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -12,7 +13,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "theme-color", content: "#3a1a0e" },
-      { name: "description", content: "모두애침례교회 다윗과 골리앗 모션 인식 돌 던지기" },
+      { name: "description", content: `${EDITION.venueName ? `${EDITION.venueName} ` : ""}다윗과 골리앗 모션 인식 돌 던지기` },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

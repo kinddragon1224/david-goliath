@@ -1,6 +1,7 @@
 import { Power, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { APP_VERSION, URGENT_SECONDS, CHURCH_NAME, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER } from "./constants";
+import { APP_VERSION, URGENT_SECONDS, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER, ROUND_SECONDS } from "./constants";
+import { EDITION } from "./edition";
 import { isKiosk, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { formatScoreDate, monthCsv, monthKey, monthLabel, monthlyRows, shiftMonth, type ScoreRecord } from "./scores";
@@ -49,16 +50,11 @@ export function Overlays({
       <button
         type="button"
         onClick={onMute}
-        className="t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center bg-cream text-ink"
-        aria-label={ui.muted ? "소리 켜기" : "소리 끄기"}
+        className={`t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center ${ui.sound === "blocked" && !ui.muted ? "animate-throb bg-don text-cream" : "bg-cream text-ink"}`}
+        aria-label={ui.sound === "blocked" && !ui.muted ? "소리가 막혀 있어요. 화면을 한 번 눌러 주세요" : ui.muted ? "소리 켜기" : "소리 끄기"}
       >
         {ui.muted || ui.sound === "blocked" ? <VolumeX className="size-5" strokeWidth={3} /> : <Volume2 className="size-5" strokeWidth={3} />}
       </button>
-      {ui.sound === "blocked" && !ui.muted && (
-        <p className="pointer-events-none absolute top-16 right-3 z-20 rounded-full border-[0.1875rem] border-ink bg-don px-2.5 py-0.5 font-display text-xs text-cream">
-          화면을 한 번 누르면 소리가 나요
-        </p>
-      )}
 
       {(ui.phase === "boot" || ui.phase === "attract" || (ui.phase === "result" && !ui.naming)) && <PowerControl />}
 
@@ -146,13 +142,49 @@ function Title({ size = "lg" }: { size?: "lg" | "md" | "sm" }) {
   );
 }
 
+/** 행사장 로고. 행사장판처럼 로고가 없으면 아무것도 그리지 않는다. */
 function LogoBadge({ size = 96 }: { size?: number }) {
+  if (!EDITION.venueLogo) return null;
   return (
     <div
       className="flex items-center justify-center overflow-hidden rounded-full border-[0.3125rem] border-ink bg-white shadow-[0_0.3125rem_0_var(--color-ink)]"
       style={{ width: size, height: size }}
     >
-      <img src="/logo-alllove.jpg" alt={CHURCH_NAME} className="size-full scale-125 object-cover" />
+      <img src={EDITION.venueLogo} alt={EDITION.venueName ?? ""} className="size-full scale-125 object-cover" />
+    </div>
+  );
+}
+
+/** 판에 따라 성경 말씀 또는 게임 방법. */
+function InfoBlock({ ui, large, compact }: { ui: UiSnap; large?: boolean; compact?: boolean }) {
+  return EDITION.showVerses ? <VerseBlock ui={ui} large={large} compact={compact} /> : <HowToBlock compact={compact} />;
+}
+
+function HowToBlock({ compact }: { compact?: boolean }) {
+  // 이모지는 PC마다 안 보일 수 있어 숫자 배지로
+  const steps = [
+    "양손을 머리 위로 번쩍! 1초 유지하면 시작",
+    "손을 머리 위로 들었다가 앞으로 힘껏 던지기",
+    "금빛 표적이 뜰 때 이마를 맞히면 크리티컬!",
+  ];
+  return (
+    <div className="t-panel relative w-full px-5 pt-7 pb-4 text-left">
+      <div className="absolute -top-5 left-1/2 -translate-x-1/2">
+        <Ribbon tone="ka">게임 방법</Ribbon>
+      </div>
+      <ol className={compact ? "space-y-1.5" : "space-y-2.5"}>
+        {steps.map((text, i) => (
+          <li key={i} className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full border-[0.1875rem] border-ink bg-sun font-display text-xl text-ink">
+              {i + 1}
+            </span>
+            <span className={`font-display leading-snug text-ink ${compact ? "text-lg" : "text-xl"}`} style={{ wordBreak: "keep-all" }}>
+              {text}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-center text-sm font-bold text-fg-muted">{ROUND_SECONDS}초 동안 골리앗을 맞혀 점수를 모으세요</p>
     </div>
   );
 }
@@ -233,9 +265,11 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
       <LogoBadge size={104} />
       <div className="flex flex-col items-center gap-3">
         <Title />
-        <p className="t-outline-sm font-display text-lg tracking-wide text-cream">{CHURCH_NAME}</p>
+        <p className="t-outline-sm font-display text-lg tracking-wide text-cream">
+          {EDITION.venueName ?? "온몸으로 던지는 모션 게임"}
+        </p>
       </div>
-      <VerseBlock ui={ui} large />
+      <InfoBlock ui={ui} large />
       <span className="t-btn animate-throb bg-don px-9 py-4 text-2xl text-cream">화면을 눌러 시작</span>
       <div className="absolute inset-x-4 bottom-4">
         <Credit full />
@@ -269,7 +303,7 @@ function Attract({
           <Title size="sm" />
         </div>
         <div className="mt-4 w-full">
-          <VerseBlock ui={ui} compact />
+          <InfoBlock ui={ui} compact />
         </div>
       </header>
       <div className="flex flex-1 items-center justify-end pr-5">
@@ -317,7 +351,7 @@ function Attract({
           className="mt-3 flex w-full items-center justify-between"
         >
           <Ribbon tone="sun">{Number(month.slice(5))}월의 용사</Ribbon>
-          <span className="font-display text-sm text-don">매달 1등에게 선물!</span>
+          <span className="font-display text-sm text-don">{EDITION.boardTag}</span>
         </button>
         <ol className="mt-1.5 space-y-1">
           {top.length === 0 && <li className="py-2 text-center font-display text-lg text-fg-muted">이달 첫 번째 용사를 기다립니다</li>}
@@ -377,7 +411,7 @@ function Start({
     >
       <LogoBadge size={88} />
       <div className="mt-2 w-full">
-        <VerseBlock ui={ui} />
+        <InfoBlock ui={ui} />
       </div>
       {!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && (
         <HandsUpPrompt progress={ui.handsUpProgress} />
@@ -647,9 +681,11 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
         {best > 0 && <p className="mt-3 text-sm font-bold text-fg-muted">역대 최고 {best.toLocaleString("ko-KR")}</p>}
         {ui.freezeFound && <p className="mt-1 font-display text-lg text-ka-dark">다윗의 프리징을 발견했습니다!</p>}
       </div>
-      <div className="mt-8 w-full">
-        <VerseBlock ui={ui} />
-      </div>
+      {EDITION.showVerses && (
+        <div className="mt-8 w-full">
+          <VerseBlock ui={ui} />
+        </div>
+      )}
       <button type="button" onClick={onNext} className="t-btn mt-6 h-16 min-w-56 bg-don px-8 text-2xl text-cream">
         다음 사람
       </button>
@@ -681,7 +717,7 @@ function NameEntry({ ui, onSave, onSkip }: { ui: UiSnap; onSave: (name: string) 
         </div>
         <p className="t-outline font-display text-5xl leading-none tabular-nums text-sun">{ui.score.toLocaleString("ko-KR")}</p>
         <p className="mt-3 font-display text-lg">이름을 남기면 순위판에 올라가요</p>
-        <p className="text-sm font-bold text-don">매달 1등에게 선물이 있어요!</p>
+        <p className="text-sm font-bold text-don">{EDITION.nameTag}</p>
         <input
           value={name}
           onChange={(e) => setName(e.target.value.replace(/[<>]/g, "").slice(0, MAX))}

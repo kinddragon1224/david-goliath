@@ -1,11 +1,20 @@
-import { i as __toESM, n as __exportAll } from "../_runtime.mjs";
+import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, _ as createFileRoute, b as require_jsx_runtime, d as Scripts, f as HeadContent, g as lazyRouteComponent, h as Outlet, m as createRouter, v as createRootRoute, y as useRouter } from "../_libs/@tanstack/react-router+[...].mjs";
 import { r as TriangleAlert } from "../_libs/lucide-react.mjs";
 import { a as union, i as string, n as number, r as object, t as literal } from "../_libs/zod.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/router-iE2NQh91.js
-var router_iE2NQh91_exports = /* @__PURE__ */ __exportAll({ getRouter: () => getRouter });
+//#region node_modules/.nitro/vite/services/ssr/assets/router-LMSAe7xp.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
+var __defProp = Object.defineProperty;
+var __exportAll = (all, no_symbols) => {
+	let target = {};
+	for (var name in all) __defProp(target, name, {
+		get: all[name],
+		enumerable: true
+	});
+	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
+	return target;
+};
 var FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
 function errorMessage(error) {
 	if (error instanceof Error && error.message) return error.message;
@@ -297,8 +306,18 @@ function PreviewHostBridge() {
 	}, [router]);
 	return null;
 }
-var styles_default = "/assets/styles-AWnx9V1B.css";
-var APP_NAME = "다윗과 골리앗 · 모두애침례교회";
+var styles_default = "/assets/styles-CdQbAbIk.css";
+var EDITION = {
+	id: "church",
+	appName: "다윗과 골리앗 · 모두애침례교회",
+	venueName: "모두애침례교회",
+	venueLogo: "/logo-alllove.jpg",
+	showVerses: true,
+	scoresKey: "alllove-david-goliath-scores-v2",
+	boardTag: "매달 1등에게 선물!",
+	nameTag: "매달 1등에게 선물이 있어요!"
+};
+var APP_NAME = EDITION.appName;
 var Route$1 = createRootRoute({
 	head: () => ({
 		meta: [
@@ -314,7 +333,7 @@ var Route$1 = createRootRoute({
 			},
 			{
 				name: "description",
-				content: "모두애침례교회 다윗과 골리앗 모션 인식 돌 던지기"
+				content: `${EDITION.venueName ? `${EDITION.venueName} ` : ""}다윗과 골리앗 모션 인식 돌 던지기`
 			}
 		],
 		links: [
@@ -361,13 +380,14 @@ var Route$1 = createRootRoute({
 		] })]
 	})
 });
-var $$splitComponentImporter = () => import("./routes-BTHupvkC.mjs");
+var $$splitComponentImporter = () => import("./routes-CkhyLdSb.mjs");
 var rootRouteChildren = { IndexRoute: createFileRoute("/")({ component: lazyRouteComponent($$splitComponentImporter, "component") }).update({
 	id: "/",
 	path: "/",
 	getParentRoute: () => Route$1
 }) };
 var routeTree = Route$1._addFileChildren(rootRouteChildren)._addFileTypes();
+var router_exports = /* @__PURE__ */ __exportAll({ getRouter: () => getRouter });
 function getRouter() {
 	return createRouter({
 		routeTree,
@@ -375,4 +395,4 @@ function getRouter() {
 	});
 }
 //#endregion
-export { getRouter, router_iE2NQh91_exports as t };
+export { EDITION as n, router_exports as t };

@@ -1,7 +1,8 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { i as Power, n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-BTHupvkC.js
+import { n as EDITION } from "./router-LMSAe7xp.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-CkhyLdSb.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -9,10 +10,10 @@ var WORLD_H = 1920;
 var GRAVITY = 1520;
 /** 기기에 남기는 기록 수. 오래된 것부터 지운다(한 판 약 100바이트). */
 var LEADERBOARD_KEEP = 5e3;
-var SCORES_KEY = "alllove-david-goliath-scores-v2";
+/** 판마다 따로 저장(교회판은 예전 이름 그대로라 기존 기록 유지). */
+var SCORES_KEY = EDITION.scoresKey;
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-var APP_VERSION = "1.2.1";
-var CHURCH_NAME = "모두애침례교회";
+var APP_VERSION = "1.3.0";
 var GAME_TITLE = "다윗과 골리앗";
 /** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
 var PRODUCER = {
@@ -1805,6 +1806,7 @@ function monthCsv(rows, key) {
 	});
 	return "﻿" + lines.join("\r\n");
 }
+/** 행사장판(SHOW_VERSES=false)에서는 빌드할 때 말씀 본문이 통째로 빠진다. */
 var VERSES = [
 	{
 		ref: "사무엘상 17:47",
@@ -3388,8 +3390,8 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				onClick: onMute,
-				className: "t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center bg-cream text-ink",
-				"aria-label": ui.muted ? "소리 켜기" : "소리 끄기",
+				className: `t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center ${ui.sound === "blocked" && !ui.muted ? "animate-throb bg-don text-cream" : "bg-cream text-ink"}`,
+				"aria-label": ui.sound === "blocked" && !ui.muted ? "소리가 막혀 있어요. 화면을 한 번 눌러 주세요" : ui.muted ? "소리 켜기" : "소리 끄기",
 				children: ui.muted || ui.sound === "blocked" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, {
 					className: "size-5",
 					strokeWidth: 3
@@ -3397,10 +3399,6 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 					className: "size-5",
 					strokeWidth: 3
 				})
-			}),
-			ui.sound === "blocked" && !ui.muted && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-				className: "pointer-events-none absolute top-16 right-3 z-20 rounded-full border-[0.1875rem] border-ink bg-don px-2.5 py-0.5 font-display text-xs text-cream",
-				children: "화면을 한 번 누르면 소리가 나요"
 			}),
 			(ui.phase === "boot" || ui.phase === "attract" || ui.phase === "result" && !ui.naming) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerControl, {}),
 			ui.phase === "boot" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Boot, {
@@ -3506,7 +3504,9 @@ function Title({ size = "lg" }) {
 		]
 	});
 }
+/** 행사장 로고. 행사장판처럼 로고가 없으면 아무것도 그리지 않는다. */
 function LogoBadge({ size = 96 }) {
+	if (!EDITION.venueLogo) return null;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "flex items-center justify-center overflow-hidden rounded-full border-[0.3125rem] border-ink bg-white shadow-[0_0.3125rem_0_var(--color-ink)]",
 		style: {
@@ -3514,10 +3514,54 @@ function LogoBadge({ size = 96 }) {
 			height: size
 		},
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-			src: "/logo-alllove.jpg",
-			alt: CHURCH_NAME,
+			src: EDITION.venueLogo,
+			alt: EDITION.venueName ?? "",
 			className: "size-full scale-125 object-cover"
 		})
+	});
+}
+/** 판에 따라 성경 말씀 또는 게임 방법. */
+function InfoBlock({ ui, large, compact }) {
+	return EDITION.showVerses ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, {
+		ui,
+		large,
+		compact
+	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HowToBlock, { compact });
+}
+function HowToBlock({ compact }) {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "t-panel relative w-full px-5 pt-7 pb-4 text-left",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "absolute -top-5 left-1/2 -translate-x-1/2",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ribbon, {
+					tone: "ka",
+					children: "게임 방법"
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
+				className: compact ? "space-y-1.5" : "space-y-2.5",
+				children: [
+					"양손을 머리 위로 번쩍! 1초 유지하면 시작",
+					"손을 머리 위로 들었다가 앞으로 힘껏 던지기",
+					"금빛 표적이 뜰 때 이마를 맞히면 크리티컬!"
+				].map((text, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
+					className: "flex items-center gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "flex size-9 shrink-0 items-center justify-center rounded-full border-[0.1875rem] border-ink bg-sun font-display text-xl text-ink",
+						children: i + 1
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `font-display leading-snug text-ink ${compact ? "text-lg" : "text-xl"}`,
+						style: { wordBreak: "keep-all" },
+						children: text
+					})]
+				}, i))
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+				className: "mt-2 text-center text-sm font-bold text-fg-muted",
+				children: [20, "초 동안 골리앗을 맞혀 점수를 모으세요"]
+			})
+		]
 	});
 }
 function VerseBlock({ ui, large, compact }) {
@@ -3617,10 +3661,10 @@ function Boot({ ui, onBegin }) {
 				className: "flex flex-col items-center gap-3",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Title, {}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "t-outline-sm font-display text-lg tracking-wide text-cream",
-					children: CHURCH_NAME
+					children: EDITION.venueName ?? "온몸으로 던지는 모션 게임"
 				})]
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, {
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(InfoBlock, {
 				ui,
 				large: true
 			}),
@@ -3651,7 +3695,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 46 }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Title, { size: "sm" })]
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "mt-4 w-full",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, {
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(InfoBlock, {
 					ui,
 					compact: true
 				})
@@ -3710,7 +3754,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 						children: [Number(month.slice(5)), "월의 용사"]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 						className: "font-display text-sm text-don",
-						children: "매달 1등에게 선물!"
+						children: EDITION.boardTag
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
@@ -3767,7 +3811,7 @@ function Start({ ui, onStart, onRetryCamera, onRetryMotion, onOpenWindow }) {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogoBadge, { size: 88 }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "mt-2 w-full",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, { ui })
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(InfoBlock, { ui })
 			}),
 			!ui.checkMode && ui.cameraState === "live" && ui.modelState === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HandsUpPrompt, { progress: ui.handsUpProgress }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -4152,7 +4196,7 @@ function Result({ ui, onNext }) {
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			EDITION.showVerses && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "mt-8 w-full",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerseBlock, { ui })
 			}),
@@ -4207,7 +4251,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-sm font-bold text-don",
-						children: "매달 1등에게 선물이 있어요!"
+						children: EDITION.nameTag
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 						value: name,

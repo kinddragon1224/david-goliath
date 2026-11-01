@@ -19,7 +19,8 @@
     "test": "node scripts/run-tests.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "build:offline": "node scripts/build-offline.mjs"
+    "build:offline": "node scripts/build-offline.mjs --edition=church",
+    "build:offline:general": "node scripts/build-offline.mjs --edition=general"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

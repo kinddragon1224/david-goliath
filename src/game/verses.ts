@@ -1,9 +1,12 @@
+import { SHOW_VERSES } from "./edition";
+
 export type Verse = {
   ref: string;
   text: string;
 };
 
-export const VERSES: Verse[] = [
+/** 행사장판(SHOW_VERSES=false)에서는 빌드할 때 말씀 본문이 통째로 빠진다. */
+export const VERSES: Verse[] = !SHOW_VERSES ? [{ ref: "", text: "" }] : [
   {
     ref: "사무엘상 17:47",
     text: "여호와께서 구원하시는 것은 칼과 창에 있지 아니함을 이 무리에게 알게 하리라",
