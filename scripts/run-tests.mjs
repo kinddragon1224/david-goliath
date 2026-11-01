@@ -35,6 +35,7 @@ const runs = [
       "src/game/hangul.test.ts",
       "src/game/boss.test.ts",
       "src/game/giant.test.ts",
+      "src/fashion/fashion.test.ts",
     ],
   },
 ];

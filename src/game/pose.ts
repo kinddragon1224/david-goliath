@@ -1,5 +1,13 @@
 import { isTv, preferredCameraId } from "./kiosk";
-import { MotionTracker, pickPlayer, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
+import { reachHands, type ReachHand } from "./reach";
+import {
+  MotionTracker,
+  pickPlayer,
+  type Aim,
+  type BodyInput,
+  type Landmark,
+  type ThrowEvent,
+} from "./motion";
 
 export type { Aim, Landmark, ThrowEvent };
 
@@ -17,7 +25,11 @@ export type PoseFrame = {
   lowInFrame: boolean;
   bodyX: number | null;
   offCenter: boolean;
+  /** 몸 기준으로 옮긴 두 손 위치(화면 0~1). [화면 왼쪽 손, 오른쪽 손]. 패션 체험이 쓴다. */
+  reach: (ReachHand | null)[];
 };
+
+export { REACH, reachHands, type ReachHand } from "./reach";
 
 const EMPTY: PoseFrame = {
   present: false,
@@ -31,6 +43,7 @@ const EMPTY: PoseFrame = {
   lowInFrame: false,
   bodyX: null,
   offCenter: false,
+  reach: [null, null],
 };
 
 type RawPoint = { x: number; y: number; z?: number; visibility?: number };
@@ -40,7 +53,12 @@ const INFER_MS = 30;
 /** 추론용으로 줄인 영상의 긴 변. 멀리 서거나 작은 아이의 손목까지 보이게. */
 const INFER_LONG = 640;
 /** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
-const CAMERA_SHAPE = { width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 }, frameRate: { ideal: 30 } };
+const CAMERA_SHAPE = {
+  width: { ideal: 1280 },
+  height: { ideal: 960 },
+  aspectRatio: { ideal: 4 / 3 },
+  frameRate: { ideal: 30 },
+};
 
 export class PoseController {
   video: HTMLVideoElement | null = null;
@@ -147,7 +165,8 @@ export class PoseController {
     } catch {
       this.landmarker = null;
       this.poseReady = false;
-      this.modelError = "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
+      this.modelError =
+        "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
     }
   }
 
@@ -178,10 +197,7 @@ export class PoseController {
     let lastErr: unknown = null;
     for (const constraints of tries) {
       try {
-        const stream = await withTimeout(
-          navigator.mediaDevices.getUserMedia(constraints),
-          12000,
-        );
+        const stream = await withTimeout(navigator.mediaDevices.getUserMedia(constraints), 12000);
         this.stream = stream;
         video.srcObject = stream;
         stream.getVideoTracks().forEach((track) => {
@@ -194,7 +210,11 @@ export class PoseController {
       } catch (err) {
         lastErr = err;
         const name = errorName(err);
-        if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+        if (
+          name === "NotAllowedError" ||
+          name === "PermissionDeniedError" ||
+          name === "SecurityError"
+        ) {
           throw err;
         }
       }
@@ -249,7 +269,8 @@ export class PoseController {
     }
 
     const pick = pickPlayer(poses, aspect, this.lastCenter);
-    this.lastCenter = pick >= 0 ? ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2 : null;
+    this.lastCenter =
+      pick >= 0 ? ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2 : null;
     if (pick < 0) {
       const m = this.motion.update(null, now);
       this.present = m.present;
@@ -275,6 +296,7 @@ export class PoseController {
       lowInFrame: m.lowInFrame,
       bodyX: m.bodyX,
       offCenter: m.offCenter,
+      reach: reachHands(img, aspect),
     };
     return this.lastFrame;
   }
@@ -301,7 +323,8 @@ export class PoseController {
 }
 
 function errorName(err: unknown): string {
-  if (err && typeof err === "object" && "name" in err) return String((err as { name: string }).name);
+  if (err && typeof err === "object" && "name" in err)
+    return String((err as { name: string }).name);
   return "";
 }
 
@@ -365,4 +388,3 @@ function explainCameraError(err: unknown): string {
   }
   return "카메라를 켜지 못했습니다. 주소창에서 카메라 권한을 확인하세요.";
 }
-

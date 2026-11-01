@@ -8,7 +8,8 @@ import {
   PRODUCER,
   ROUND_SECONDS,
 } from "./constants";
-import { EDITION } from "./edition";
+import { EDITION, EDITION_ID } from "./edition";
+import { resetStation } from "@/fashion/stations";
 import { isKiosk, isTv, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { GIANT_PRESETS } from "./giant";
@@ -1200,6 +1201,15 @@ function AdminPanel({
             소리 확인
           </button>
         </div>
+        {EDITION_ID === "weaveon" && (
+          <button
+            type="button"
+            onClick={resetStation}
+            className="mt-2 h-11 w-full rounded-lg border-[0.1875rem] border-ink bg-sun font-display text-lg"
+          >
+            다른 체험으로 바꾸기
+          </button>
+        )}
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-fg-muted">버전 {APP_VERSION}</span>
           <button
