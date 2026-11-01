@@ -1,0 +1,84 @@
+# 구글 TV용 APK 를 만들어 GitHub 릴리스(tv-<판>)에 올린다.
+# main 에 게임·안드로이드 코드가 바뀌면 위브온페스티벌판을 자동으로 만들고,
+# Actions 탭의 "Run workflow" 로 다른 판(church/general)도 만들 수 있다.
+name: Android TV APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "offline/**"
+      - "android/**"
+      - "public/mediapipe/**"
+      - "scripts/build-offline.mjs"
+      - "package-lock.json"
+      - ".github/workflows/android-tv.yml"
+  workflow_dispatch:
+    inputs:
+      edition:
+        description: "판 (weaveon | general | church)"
+        required: true
+        default: weaveon
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-tv-${{ github.event.inputs.edition || 'weaveon' }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      EDITION: ${{ github.event.inputs.edition || 'weaveon' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 웹 게임 빌드
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/build-offline.mjs --edition="$EDITION"
+          rm -rf android/app/src/main/assets
+          mkdir -p android/app/src/main/assets
+          cp -r dist-offline/DavidGoliath/app/. android/app/src/main/assets/
+          echo "APP_VERSION=$(cat dist-offline/DavidGoliath/app/version.txt)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: APK 빌드
+        run: |
+          gradle -p android assembleRelease --no-daemon \
+            -Pedition="$EDITION" -PversionName="$APP_VERSION" -PversionCode="${{ github.run_number }}"
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/DavidGoliath-$EDITION-tv-v$APP_VERSION.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DavidGoliath-${{ env.EDITION }}-tv
+          path: out/*.apk
+
+      - name: 릴리스에 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="tv-$EDITION"
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" out/*.apk \
+            --target "$GITHUB_SHA" \
+            --title "구글 TV 설치 파일 · $EDITION · v$APP_VERSION" \
+            --notes "구글 TV(안드로이드 TV)에 USB 웹캠을 꽂아 쓰는 설치 파일입니다. 설치 방법은 android/README.md 를 보세요. (빌드 ${{ github.run_number }}, ${GITHUB_SHA::7})"

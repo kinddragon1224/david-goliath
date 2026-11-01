@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+local.properties
+# 웹 게임 파일은 빌드할 때 dist-offline 에서 복사한다
+app/src/main/assets/

@@ -1,0 +1,56 @@
+plugins {
+    id "com.android.application"
+}
+
+// 판(edition)·버전은 빌드할 때 넘긴다: gradle assembleRelease -Pedition=weaveon -PversionName=1.4.0 -PversionCode=12
+def edition = project.findProperty("edition") ?: "weaveon"
+def appVersionName = project.findProperty("versionName") ?: "1.0"
+def appVersionCode = (project.findProperty("versionCode") ?: "1").toInteger()
+
+android {
+    namespace "com.therumen.davidgoliath"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.therumen.davidgoliath." + edition
+        minSdk 26
+        targetSdk 35
+        versionCode appVersionCode
+        versionName appVersionName
+        resValue "string", "app_name", edition == "church" ? "다윗과 골리앗 · 교회" : "다윗과 골리앗"
+    }
+
+    // 사이드로드 전용 고정 키. 업데이트 설치 때 기존 앱(점수 기록)을 그대로 이어 쓰려면 키가 매번 같아야 한다.
+    signingConfigs {
+        kiosk {
+            storeFile file("kiosk.keystore")
+            storePassword "davidgoliath"
+            keyAlias "kiosk"
+            keyPassword "davidgoliath"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.kiosk
+        }
+        debug {
+            signingConfig signingConfigs.kiosk
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // mediapipe 모델·wasm 은 압축하지 않아야 빨리 읽힌다
+    androidResources {
+        noCompress += ["wasm", "task", "tflite", "binarypb"]
+    }
+}
+
+dependencies {
+    implementation "androidx.webkit:webkit:1.12.1"
+}
