@@ -271,18 +271,19 @@ function staticBackground(): HTMLCanvasElement | null {
   return cv;
 }
 
-function drawSky(ctx: CanvasRenderingContext2D, time: number, calm: boolean): void {
+function drawSky(ctx: CanvasRenderingContext2D, time: number, calm: boolean, fever = false): void {
   const sky = ctx.createLinearGradient(0, 0, 0, 1350);
-  sky.addColorStop(0, "#ff8a2a");
-  sky.addColorStop(0.45, "#ffb640");
-  sky.addColorStop(1, "#ffe7a0");
+  // 피버 타임: 하늘이 붉은 금빛으로, 햇살이 빨리 돈다
+  sky.addColorStop(0, fever ? "#ff4a1f" : "#ff8a2a");
+  sky.addColorStop(0.45, fever ? "#ff9a1f" : "#ffb640");
+  sky.addColorStop(1, fever ? "#ffe066" : "#ffe7a0");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, WORLD_W, 1400);
 
   // 회전하는 햇살
   const cx = WORLD_W / 2;
   const cy = 760;
-  const rot = calm ? 0 : time * 0.06;
+  const rot = calm ? 0 : time * (fever ? 0.5 : 0.06);
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(rot);
@@ -401,7 +402,9 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   ctx.translate(gx, gy + GOLIATH_LOCAL.foot.y);
-  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) + wobble);
+  // KO: 발을 축으로 옆으로 쿵 쓰러진다(0.7초), 살짝 튕긴 뒤 멈춤
+  const fall = sim.koT >= 0 ? koFall(sim.koT) : 0;
+  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) + (sim.koT >= 0 ? 0 : wobble) + fall * 1.32);
   if (sim.downed) ctx.translate(40, 80);
   ctx.scale(1 + pulse * 0.012, 1 - pulse * 0.018);
   ctx.translate(-GOLIATH_LOCAL.foot.x, -GOLIATH_LOCAL.foot.y);
@@ -411,7 +414,9 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ellipse(ctx, 0, 1318, 270, 36);
   ctx.fill();
 
-  // 창(몸 뒤)
+  // 창(몸 뒤). 던진 창이 날아가는 동안에는 손에 없다.
+  const spearOut = !!sim.spear && sim.spear.stage !== "tell";
+  if (!spearOut) {
   rrect(ctx, -272, 170, 26, 1130, 13);
   ink(ctx, "#b8763a");
   ctx.beginPath();
@@ -427,6 +432,7 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.lineTo(-262, 180);
   ctx.closePath();
   ctx.fill();
+  }
 
   // 다리와 신발
   rrect(ctx, -128, 1030, 100, 260, 40);
@@ -845,7 +851,7 @@ function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.translate(DAVID_FOOT_WORLD.x + motion.x, DAVID_FOOT_WORLD.y);
+  ctx.translate(DAVID_FOOT_WORLD.x + sim.davidShift + motion.x, DAVID_FOOT_WORLD.y);
   // 그림자는 점프와 상관없이 땅에
   ctx.fillStyle = "rgba(90,40,10,0.28)";
   ellipse(ctx, 0, 8, 120, 18);
@@ -853,6 +859,15 @@ function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.translate(0, motion.y);
   ctx.rotate(motion.rot);
   ctx.scale(DAVID_SCALE, DAVID_SCALE);
+
+  // 창에 맞아 기절: 머리 위로 별이 돈다
+  if (pose === "stun") {
+    for (let i = 0; i < 4; i++) {
+      const ang = sim.time * 7 + (i * Math.PI) / 2;
+      star(ctx, Math.cos(ang) * 95, -320 + Math.sin(ang) * 22, 20, ang);
+      ink(ctx, C.yellow, 5);
+    }
+  }
 
   // 힘 모으기 기운
   if (sim.charge > 0.3 || pose === "focus") {
@@ -1049,7 +1064,7 @@ function drawSling(ctx: CanvasRenderingContext2D, pose: DavidPose, hand: { x: nu
 function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   if (sim.phase !== "play" && sim.phase !== "countdown" && sim.phase !== "practice") return;
   const power = sim.armed || sim.charge > 0.15 ? Math.max(0.7, sim.charge) : 0.78;
-  const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time);
+  const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time, sim.davidShift);
   const hot = sim.armed || sim.charge > 0.3;
   ctx.save();
   ctx.globalAlpha = hot ? 0.95 : 0.6;
@@ -1211,13 +1226,18 @@ export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = fa
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  drawSky(ctx, sim.time, calm);
+  drawSky(ctx, sim.time, calm, sim.fever);
   const bg = staticBackground();
   if (bg) ctx.drawImage(bg, 0, 0);
 
+  drawSpearMark(ctx, sim);
   drawGoliath(ctx, sim);
+  if (sim.koT >= 0) drawKoDust(ctx, sim);
   drawAim(ctx, sim);
   drawDavid(ctx, sim);
+  drawSpear(ctx, sim);
+  drawSpearAlert(ctx, sim);
+  if (sim.fever) drawFeverFrame(ctx, sim.time);
   drawRings(ctx, sim);
   drawParticles(ctx, sim);
   drawStones(ctx, sim);
@@ -1274,5 +1294,116 @@ export function drawPip(
     outlinedText(ctx, "던짐!", w / 2, h / 2, 64, C.yellow, C.white);
     ctx.globalAlpha = 1;
   }
+  ctx.restore();
+}
+
+/* ───────── KO · 창 · 피버 ───────── */
+
+/** KO 쓰러짐 정도 0~1(살짝 튕김 포함). */
+function koFall(t: number): number {
+  const u = Math.min(1, t / 0.7);
+  const base = u * u;
+  const bounce = t > 0.7 && t < 1.1 ? Math.sin(((t - 0.7) / 0.4) * Math.PI) * 0.06 : 0;
+  return Math.min(1, base) - bounce;
+}
+
+/** 쓰러지는 순간 땅에서 피어오르는 먼지. */
+function drawKoDust(ctx: CanvasRenderingContext2D, sim: GameSim): void {
+  const t = sim.koT - 0.65;
+  if (t < 0 || t > 1.4) return;
+  const k = t / 1.4;
+  ctx.save();
+  ctx.globalAlpha = 1 - k;
+  for (let i = 0; i < 9; i++) {
+    const x = sim.goliathX + 200 + (i - 4) * 120 * (0.6 + k);
+    const y = 1360 - Math.sin((i / 8) * Math.PI) * 60 * k;
+    circle(ctx, x, y, 50 + k * 70 + (i % 3) * 14);
+    ink(ctx, "#f3dcb0", 6);
+  }
+  ctx.restore();
+}
+
+/** 예고 중 다윗 머리 위 느낌표와 피할 방향 화살표(다윗보다 위에 그린다). */
+function drawSpearAlert(ctx: CanvasRenderingContext2D, sim: GameSim): void {
+  const sp = sim.spear;
+  if (!sp || sp.stage !== "tell") return;
+  const x = sp.targetX;
+  // 큰 느낌표
+  circle(ctx, x, 1250, 58);
+  ink(ctx, C.yellow, 8);
+  outlinedText(ctx, "!", x, 1254, 86, C.red, null);
+  // 피할 방향 화살표 ◀ ▶
+  const a = 0.5 + Math.sin(sim.time * 10) * 0.5;
+  ctx.globalAlpha = 0.6 + a * 0.4;
+  outlinedText(ctx, "◀", x - 200 - a * 20, 1590, 70, C.cream, null);
+  outlinedText(ctx, "▶", x + 200 + a * 20, 1590, 70, C.cream, null);
+  ctx.globalAlpha = 1;
+}
+
+/** 창이 떨어질 자리 표시(예고 중). 빨간 과녁이 깜빡인다. */
+function drawSpearMark(ctx: CanvasRenderingContext2D, sim: GameSim): void {
+  const sp = sim.spear;
+  if (!sp || sp.stage === "stuck") return;
+  const x = sp.targetX;
+  const y = 1712;
+  const blink = sp.stage === "tell" ? 0.55 + Math.sin(sim.time * 18) * 0.35 : 0.9;
+  ctx.save();
+  ctx.globalAlpha = blink;
+  ellipse(ctx, x, y, 150, 40);
+  ctx.fillStyle = "rgba(242,74,42,0.35)";
+  ctx.fill();
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = C.red;
+  ctx.setLineDash([24, 16]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+
+/** 골리앗 손에서 다윗 자리로 날아가 땅에 꽂히는 창. */
+function drawSpear(ctx: CanvasRenderingContext2D, sim: GameSim): void {
+  const sp = sim.spear;
+  if (!sp || sp.stage === "tell") return;
+  const fromX = sim.goliathX - 260;
+  const fromY = 70 + 500;
+  const toX = sp.targetX;
+  const toY = 1700;
+  let x = toX;
+  let y = toY;
+  let ang = Math.PI * 0.62;
+  if (sp.stage === "fly") {
+    const k = sp.k;
+    x = fromX + (toX - fromX) * k;
+    y = fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 260;
+    const dx = toX - fromX;
+    const dy = toY - fromY - Math.cos(k * Math.PI) * 260 * Math.PI;
+    ang = Math.atan2(dy, dx);
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  if (sp.stage === "stuck") ctx.globalAlpha = Math.max(0, 1 - Math.max(0, sp.k - 0.6) / 0.4);
+  rrect(ctx, -330, -11, 330, 22, 11);
+  ink(ctx, "#b8763a", 8);
+  ctx.beginPath();
+  ctx.moveTo(60, 0);
+  ctx.lineTo(-10, -30);
+  ctx.lineTo(-10, 30);
+  ctx.closePath();
+  ink(ctx, "#d9dde6", 8);
+  ctx.restore();
+}
+
+/** 피버 타임: 화면 가장자리가 금빛으로 일렁인다. */
+function drawFeverFrame(ctx: CanvasRenderingContext2D, time: number): void {
+  const a = 0.35 + Math.sin(time * 12) * 0.15;
+  ctx.save();
+  ctx.lineWidth = 46;
+  ctx.strokeStyle = `rgba(255,210,58,${a})`;
+  ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = `rgba(242,74,42,${a})`;
+  ctx.strokeRect(30, 30, WORLD_W - 60, WORLD_H - 60);
   ctx.restore();
 }

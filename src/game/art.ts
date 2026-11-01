@@ -5,7 +5,7 @@ import { WORLD_W } from "./constants";
  */
 
 export type GoliathPose = "idle" | "warn" | "guard" | "hit";
-export type DavidPose = "idle" | "ready" | "spin" | "throw" | "recover" | "focus";
+export type DavidPose = "idle" | "ready" | "spin" | "throw" | "recover" | "focus" | "stun";
 
 /** 골리앗 로컬 좌표. 원점 (goliathX, 70+bob), 발은 y=1320.
  * 머리가 몸만큼 큰 2등신이다. 머리 중심 (0,430) 반지름 190.
@@ -64,11 +64,12 @@ export function davidMotion(pose: DavidPose, aimX: number, charge: number, time:
   if (pose === "throw") return { x: 10, y: -8, rot: aim + 0.1 };
   if (pose === "recover") return { x: 4, y: 0, rot: aim + 0.04 };
   if (pose === "focus") return { x: 0, y: 0, rot: 0 };
+  if (pose === "stun") return { x: Math.sin(time * 30) * 6, y: 0, rot: Math.sin(time * 9) * 0.12 };
   return { x: 0, y: -Math.abs(Math.sin(time * Math.PI * 2.2)) * 10, rot: aim };
 }
 
 /** 돌이 떠나는 월드 좌표. 물매 손 위치를 몸 회전과 축척에 맞춰 옮긴다. */
-export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number } {
+export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, time: number, shift = 0): { x: number; y: number } {
   const motion = davidMotion(pose, aimX, charge, time);
   const hand = slingHand(pose, charge, time);
   const lx = hand.x * DAVID_SCALE;
@@ -76,7 +77,7 @@ export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, t
   const c = Math.cos(motion.rot);
   const s = Math.sin(motion.rot);
   return {
-    x: DAVID_FOOT_WORLD.x + motion.x + c * lx - s * ly,
+    x: DAVID_FOOT_WORLD.x + shift + motion.x + c * lx - s * ly,
     y: DAVID_FOOT_WORLD.y + motion.y + s * lx + c * ly,
   };
 }

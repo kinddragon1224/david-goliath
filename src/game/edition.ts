@@ -3,10 +3,11 @@
  * 빌드할 때 VITE_EDITION 으로 고른다(기본은 church).
  *   npm run build:offline            → 모두애교회판
  *   npm run build:offline:general    → 행사장판(교회·말씀 없음)
+ *   npm run build:offline:weaveon    → 위브온페스티벌판(행정안전부 청년마을 사업 피날레)
  * 새 납품처가 생기면 아래에 한 판을 추가하면 된다.
  */
 
-export type EditionId = "church" | "general";
+export type EditionId = "church" | "general" | "weaveon";
 
 export type Edition = {
   id: EditionId;
@@ -26,31 +27,47 @@ export type Edition = {
 };
 
 /** 빌드할 때 글자 그대로 바뀌어, 고르지 않은 판의 내용(교회 이름·로고·말씀)은 결과물에 아예 안 들어간다. */
-export const EDITION_ID: EditionId = import.meta.env.VITE_EDITION === "general" ? "general" : "church";
+export const EDITION_ID: EditionId =
+  import.meta.env.VITE_EDITION === "general"
+    ? "general"
+    : import.meta.env.VITE_EDITION === "weaveon"
+      ? "weaveon"
+      : "church";
 
 /** 성경 말씀을 보일지. 상수라서 행사장판에서는 말씀 본문이 빌드에서 빠진다. */
 export const SHOW_VERSES = EDITION_ID === "church";
 
 export const EDITION: Edition =
-  EDITION_ID === "general"
+  EDITION_ID === "weaveon"
     ? {
-        id: "general",
-        appName: "다윗과 골리앗 · 모션 돌 던지기",
-        venueName: null,
+        id: "weaveon",
+        appName: "다윗과 골리앗 · 위브온페스티벌",
+        venueName: "위브온페스티벌",
         venueLogo: null,
         showVerses: false,
-        scoresKey: "david-goliath-scores-general-v1",
+        scoresKey: "david-goliath-scores-weaveon-v1",
         boardTag: "최고 점수에 도전!",
-        nameTag: "이달의 용사로 이름을 올려 보세요!",
+        nameTag: "오늘의 용사로 이름을 올려 보세요!",
       }
-    : {
-        id: "church",
-        appName: "다윗과 골리앗 · 모두애침례교회",
-        venueName: "모두애침례교회",
-        venueLogo: "/logo-alllove.jpg",
-        showVerses: true,
-        // 예전부터 쓰던 이름 그대로: 현장의 기존 기록을 이어 쓴다
-        scoresKey: "alllove-david-goliath-scores-v2",
-        boardTag: "매달 1등에게 선물!",
-        nameTag: "매달 1등에게 선물이 있어요!",
-      };
+    : EDITION_ID === "general"
+      ? {
+          id: "general",
+          appName: "다윗과 골리앗 · 모션 돌 던지기",
+          venueName: null,
+          venueLogo: null,
+          showVerses: false,
+          scoresKey: "david-goliath-scores-general-v1",
+          boardTag: "최고 점수에 도전!",
+          nameTag: "이달의 용사로 이름을 올려 보세요!",
+        }
+      : {
+          id: "church",
+          appName: "다윗과 골리앗 · 모두애침례교회",
+          venueName: "모두애침례교회",
+          venueLogo: "/logo-alllove.jpg",
+          showVerses: true,
+          // 예전부터 쓰던 이름 그대로: 현장의 기존 기록을 이어 쓴다
+          scoresKey: "alllove-david-goliath-scores-v2",
+          boardTag: "매달 1등에게 선물!",
+          nameTag: "매달 1등에게 선물이 있어요!",
+        };

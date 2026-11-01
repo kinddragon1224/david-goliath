@@ -29,6 +29,8 @@ export type MotionResult = {
   tooFar: boolean;
   /** 몸이 화면 아래로 잘려 있다(키가 작거나 카메라가 높다). */
   lowInFrame: boolean;
+  /** 어깨 중심의 가로 위치(0~1, 거울). 사람이 없으면 null. */
+  bodyX: number | null;
   offCenter: boolean;
   handsUp: boolean;
   /** 던질 손이 장전된 상태. */
@@ -173,6 +175,7 @@ export class MotionTracker {
       present: this.present,
       tooFar: false,
       lowInFrame: false,
+      bodyX: null,
       offCenter: false,
       handsUp: false,
       armed: false,
@@ -299,6 +302,7 @@ export class MotionTracker {
       present: this.present,
       tooFar: s < MOTION.nearScale,
       lowInFrame: cy > MOTION.lowShoulderY,
+      bodyX: cxN,
       offCenter: Math.abs(cxN - 0.5) > MOTION.centerSlack,
       handsUp,
       armed,

@@ -61,6 +61,15 @@ const initialUi = (): UiSnap => ({
   checkMode: false,
   handsUpProgress: 0,
   waitingForPlayer: false,
+  hpRatio: 1,
+  fever: false,
+  won: false,
+  koBonus: 0,
+  spearWarn: false,
+  dodges: 0,
+  giant: { hp: 1, max: 1, plays: 0, defeated: 0 },
+  giantHit: 0,
+  giantKoNow: false,
 });
 
 export function GameApp() {
@@ -268,7 +277,7 @@ export function GameApp() {
     window.open(window.location.href, "_blank", "noopener,noreferrer");
   };
 
-  const pipLow = ui.phase === "play" || ui.phase === "practice" || ui.phase === "countdown";
+  const pipLow = ui.phase === "play" || ui.phase === "ko" || ui.phase === "practice" || ui.phase === "countdown";
   const pipLabel =
     ui.modelState === "failed"
       ? "모션 실패"
@@ -285,7 +294,8 @@ export function GameApp() {
         ui.phase === "start" ||
         ui.phase === "practice" ||
         ui.phase === "countdown" ||
-        ui.phase === "play"
+        ui.phase === "play" ||
+        ui.phase === "ko"
       : false;
 
   return (
@@ -339,6 +349,7 @@ export function GameApp() {
           onSkipName={() => gameRef.current?.skipName()}
           onRemoveRecord={(at) => gameRef.current?.removeRecord(at)}
           onTestSound={() => gameRef.current?.testSound()}
+          onResetGiant={(max) => gameRef.current?.resetGiant(max)}
           onNext={() => gameRef.current?.nextPlayer()}
           onMute={() => gameRef.current?.toggleMute()}
           onAskReset={() => gameRef.current?.askReset()}

@@ -3,6 +3,7 @@
  * 오프라인 설치판 만들기
  *   npm run build:offline             → 모두애교회판 (--edition=church)
  *   npm run build:offline:general     → 행사장판, 교회·성경 말씀 없음 (--edition=general)
+ *   npm run build:offline:weaveon     → 위브온페스티벌판 (--edition=weaveon)
  * 결과: dist-offline/DavidGoliath/ (그대로 복사해 쓰는 폴더)
  *       dist-offline/DavidGoliath-<판>-v<버전>.zip (전달용)
  */
@@ -19,9 +20,10 @@ const editionArg = process.argv.find((a) => a.startsWith("--edition="))?.split("
 const EDITIONS = {
   church: { title: "다윗과 골리앗 · 모두애침례교회", assets: ["logo-alllove.jpg"] },
   general: { title: "다윗과 골리앗 · 모션 돌 던지기", assets: [] },
+  weaveon: { title: "다윗과 골리앗 · 위브온페스티벌", assets: [] },
 };
 const edition = EDITIONS[editionArg];
-if (!edition) throw new Error(`알 수 없는 판: ${editionArg} (church | general)`);
+if (!edition) throw new Error(`알 수 없는 판: ${editionArg} (church | general | weaveon)`);
 
 const version = /APP_VERSION = "([^"]+)"/.exec(readFileSync(join(root, "src/game/constants.ts"), "utf8"))?.[1];
 if (!version) throw new Error("APP_VERSION not found in src/game/constants.ts");

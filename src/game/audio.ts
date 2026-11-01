@@ -1,6 +1,19 @@
 import { BEAT_BPM } from "./constants";
 
-type SfxName = "throw" | "hitSoft" | "hitShield" | "hitHead" | "stagger" | "tick" | "start" | "end" | "combo" | "freeze";
+type SfxName =
+  | "throw"
+  | "hitSoft"
+  | "hitShield"
+  | "hitHead"
+  | "stagger"
+  | "tick"
+  | "start"
+  | "end"
+  | "combo"
+  | "freeze"
+  | "ko"
+  | "warn"
+  | "fever";
 
 /** 전체 음량. 키오스크 스피커에서 잘 들리게 예전(0.22)보다 키웠다. */
 const VOLUME = 0.42;
@@ -14,6 +27,12 @@ export class GameAudio {
   private beatTimer: ReturnType<typeof setInterval> | null = null;
   private nextBeat = 0;
   private beatStep = 0;
+  /** 피버 타임에는 장단이 빨라진다. */
+  private fast = false;
+
+  setFast(on: boolean): void {
+    this.fast = on;
+  }
 
   unlock = (): void => {
     if (!this.ctx) {
@@ -90,6 +109,23 @@ export class GameAudio {
         this.chime(t, 660, 0.18);
         this.chime(t + 0.05, 880, 0.16);
         break;
+      case "ko":
+        // 쿵 쿵 쿵 + 올라가는 팡파르
+        this.don(t, 1);
+        this.don(t + 0.16, 1);
+        this.don(t + 0.32, 1);
+        [523, 659, 784, 1047].forEach((f, i) => this.chime(t + 0.5 + i * 0.11, f, 0.45));
+        this.chime(t + 0.95, 1319, 0.5);
+        break;
+      case "warn":
+        this.osc(880, "square", t, 0.12, 0.16, 860);
+        this.osc(880, "square", t + 0.2, 0.12, 0.16, 860);
+        this.osc(880, "square", t + 0.4, 0.12, 0.16, 860);
+        break;
+      case "fever":
+        [392, 523, 659, 784].forEach((f, i) => this.chime(t + i * 0.07, f, 0.35));
+        this.don(t, 0.8);
+        break;
       case "freeze":
         this.chime(t, 311, 0.35);
         this.chime(t + 0.08, 247, 0.4);
@@ -103,7 +139,7 @@ export class GameAudio {
     this.nextBeat = this.ctx.currentTime + 0.05;
     this.beatStep = 0;
     const pattern = ["don", null, "ka", null, "don", "don", "ka", null] as const;
-    const step = 60 / BEAT_BPM / 2;
+    const base = 60 / BEAT_BPM / 2;
     this.beatTimer = setInterval(() => {
       if (!this.ctx) return;
       while (this.nextBeat < this.ctx.currentTime + 0.12) {
@@ -112,7 +148,7 @@ export class GameAudio {
           if (hit === "don") this.don(this.nextBeat, 0.32);
           else if (hit === "ka") this.ka(this.nextBeat, 0.22);
         }
-        this.nextBeat += step;
+        this.nextBeat += this.fast ? base * 0.7 : base;
         this.beatStep += 1;
       }
     }, 40);

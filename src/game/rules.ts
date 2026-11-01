@@ -88,9 +88,10 @@ export function stoneFlight(
   pose: DavidPose = "idle",
   charge = 0,
   time = 0,
+  shift = 0,
 ) {
   const target = aimPoint(aimX, aimY);
-  const origin = davidSlingWorld(pose, aimX, charge, time);
+  const origin = davidSlingWorld(pose, aimX, charge, time, shift);
   const t = 0.62 - Math.max(0.25, Math.min(1, power)) * 0.08;
   const vx = (target.x - origin.x) / t;
   const vy = (target.y - origin.y) / t - 0.5 * GRAVITY * t;

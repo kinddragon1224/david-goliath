@@ -33,6 +33,8 @@ const runs = [
       "src/lib/auth/sign-in-gate.test.ts",
       "src/game/motion.test.ts",
       "src/game/hangul.test.ts",
+      "src/game/boss.test.ts",
+      "src/game/giant.test.ts",
     ],
   },
 ];

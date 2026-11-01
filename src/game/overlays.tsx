@@ -4,6 +4,7 @@ import { APP_VERSION, URGENT_SECONDS, GAME_TITLE, LEADERBOARD_SHOW, PRODUCER, RO
 import { EDITION } from "./edition";
 import { isKiosk, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
+import { GIANT_PRESETS } from "./giant";
 import { formatScoreDate, monthCsv, monthKey, monthLabel, monthlyRows, shiftMonth, type ScoreRecord } from "./scores";
 import type { UiSnap } from "./types";
 
@@ -24,6 +25,7 @@ type Props = {
   onSkipName: () => void;
   onRemoveRecord: (at: number) => void;
   onTestSound: () => void;
+  onResetGiant: (max: number) => void;
 };
 
 export function Overlays({
@@ -43,6 +45,7 @@ export function Overlays({
   onSkipName,
   onRemoveRecord,
   onTestSound,
+  onResetGiant,
 }: Props) {
   const [adminOpen, setAdminOpen] = useState(false);
   return (
@@ -73,7 +76,8 @@ export function Overlays({
       )}
       {ui.phase === "practice" && <Practice ui={ui} onSkip={onSkipPractice} />}
       {ui.phase === "countdown" && (ui.waitingForPlayer ? <WaitForPlayer /> : <Countdown n={ui.countdown} />)}
-      {ui.phase === "play" && <Hud ui={ui} />}
+      {(ui.phase === "play" || ui.phase === "ko") && <Hud ui={ui} />}
+      {ui.phase === "ko" && <KoSplash />}
       {ui.phase === "result" &&
         (ui.naming ? (
           <NameEntry ui={ui} onSave={onSaveName} onSkip={onSkipName} />
@@ -86,6 +90,8 @@ export function Overlays({
           scores={ui.scores}
           onClose={() => setAdminOpen(false)}
           onRemove={onRemoveRecord}
+          giant={ui.giant}
+          onResetGiant={onResetGiant}
           onAskReset={onAskReset}
           onTestSound={onTestSound}
           sound={ui.muted ? "muted" : ui.sound}
@@ -165,7 +171,7 @@ function HowToBlock({ compact }: { compact?: boolean }) {
   const steps = [
     "양손을 머리 위로 번쩍! 1초 유지하면 시작",
     "손을 머리 위로 들었다가 앞으로 힘껏 던지기",
-    "금빛 표적이 뜰 때 이마를 맞히면 크리티컬!",
+    "창이 날아오면 몸을 옆으로 움직여 피하기!",
   ];
   return (
     <div className="t-panel relative w-full px-5 pt-7 pb-4 text-left">
@@ -184,7 +190,7 @@ function HowToBlock({ compact }: { compact?: boolean }) {
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-center text-sm font-bold text-fg-muted">{ROUND_SECONDS}초 동안 골리앗을 맞혀 점수를 모으세요</p>
+      <p className="mt-2 text-center text-sm font-bold text-fg-muted">{ROUND_SECONDS}초 안에 골리앗을 쓰러뜨려라! 금빛 이마는 크리티컬, 마지막 5초는 2배</p>
     </div>
   );
 }
@@ -294,7 +300,7 @@ function Attract({
   onRetryMotion: () => void;
 }) {
   const month = monthKey(Date.now());
-  const top = monthlyRows(ui.scores, month).slice(0, LEADERBOARD_SHOW);
+  const top = monthlyRows(ui.scores, month).slice(0, Math.min(3, LEADERBOARD_SHOW));
   return (
     <>
       <header className="pointer-events-none flex flex-col items-center gap-2 px-4 pt-4">
@@ -332,6 +338,7 @@ function Attract({
           시작하기
         </button>
         <p className="mt-2.5 text-center text-sm font-bold text-fg-muted">{ui.motionHint}</p>
+        <GiantBar giant={ui.giant} />
         {ui.checkMode ? (
           <p className="mt-1 text-center text-xs text-fg-muted">화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다.</p>
         ) : (
@@ -350,6 +357,7 @@ function Attract({
           }}
           className="mt-3 flex w-full items-center justify-between"
         >
+          <span className="sr-only">길게 눌러 운영자 화면</span>
           <Ribbon tone="sun">{Number(month.slice(5))}월의 용사</Ribbon>
           <span className="font-display text-sm text-don">{EDITION.boardTag}</span>
         </button>
@@ -614,6 +622,7 @@ function Hud({ ui }: { ui: UiSnap }) {
           </p>
         </div>
       </div>
+      <HpBar ratio={ui.hpRatio} fever={ui.fever} />
       <div className="relative h-24">
         {ui.combo > 1 && (
           <div key={ui.combo} className="animate-pop absolute top-2 left-4 flex flex-col items-center">
@@ -653,13 +662,18 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
       <div className="t-panel relative w-full px-5 pt-9 pb-5">
         <div className="absolute -top-6 left-1/2 -translate-x-1/2">
           <span className="inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
-            {isBest ? "최고 기록!" : "결과 발표"}
+            {ui.won ? "골리앗 KO!" : isBest ? "최고 기록!" : "아쉬워요!"}
           </span>
         </div>
         <p className="animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_0.375rem_0_var(--color-ink)]">
           {ui.score.toLocaleString("ko-KR")}
         </p>
-        <p className="mt-3 font-display text-lg text-fg-muted">
+        <p className={`mt-2 font-display text-xl ${ui.won ? "text-don" : "text-ink"}`}>
+          {ui.won
+            ? `${Math.ceil(ui.timeLeft)}초 남기고 쓰러뜨렸어요! 보너스 +${ui.koBonus.toLocaleString("ko-KR")}`
+            : `골리앗 체력 ${Math.max(1, Math.round(ui.hpRatio * 100))}% 남았어요. 다시 도전!`}
+        </p>
+        <p className="mt-1 font-display text-lg text-fg-muted">
           {ui.checkMode
             ? "점검은 기록되지 않습니다"
             : ui.savedName
@@ -668,7 +682,7 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
                 ? `이달 ${ui.monthRank}위`
                 : "기록되지 않았습니다"}
         </p>
-        <dl className="mt-4 grid grid-cols-2 gap-3">
+        <dl className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2">
             <dt className="font-display text-sm">크리티컬</dt>
             <dd className="font-display text-3xl tabular-nums">{ui.foreheadHits}</dd>
@@ -677,7 +691,18 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
             <dt className="font-display text-sm">최대 콤보</dt>
             <dd className="t-outline-sm font-display text-3xl tabular-nums">{ui.maxCombo}</dd>
           </div>
+          <div className="rounded-2xl border-[0.25rem] border-ink bg-cream px-3 py-2">
+            <dt className="font-display text-sm">창 피하기</dt>
+            <dd className="font-display text-3xl tabular-nums">{ui.dodges}</dd>
+          </div>
         </dl>
+        {!ui.checkMode && ui.giantHit > 0 && (
+          <p className={`mt-3 rounded-2xl border-[0.25rem] border-ink px-3 py-2 font-display ${ui.giantKoNow ? "animate-throb bg-sun text-xl" : "bg-paper text-lg"}`}>
+            {ui.giantKoNow
+              ? `거대 골리앗을 쓰러뜨렸어요! 오늘 ${ui.giant.defeated}번째!`
+              : `거대 골리앗에게 ${ui.giantHit.toLocaleString("ko-KR")} 피해!`}
+          </p>
+        )}
         {best > 0 && <p className="mt-3 text-sm font-bold text-fg-muted">역대 최고 {best.toLocaleString("ko-KR")}</p>}
         {ui.freezeFound && <p className="mt-1 font-display text-lg text-ka-dark">다윗의 프리징을 발견했습니다!</p>}
       </div>
@@ -775,7 +800,11 @@ function AdminPanel({
   onAskReset,
   onTestSound,
   sound,
+  giant,
+  onResetGiant,
 }: {
+  giant: UiSnap["giant"];
+  onResetGiant: (max: number) => void;
   scores: ScoreRecord[];
   onClose: () => void;
   onRemove: (at: number) => void;
@@ -867,6 +896,25 @@ function AdminPanel({
             </select>
           </label>
         )}
+        <div className="mt-3 rounded-xl border-[0.1875rem] border-ink bg-sun/30 p-2 text-sm font-bold">
+          <p>
+            거대 골리앗: 체력 {giant.hp.toLocaleString("ko-KR")} / {giant.max.toLocaleString("ko-KR")} · 오늘 {giant.plays}판 ·{" "}
+            {giant.defeated}마리 쓰러뜨림
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-fg-muted">새로 시작(체력):</span>
+            {GIANT_PRESETS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onResetGiant(m)}
+                className={`h-8 rounded-lg border-2 border-ink px-2 text-xs ${m === giant.max ? "bg-sun" : "bg-cream"}`}
+              >
+                {m >= 10000 ? `${m / 10000}만` : m}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="mt-3 flex items-center gap-2 text-sm font-bold">
           <span className="shrink-0">소리</span>
           <span className={`min-w-0 flex-1 truncate ${sound === "running" ? "text-ka-dark" : "text-don"}`}>
@@ -1023,5 +1071,54 @@ function PowerControl() {
         </div>
       )}
     </>
+  );
+}
+
+/* ───────── 골리앗 체력 · KO · 거대 골리앗 ───────── */
+
+function HpBar({ ratio, fever }: { ratio: number; fever: boolean }) {
+  const pct = Math.max(0, Math.min(1, ratio)) * 100;
+  return (
+    <div className="mt-2 flex items-center gap-2 px-3 pr-16">
+      <span className="t-outline-sm shrink-0 font-display text-lg text-cream">골리앗</span>
+      <div className="relative h-7 flex-1 overflow-hidden rounded-full border-[0.25rem] border-ink bg-ink/70">
+        <div
+          className={`h-full rounded-full transition-[width] duration-200 ${pct > 40 ? "bg-don" : pct > 15 ? "bg-orange" : "animate-throb bg-sun"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {fever && (
+        <span className="animate-throb shrink-0 rounded-full border-[0.1875rem] border-ink bg-sun px-2 py-0.5 font-display text-sm text-don">
+          피버 ×2
+        </span>
+      )}
+    </div>
+  );
+}
+
+function KoSplash() {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
+      <p className="animate-pop t-outline font-display text-[9rem] leading-none text-sun drop-shadow-[0_0.6rem_0_var(--color-ink)]">KO!</p>
+      <p className="animate-pop t-outline font-display text-4xl text-cream">골리앗을 쓰러뜨렸다!</p>
+    </div>
+  );
+}
+
+function GiantBar({ giant }: { giant: UiSnap["giant"] }) {
+  const pct = giant.max > 0 ? Math.max(0, Math.min(1, giant.hp / giant.max)) * 100 : 100;
+  return (
+    <div className="mt-3 rounded-2xl border-[0.25rem] border-ink bg-sun/40 px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className="font-display text-base">오늘의 거대 골리앗</span>
+        <span className="text-xs font-bold text-fg-muted">
+          도전 {giant.plays}명{giant.defeated > 0 ? ` · ${giant.defeated}마리 쓰러뜨림` : ""}
+        </span>
+      </div>
+      <div className="mt-1 h-5 overflow-hidden rounded-full border-[0.1875rem] border-ink bg-white">
+        <div className="h-full rounded-full bg-don" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-center font-display text-sm text-don">모두의 점수로 함께 쓰러뜨려요! 남은 체력 {Math.ceil(pct)}%</p>
+    </div>
   );
 }

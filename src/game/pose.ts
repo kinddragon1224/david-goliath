@@ -15,6 +15,7 @@ export type PoseFrame = {
   aim: Aim | null;
   tooFar: boolean;
   lowInFrame: boolean;
+  bodyX: number | null;
   offCenter: boolean;
 };
 
@@ -28,6 +29,7 @@ const EMPTY: PoseFrame = {
   aim: null,
   tooFar: false,
   lowInFrame: false,
+  bodyX: null,
   offCenter: false,
 };
 
@@ -271,6 +273,7 @@ export class PoseController {
       aim: m.aim,
       tooFar: m.tooFar,
       lowInFrame: m.lowInFrame,
+      bodyX: m.bodyX,
       offCenter: m.offCenter,
     };
     return this.lastFrame;

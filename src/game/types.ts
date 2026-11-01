@@ -2,7 +2,7 @@ import type { DavidPose, GoliathPose } from "./art";
 import type { Verse } from "./verses";
 import type { ScoreRecord } from "./scores";
 
-export type Phase = "boot" | "attract" | "start" | "practice" | "countdown" | "play" | "result";
+export type Phase = "boot" | "attract" | "start" | "practice" | "countdown" | "play" | "ko" | "result";
 export type CameraState = "off" | "loading" | "live" | "denied";
 export type ModelState = "off" | "loading" | "ready" | "failed";
 
@@ -79,6 +79,25 @@ export type GameSim = {
   freezeLeft: number;
   goliathPose: GoliathPose;
   davidPose: DavidPose;
+  /** 골리앗 체력 비율 0~1. */
+  hpRatio: number;
+  fever: boolean;
+  /** 쓰러지는 연출이 시작된 뒤 지난 초. KO가 아니면 -1. */
+  koT: number;
+  /** 다윗 좌우 위치(월드 px, 가운데 0). 플레이어 몸을 따라 움직인다. */
+  davidShift: number;
+  /** 날아오는 창. 없으면 null. */
+  spear: SpearSim | null;
+};
+
+export type SpearSim = {
+  stage: "tell" | "fly" | "stuck";
+  /** 이 단계에서 지난 비율 0~1. */
+  k: number;
+  /** 창이 떨어질 땅 x(월드). */
+  targetX: number;
+  /** 피했는지(stuck 단계에서만 의미). */
+  dodged: boolean;
 };
 
 export type UiSnap = {
@@ -120,4 +139,17 @@ export type UiSnap = {
   handsUpProgress: number;
   /** 카운트다운 중인데 카메라에 사람이 안 보여 기다리는 중. */
   waitingForPlayer: boolean;
+  /** 골리앗 체력 비율 0~1. */
+  hpRatio: number;
+  fever: boolean;
+  /** 이번 판에 골리앗을 쓰러뜨렸나(KO 연출 중·결과 화면). */
+  won: boolean;
+  koBonus: number;
+  /** 창 예고 중(피하라는 안내). */
+  spearWarn: boolean;
+  dodges: number;
+  giant: { hp: number; max: number; plays: number; defeated: number };
+  /** 이번 판 점수가 거대 골리앗에게 준 피해, 이번 판으로 쓰러뜨렸는지. */
+  giantHit: number;
+  giantKoNow: boolean;
 };

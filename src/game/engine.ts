@@ -26,7 +26,25 @@ import {
   type HitPart,
 } from "./rules";
 import { addScore, clearScores, deleteScore, loadScores, qualifiesForName, setScoreName, type InputVia, type ScoreRecord } from "./scores";
-import { NAME_ENTRY_SECONDS } from "./constants";
+import { NAME_ENTRY_SECONDS, SCORES_KEY } from "./constants";
+import {
+  DAVID_SHIFT_MAX,
+  DODGE_BONUS,
+  GOLIATH_HP,
+  KO_SECONDS,
+  SPEAR_AT,
+  SPEAR_FLIGHT,
+  SPEAR_TELL,
+  STUN_SECONDS,
+  dodged,
+  isFever,
+  koBonus,
+  partDamage,
+  shiftFromBody,
+  woundStage,
+} from "./boss";
+import { contribute, dayKey, normalizeGiant, resetGiant, type GiantState } from "./giant";
+import type { SpearSim } from "./types";
 import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, Stone, UiSnap } from "./types";
 import { VERSES, randomVerse, type Verse } from "./verses";
 
@@ -99,6 +117,23 @@ export class Game {
   /** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
   private handsHold = 0;
   private playerWait = 0;
+  /* ── 골리앗 KO · 피버 · 창 피하기 · 거대 골리앗 ── */
+  goliathHp = GOLIATH_HP;
+  fever = false;
+  /** KO 연출이 시작된 뒤 지난 초(-1이면 KO 아님). */
+  private koT = -1;
+  private koTimeLeft = 0;
+  won = false;
+  koBonusPts = 0;
+  davidShift = 0;
+  private davidTarget = 0;
+  private stunLeft = 0;
+  private spear: { stage: "tell" | "fly" | "stuck"; t: number; targetShift: number; dodged: boolean } | null = null;
+  private spearIdx = 0;
+  dodges = 0;
+  giant: GiantState = normalizeGiant(null, dayKey(Date.now()));
+  giantHit = 0;
+  giantKoNow = false;
   private handsLost = 0;
   handsUpProgress = 0;
   tooFar = false;
@@ -163,6 +198,7 @@ export class Game {
     private emit: (ui: UiSnap) => void,
   ) {
     this.scores = loadScores();
+    this.giant = loadGiant();
     this.calm =
       typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.pushUi(true);
@@ -277,6 +313,8 @@ export class Game {
       return;
     }
     this.absentHold = 0;
+    // 다윗이 플레이어 몸을 따라 좌우로 움직인다(창 피하기)
+    if (frame.bodyX !== null) this.davidTarget = shiftFromBody(frame.bodyX);
     this.armed = frame.armed;
     this.chestStill = frame.chestStill;
     if (frame.aim && !this.queued && !this.pointerHolding) {
@@ -342,6 +380,9 @@ export class Game {
     if (Math.hypot(x - this.pointerX0, y - this.pointerY0) > 36) this.pointerHolding = false;
     this.pointerX = x;
     this.pointerY = y;
+    if (this.checkMode && !this.pointerHolding) {
+      this.davidTarget = Math.max(-DAVID_SHIFT_MAX, Math.min(DAVID_SHIFT_MAX, x - WORLD_W / 2));
+    }
     if (this.pointerHolding && (this.phase === "play" || this.phase === "practice")) {
       this.aimX = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
       this.aimY = Math.max(-1, Math.min(1, (y - AIM_Y_ORIGIN) / AIM_Y_SPAN));
@@ -448,9 +489,20 @@ export class Game {
     this.lastNow = now;
     if (this.hitStop > 0) this.hitStop = Math.max(0, this.hitStop - real);
     this.time += real;
+    this.davidShift += (this.davidTarget - this.davidShift) * Math.min(1, real * 10);
+    if (this.stunLeft > 0) this.stunLeft = Math.max(0, this.stunLeft - real);
+    if (this.phase === "ko") this.stepKo(real);
+    if (this.phase === "play") this.stepSpear(real);
 
     if (this.phase === "play" && this.playStart > 0) {
       this.timeLeft = Math.max(0, ROUND_SECONDS - (now - this.playStart) / 1000);
+      if (!this.fever && isFever(this.timeLeft, true)) {
+        this.fever = true;
+        this.banner = "피버 타임! 2배";
+        this.bannerLife = 1.4;
+        this.audio.play("fever");
+        this.audio.setFast(true);
+      }
       if (this.timeLeft <= URGENT_SECONDS && this.timeLeft > 0) {
         const sec = Math.ceil(this.timeLeft);
         if (sec < this.lastUrgentTick) {
@@ -602,7 +654,19 @@ export class Game {
       freezeLeft: this.freezeLeft,
       goliathPose: this.goliathPose(),
       davidPose: this.davidPose(),
+      hpRatio: this.goliathHp / GOLIATH_HP,
+      fever: this.fever,
+      koT: this.koT,
+      davidShift: this.davidShift,
+      spear: this.spearSim(),
     };
+  }
+
+  private spearSim(): SpearSim | null {
+    const sp = this.spear;
+    if (!sp) return null;
+    const len = sp.stage === "tell" ? SPEAR_TELL : sp.stage === "fly" ? SPEAR_FLIGHT : 1;
+    return { stage: sp.stage, k: Math.min(1, sp.t / len), targetX: WORLD_W / 2 + sp.targetShift, dodged: sp.dodged };
   }
 
   private goStart(): void {
@@ -682,6 +746,19 @@ export class Game {
     this.throwCool = 0;
     this.hitStop = 0;
     this.absentHold = 0;
+    this.goliathHp = GOLIATH_HP;
+    this.fever = false;
+    this.koT = -1;
+    this.koTimeLeft = 0;
+    this.won = false;
+    this.koBonusPts = 0;
+    this.stunLeft = 0;
+    this.spear = null;
+    this.spearIdx = 0;
+    this.dodges = 0;
+    this.giantHit = 0;
+    this.giantKoNow = false;
+    this.audio.setFast(false);
     this.audio.play("start");
     this.audio.startBeat();
   }
@@ -746,6 +823,15 @@ export class Game {
   private goAttract(): void {
     this.audio.stopBeat();
     this.phase = "attract";
+    // 쓰러진 골리앗을 다시 세우고 상처도 지운다(다음 사람)
+    this.koT = -1;
+    this.stagger = 0;
+    this.damage = 0;
+    this.goliathHp = GOLIATH_HP;
+    this.fever = false;
+    this.spear = null;
+    this.stunLeft = 0;
+    this.audio.setFast(false);
     this.handsHold = 0;
     this.vacantHold = 0;
     this.resultAcc = 0;
@@ -774,12 +860,24 @@ export class Game {
     this.vacantHold = 0;
     this.stones = [];
     this.queued = null;
-    this.timeLeft = 0;
+    this.timeLeft = this.won ? this.koTimeLeft : 0;
+    this.audio.setFast(false);
+    this.fever = false;
+    this.spear = null;
     if (this.roundOpen) {
       this.roundOpen = false;
+      if (this.won) {
+        this.koBonusPts = koBonus(this.koTimeLeft);
+        this.score += this.koBonusPts;
+      }
       if (this.checkMode) {
         this.resultRank = 0;
       } else {
+        const g = contribute(this.giant, this.score, Date.now());
+        this.giant = g.state;
+        this.giantHit = this.score;
+        this.giantKoNow = g.defeatedNow;
+        saveGiant(this.giant);
         const saved = addScore(this.score, "webcam");
         this.scores = saved.list;
         this.resultRank = saved.rank;
@@ -789,14 +887,93 @@ export class Game {
         this.namingLeft = NAME_ENTRY_SECONDS;
       }
     }
-    this.audio.play("end");
+    this.audio.play(this.giantKoNow ? "ko" : "end");
+    this.pushUi(true);
+  }
+
+  /** 골리앗 체력이 0: 쓰러지는 연출 후 결과로. */
+  private startKo(x: number, y: number): void {
+    this.phase = "ko";
+    this.koT = 0;
+    this.koTimeLeft = this.timeLeft;
+    this.won = true;
+    this.stones = [];
+    this.queued = null;
+    this.spear = null;
+    this.shieldUp = false;
+    this.shieldWarn = false;
+    this.stagger = 1;
+    this.trauma = 0.9;
+    this.hitStop = 0.12;
+    this.banner = null;
+    this.audio.stopBeat();
+    this.audio.play("ko");
+    for (let i = 0; i < 3; i++) this.burst(x + (i - 1) * 120, y, true);
+    this.pushUi(true);
+  }
+
+  private stepKo(dt: number): void {
+    this.koT += dt;
+    this.stagger = 1;
+    // 쓰러지는 동안 색종이를 계속 터뜨린다
+    if (Math.random() < dt * 8) {
+      this.burst(WORLD_W * (0.2 + Math.random() * 0.6), 300 + Math.random() * 700, true);
+    }
+    if (this.koT >= KO_SECONDS) this.finishRound();
+  }
+
+  /** 창 던지기: 예고(다윗 자리 표시) → 날아감 → 꽂힘. 그 사이 몸을 옆으로 옮기면 피한다. */
+  private stepSpear(dt: number): void {
+    const elapsed = ROUND_SECONDS - this.timeLeft;
+    if (!this.spear) {
+      if (this.spearIdx >= SPEAR_AT.length || elapsed < SPEAR_AT[this.spearIdx] || this.freezeLeft > 0) return;
+      this.spearIdx += 1;
+      this.spear = { stage: "tell", t: 0, targetShift: this.davidShift, dodged: false };
+      this.banner = "창이 날아와요! 옆으로 피하세요!";
+      this.bannerLife = SPEAR_TELL;
+      this.audio.play("warn");
+      return;
+    }
+    const sp = this.spear;
+    sp.t += dt;
+    if (sp.stage === "tell" && sp.t >= SPEAR_TELL) {
+      sp.stage = "fly";
+      sp.t = 0;
+      this.audio.play("throw");
+    } else if (sp.stage === "fly" && sp.t >= SPEAR_FLIGHT) {
+      sp.stage = "stuck";
+      sp.t = 0;
+      sp.dodged = dodged(sp.targetShift, this.davidShift);
+      const x = WORLD_W / 2 + this.davidShift;
+      if (sp.dodged) {
+        this.dodges += 1;
+        this.score += DODGE_BONUS;
+        this.floaters.push({ x, y: 1380, life: 1, maxLife: 1, text: "피했다!", sub: `+${DODGE_BONUS}`, color: "#fff4dc", kind: "good" });
+        this.audio.play("combo");
+      } else {
+        this.stunLeft = STUN_SECONDS;
+        this.trauma = Math.min(0.8, this.trauma + 0.5);
+        this.breakCombo();
+        this.floaters.push({ x, y: 1380, life: 1, maxLife: 1, text: "으악!", sub: "잠깐 기절", color: "#fff4dc", kind: "bad" });
+        this.audio.play("hitShield");
+      }
+      this.pushUi(true);
+    } else if (sp.stage === "stuck" && sp.t >= 1) {
+      this.spear = null;
+    }
+  }
+
+  /** 운영자 화면: 거대 골리앗 다시 시작(체력 설정). */
+  resetGiant(max: number): void {
+    this.giant = resetGiant(this.giant, max);
+    saveGiant(this.giant);
     this.pushUi(true);
   }
 
   private launch(ev: ThrowEvent, demo = false, immediate = false): boolean {
     const live = this.phase === "play" || this.phase === "practice";
     if (!demo && !live) return false;
-    if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0)) return false;
+    if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0 || this.stunLeft > 0)) return false;
     if (this.stones.length >= MAX_STONES) return false;
     if (!demo) ev = this.assistAim(ev);
     this.aimX = ev.aimX;
@@ -844,7 +1021,7 @@ export class Game {
     if (this.releaseLeft > 0) return;
     const { ev, demo } = this.queued;
     this.queued = null;
-    const flight = stoneFlight(ev.aimX, ev.aimY, ev.power, "throw", 0, this.time);
+    const flight = stoneFlight(ev.aimX, ev.aimY, ev.power, "throw", 0, this.time, this.davidShift);
     this.stones.push({
       x: flight.originX,
       y: flight.originY,
@@ -982,7 +1159,7 @@ export class Game {
       this.comboTimer = 2;
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
     }
-    const gained = hitPoints(part, blocked ? 1 : this.combo);
+    const gained = hitPoints(part, blocked ? 1 : this.combo) * (this.fever ? 2 : 1);
     this.score += gained;
     this.hitLog.push({ part, gained });
     this.lastHit = part;
@@ -1005,10 +1182,12 @@ export class Game {
     this.burst(x, y, crit);
     this.audio.play(sfx);
     if (!blocked && this.combo >= 3) this.audio.play("combo");
-    if (crit || part === "투구") this.damage = Math.min(3, this.damage + 1);
     if (crit) {
       this.foreheadHits += 1;
     }
+    this.goliathHp = Math.max(0, this.goliathHp - partDamage(part, this.fever));
+    this.damage = woundStage(this.goliathHp / GOLIATH_HP);
+    if (this.goliathHp <= 0) this.startKo(x, y);
   }
 
   private burst(x: number, y: number, big: boolean): void {
@@ -1050,6 +1229,12 @@ export class Game {
 
   private stepGoliath(dt: number): void {
     this.goliathBob = Math.sin(this.time * 1.7) * 6;
+    if (this.phase === "ko") {
+      this.shieldUp = false;
+      this.shieldWarn = false;
+      this.lean = 0;
+      return;
+    }
     if (this.freezeLeft > 0) {
       this.wasFrozen = true;
       this.shieldUp = false;
@@ -1271,6 +1456,13 @@ export class Game {
       snap.savedName ?? "",
       Math.round(snap.handsUpProgress * 20),
       snap.waitingForPlayer ? 1 : 0,
+      Math.round(snap.hpRatio * 100),
+      snap.fever ? 1 : 0,
+      snap.won ? 1 : 0,
+      snap.spearWarn ? 1 : 0,
+      snap.dodges,
+      snap.giant.hp,
+      snap.giant.max,
     ].join("|");
     if (!force && key === this.lastUiKey) return;
     this.lastUiKey = key;
@@ -1314,6 +1506,15 @@ export class Game {
       checkMode: this.checkMode,
       handsUpProgress: this.handsUpProgress,
       waitingForPlayer: this.waitingForPlayer(),
+      hpRatio: this.goliathHp / GOLIATH_HP,
+      fever: this.fever,
+      won: this.won,
+      koBonus: this.koBonusPts,
+      spearWarn: this.spear?.stage === "tell",
+      dodges: this.dodges,
+      giant: { hp: this.giant.hp, max: this.giant.max, plays: this.giant.plays, defeated: this.giant.defeated },
+      giantHit: this.giantHit,
+      giantKoNow: this.giantKoNow,
     };
   }
 
@@ -1325,6 +1526,7 @@ export class Game {
   }
 
   private davidPose(): DavidPose {
+    if (this.stunLeft > 0) return "stun";
     if (this.freezeLeft > 0 && (this.phase === "play" || this.phase === "practice")) return "focus";
     if (this.followLeft > 0 || this.queued) return "throw";
     if (this.recoverLeft > 0) return "recover";
@@ -1351,13 +1553,16 @@ export class Game {
     if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
     if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
     if (this.tooFar) return "조금 더 앞으로 와 주세요";
-    if (this.lowInFrame && this.phase !== "play") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
-    if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
+    if (this.lowInFrame && this.phase !== "play" && this.phase !== "ko") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
+    if (this.offCenter && this.phase !== "play" && this.phase !== "ko") return "화면 가운데로 와 주세요";
     if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
     if (this.phase === "practice") {
       if (this.armed) return "좋아요! 이제 앞으로 힘껏 던지세요";
       return `손을 머리 위로 들었다가 앞으로 던지세요 (${this.practiceThrows}/${PRACTICE_THROWS})`;
     }
+    if (this.phase === "ko") return "골리앗을 쓰러뜨렸다!";
+    if (this.phase === "play" && this.spear?.stage === "tell") return "몸을 옆으로! 창을 피하세요";
+    if (this.phase === "play" && this.stunLeft > 0) return "으악! 잠깐 기절";
     if (this.phase === "play") {
       if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
       if (this.critOpen()) return "금빛이 보일 때 이마를 노려요";
@@ -1369,5 +1574,24 @@ export class Game {
       return "손을 든 높이로 돌이 날아갑니다";
     }
     return "";
+  }
+}
+
+const GIANT_KEY = `${SCORES_KEY}-giant`;
+
+function loadGiant(): GiantState {
+  try {
+    const raw = localStorage.getItem(GIANT_KEY);
+    return normalizeGiant(raw ? JSON.parse(raw) : null, dayKey(Date.now()));
+  } catch {
+    return normalizeGiant(null, dayKey(Date.now()));
+  }
+}
+
+function saveGiant(state: GiantState): void {
+  try {
+    localStorage.setItem(GIANT_KEY, JSON.stringify(state));
+  } catch {
+    /* 저장이 막혀도 판은 끝난다 */
   }
 }

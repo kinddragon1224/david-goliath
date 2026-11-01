@@ -1,8 +1,8 @@
 import { i as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { i as Power, n as Volume2, t as VolumeX } from "../_libs/lucide-react.mjs";
-import { n as EDITION } from "./router-LMSAe7xp.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-CkhyLdSb.js
+import { n as EDITION } from "./router-BWdMRsH8.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-paB13hcV.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var WORLD_W = 1080;
@@ -13,7 +13,7 @@ var LEADERBOARD_KEEP = 5e3;
 /** 판마다 따로 저장(교회판은 예전 이름 그대로라 기존 기록 유지). */
 var SCORES_KEY = EDITION.scoresKey;
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-var APP_VERSION = "1.3.0";
+var APP_VERSION = "1.4.0";
 var GAME_TITLE = "다윗과 골리앗";
 /** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
 var PRODUCER = {
@@ -34,6 +34,11 @@ var GameAudio = class {
 	beatTimer = null;
 	nextBeat = 0;
 	beatStep = 0;
+	/** 피버 타임에는 장단이 빨라진다. */
+	fast = false;
+	setFast(on) {
+		this.fast = on;
+	}
 	unlock = () => {
 		if (!this.ctx) {
 			const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -101,6 +106,32 @@ var GameAudio = class {
 				this.chime(t, 660, .18);
 				this.chime(t + .05, 880, .16);
 				break;
+			case "ko":
+				this.don(t, 1);
+				this.don(t + .16, 1);
+				this.don(t + .32, 1);
+				[
+					523,
+					659,
+					784,
+					1047
+				].forEach((f, i) => this.chime(t + .5 + i * .11, f, .45));
+				this.chime(t + .95, 1319, .5);
+				break;
+			case "warn":
+				this.osc(880, "square", t, .12, .16, 860);
+				this.osc(880, "square", t + .2, .12, .16, 860);
+				this.osc(880, "square", t + .4, .12, .16, 860);
+				break;
+			case "fever":
+				[
+					392,
+					523,
+					659,
+					784
+				].forEach((f, i) => this.chime(t + i * .07, f, .35));
+				this.don(t, .8);
+				break;
 			case "freeze":
 				this.chime(t, 311, .35);
 				this.chime(t + .08, 247, .4);
@@ -121,7 +152,7 @@ var GameAudio = class {
 			"ka",
 			null
 		];
-		const step = 60 / 132 / 2;
+		const base = 60 / 132 / 2;
 		this.beatTimer = setInterval(() => {
 			if (!this.ctx) return;
 			while (this.nextBeat < this.ctx.currentTime + .12) {
@@ -130,7 +161,7 @@ var GameAudio = class {
 					if (hit === "don") this.don(this.nextBeat, .32);
 					else if (hit === "ka") this.ka(this.nextBeat, .22);
 				}
-				this.nextBeat += step;
+				this.nextBeat += this.fast ? base * .7 : base;
 				this.beatStep += 1;
 			}
 		}, 40);
@@ -342,6 +373,11 @@ function davidMotion(pose, aimX, charge, time) {
 		y: 0,
 		rot: 0
 	};
+	if (pose === "stun") return {
+		x: Math.sin(time * 30) * 6,
+		y: 0,
+		rot: Math.sin(time * 9) * .12
+	};
 	return {
 		x: 0,
 		y: -Math.abs(Math.sin(time * Math.PI * 2.2)) * 10,
@@ -349,7 +385,7 @@ function davidMotion(pose, aimX, charge, time) {
 	};
 }
 /** 돌이 떠나는 월드 좌표. 물매 손 위치를 몸 회전과 축척에 맞춰 옮긴다. */
-function davidSlingWorld(pose, aimX, charge, time) {
+function davidSlingWorld(pose, aimX, charge, time, shift = 0) {
 	const motion = davidMotion(pose, aimX, charge, time);
 	const hand = slingHand(pose, charge, time);
 	const lx = hand.x * DAVID_SCALE;
@@ -357,7 +393,7 @@ function davidSlingWorld(pose, aimX, charge, time) {
 	const c = Math.cos(motion.rot);
 	const s = Math.sin(motion.rot);
 	return {
-		x: DAVID_FOOT_WORLD.x + motion.x + c * lx - s * ly,
+		x: DAVID_FOOT_WORLD.x + shift + motion.x + c * lx - s * ly,
 		y: DAVID_FOOT_WORLD.y + motion.y + s * lx + c * ly
 	};
 }
@@ -416,9 +452,9 @@ function aimPoint(aimX, aimY) {
 	};
 }
 /** 조준점은 플레이어가 정한 자리만 본다. 골리앗 위치는 넣지 않는다. */
-function stoneFlight(aimX, aimY, power, pose = "idle", charge = 0, time = 0) {
+function stoneFlight(aimX, aimY, power, pose = "idle", charge = 0, time = 0, shift = 0) {
 	const target = aimPoint(aimX, aimY);
-	const origin = davidSlingWorld(pose, aimX, charge, time);
+	const origin = davidSlingWorld(pose, aimX, charge, time, shift);
 	const t = .62 - Math.max(.25, Math.min(1, power)) * .08;
 	return {
 		vx: (target.x - origin.x) / t,
@@ -801,16 +837,16 @@ function staticBackground() {
 	bgCache = cv;
 	return cv;
 }
-function drawSky(ctx, time, calm) {
+function drawSky(ctx, time, calm, fever = false) {
 	const sky = ctx.createLinearGradient(0, 0, 0, 1350);
-	sky.addColorStop(0, "#ff8a2a");
-	sky.addColorStop(.45, "#ffb640");
-	sky.addColorStop(1, "#ffe7a0");
+	sky.addColorStop(0, fever ? "#ff4a1f" : "#ff8a2a");
+	sky.addColorStop(.45, fever ? "#ff9a1f" : "#ffb640");
+	sky.addColorStop(1, fever ? "#ffe066" : "#ffe7a0");
 	ctx.fillStyle = sky;
 	ctx.fillRect(0, 0, WORLD_W, 1400);
 	const cx = WORLD_W / 2;
 	const cy = 760;
-	const rot = calm ? 0 : time * .06;
+	const rot = calm ? 0 : time * (fever ? .5 : .06);
 	ctx.save();
 	ctx.translate(cx, cy);
 	ctx.rotate(rot);
@@ -932,28 +968,31 @@ function drawGoliath(ctx, sim) {
 	ctx.lineJoin = "round";
 	ctx.lineCap = "round";
 	ctx.translate(gx, gy + GOLIATH_LOCAL.foot.y);
-	ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) + wobble);
+	const fall = sim.koT >= 0 ? koFall(sim.koT) : 0;
+	ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) + (sim.koT >= 0 ? 0 : wobble) + fall * 1.32);
 	if (sim.downed) ctx.translate(40, 80);
 	ctx.scale(1 + pulse * .012, 1 - pulse * .018);
 	ctx.translate(-GOLIATH_LOCAL.foot.x, -GOLIATH_LOCAL.foot.y);
 	ctx.fillStyle = "rgba(90,40,10,0.25)";
 	ellipse(ctx, 0, 1318, 270, 36);
 	ctx.fill();
-	rrect(ctx, -272, 170, 26, 1130, 13);
-	ink(ctx, "#b8763a");
-	ctx.beginPath();
-	ctx.moveTo(-259, 60);
-	ctx.lineTo(-222, 190);
-	ctx.lineTo(-296, 190);
-	ctx.closePath();
-	ink(ctx, "#d9dde6");
-	ctx.fillStyle = "rgba(255,255,255,0.7)";
-	ctx.beginPath();
-	ctx.moveTo(-262, 90);
-	ctx.lineTo(-272, 180);
-	ctx.lineTo(-262, 180);
-	ctx.closePath();
-	ctx.fill();
+	if (!(!!sim.spear && sim.spear.stage !== "tell")) {
+		rrect(ctx, -272, 170, 26, 1130, 13);
+		ink(ctx, "#b8763a");
+		ctx.beginPath();
+		ctx.moveTo(-259, 60);
+		ctx.lineTo(-222, 190);
+		ctx.lineTo(-296, 190);
+		ctx.closePath();
+		ink(ctx, "#d9dde6");
+		ctx.fillStyle = "rgba(255,255,255,0.7)";
+		ctx.beginPath();
+		ctx.moveTo(-262, 90);
+		ctx.lineTo(-272, 180);
+		ctx.lineTo(-262, 180);
+		ctx.closePath();
+		ctx.fill();
+	}
 	rrect(ctx, -128, 1030, 100, 260, 40);
 	ink(ctx, p.bronze);
 	rrect(ctx, 28, 1030, 100, 260, 40);
@@ -1307,13 +1346,18 @@ function drawDavid(ctx, sim) {
 	ctx.save();
 	ctx.lineJoin = "round";
 	ctx.lineCap = "round";
-	ctx.translate(DAVID_FOOT_WORLD.x + motion.x, DAVID_FOOT_WORLD.y);
+	ctx.translate(DAVID_FOOT_WORLD.x + sim.davidShift + motion.x, DAVID_FOOT_WORLD.y);
 	ctx.fillStyle = "rgba(90,40,10,0.28)";
 	ellipse(ctx, 0, 8, 120, 18);
 	ctx.fill();
 	ctx.translate(0, motion.y);
 	ctx.rotate(motion.rot);
 	ctx.scale(DAVID_SCALE, DAVID_SCALE);
+	if (pose === "stun") for (let i = 0; i < 4; i++) {
+		const ang = sim.time * 7 + i * Math.PI / 2;
+		star(ctx, Math.cos(ang) * 95, -320 + Math.sin(ang) * 22, 20, ang);
+		ink(ctx, C.yellow, 5);
+	}
 	if (sim.charge > .3 || pose === "focus") {
 		const k = pose === "focus" ? 1 : sim.charge;
 		const col = pose === "focus" ? "rgba(110,200,255," : "rgba(255,200,40,";
@@ -1486,7 +1530,7 @@ function drawSling(ctx, pose, hand, sim) {
 function drawAim(ctx, sim) {
 	if (sim.phase !== "play" && sim.phase !== "countdown" && sim.phase !== "practice") return;
 	const power = sim.armed || sim.charge > .15 ? Math.max(.7, sim.charge) : .78;
-	const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time);
+	const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time, sim.davidShift);
 	const hot = sim.armed || sim.charge > .3;
 	ctx.save();
 	ctx.globalAlpha = hot ? .95 : .6;
@@ -1632,12 +1676,17 @@ function drawWorld(ctx, sim, calm = false) {
 	ctx.translate(sim.shakeX, sim.shakeY);
 	ctx.lineJoin = "round";
 	ctx.lineCap = "round";
-	drawSky(ctx, sim.time, calm);
+	drawSky(ctx, sim.time, calm, sim.fever);
 	const bg = staticBackground();
 	if (bg) ctx.drawImage(bg, 0, 0);
+	drawSpearMark(ctx, sim);
 	drawGoliath(ctx, sim);
+	if (sim.koT >= 0) drawKoDust(ctx, sim);
 	drawAim(ctx, sim);
 	drawDavid(ctx, sim);
+	drawSpear(ctx, sim);
+	drawSpearAlert(ctx, sim);
+	if (sim.fever) drawFeverFrame(ctx, sim.time);
 	drawRings(ctx, sim);
 	drawParticles(ctx, sim);
 	drawStones(ctx, sim);
@@ -1684,6 +1733,104 @@ function drawPip(ctx, video, skeleton, present, armed = false, flash = 0) {
 		outlinedText(ctx, "던짐!", w / 2, h / 2, 64, C.yellow, C.white);
 		ctx.globalAlpha = 1;
 	}
+	ctx.restore();
+}
+/** KO 쓰러짐 정도 0~1(살짝 튕김 포함). */
+function koFall(t) {
+	const u = Math.min(1, t / .7);
+	const base = u * u;
+	const bounce = t > .7 && t < 1.1 ? Math.sin((t - .7) / .4 * Math.PI) * .06 : 0;
+	return Math.min(1, base) - bounce;
+}
+/** 쓰러지는 순간 땅에서 피어오르는 먼지. */
+function drawKoDust(ctx, sim) {
+	const t = sim.koT - .65;
+	if (t < 0 || t > 1.4) return;
+	const k = t / 1.4;
+	ctx.save();
+	ctx.globalAlpha = 1 - k;
+	for (let i = 0; i < 9; i++) {
+		circle(ctx, sim.goliathX + 200 + (i - 4) * 120 * (.6 + k), 1360 - Math.sin(i / 8 * Math.PI) * 60 * k, 50 + k * 70 + i % 3 * 14);
+		ink(ctx, "#f3dcb0", 6);
+	}
+	ctx.restore();
+}
+/** 예고 중 다윗 머리 위 느낌표와 피할 방향 화살표(다윗보다 위에 그린다). */
+function drawSpearAlert(ctx, sim) {
+	const sp = sim.spear;
+	if (!sp || sp.stage !== "tell") return;
+	const x = sp.targetX;
+	circle(ctx, x, 1250, 58);
+	ink(ctx, C.yellow, 8);
+	outlinedText(ctx, "!", x, 1254, 86, C.red, null);
+	const a = .5 + Math.sin(sim.time * 10) * .5;
+	ctx.globalAlpha = .6 + a * .4;
+	outlinedText(ctx, "◀", x - 200 - a * 20, 1590, 70, C.cream, null);
+	outlinedText(ctx, "▶", x + 200 + a * 20, 1590, 70, C.cream, null);
+	ctx.globalAlpha = 1;
+}
+/** 창이 떨어질 자리 표시(예고 중). 빨간 과녁이 깜빡인다. */
+function drawSpearMark(ctx, sim) {
+	const sp = sim.spear;
+	if (!sp || sp.stage === "stuck") return;
+	const x = sp.targetX;
+	const y = 1712;
+	const blink = sp.stage === "tell" ? .55 + Math.sin(sim.time * 18) * .35 : .9;
+	ctx.save();
+	ctx.globalAlpha = blink;
+	ellipse(ctx, x, y, 150, 40);
+	ctx.fillStyle = "rgba(242,74,42,0.35)";
+	ctx.fill();
+	ctx.lineWidth = 10;
+	ctx.strokeStyle = C.red;
+	ctx.setLineDash([24, 16]);
+	ctx.stroke();
+	ctx.setLineDash([]);
+	ctx.restore();
+}
+/** 골리앗 손에서 다윗 자리로 날아가 땅에 꽂히는 창. */
+function drawSpear(ctx, sim) {
+	const sp = sim.spear;
+	if (!sp || sp.stage === "tell") return;
+	const fromX = sim.goliathX - 260;
+	const fromY = 570;
+	const toX = sp.targetX;
+	const toY = 1700;
+	let x = toX;
+	let y = toY;
+	let ang = Math.PI * .62;
+	if (sp.stage === "fly") {
+		const k = sp.k;
+		x = fromX + (toX - fromX) * k;
+		y = fromY + 1130 * k - Math.sin(k * Math.PI) * 260;
+		const dx = toX - fromX;
+		const dy = 1130 - Math.cos(k * Math.PI) * 260 * Math.PI;
+		ang = Math.atan2(dy, dx);
+	}
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.rotate(ang);
+	if (sp.stage === "stuck") ctx.globalAlpha = Math.max(0, 1 - Math.max(0, sp.k - .6) / .4);
+	rrect(ctx, -330, -11, 330, 22, 11);
+	ink(ctx, "#b8763a", 8);
+	ctx.beginPath();
+	ctx.moveTo(60, 0);
+	ctx.lineTo(-10, -30);
+	ctx.lineTo(-10, 30);
+	ctx.closePath();
+	ink(ctx, "#d9dde6", 8);
+	ctx.restore();
+}
+/** 피버 타임: 화면 가장자리가 금빛으로 일렁인다. */
+function drawFeverFrame(ctx, time) {
+	const a = .35 + Math.sin(time * 12) * .15;
+	ctx.save();
+	ctx.lineWidth = 46;
+	ctx.strokeStyle = `rgba(255,210,58,${a})`;
+	ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+	ctx.lineWidth = 14;
+	ctx.strokeStyle = `rgba(242,74,42,${a})`;
+	ctx.strokeRect(30, 30, WORLD_W - 60, WORLD_H - 60);
 	ctx.restore();
 }
 var byScore = (a, b) => b.score - a.score || a.at - b.at;
@@ -1806,6 +1953,107 @@ function monthCsv(rows, key) {
 	});
 	return "﻿" + lines.join("\r\n");
 }
+/** 부위별 피해. 방패는 막힘. */
+var PART_DAMAGE = {
+	이마: 30,
+	투구: 14,
+	몸통: 7,
+	방패: 0
+};
+/** 창 던지기: 판 시작 후 이 시각(초)에 예고. 20초 판에 두 번. */
+var SPEAR_AT = [6, 12.5];
+/** 예고 후 창이 떨어지기까지(초). 아이가 보고 움직일 시간. */
+var SPEAR_TELL = 1.5;
+var SPEAR_FLIGHT = .45;
+/** 창에 맞으면 잠깐 못 던진다(초). */
+var STUN_SECONDS = 1.1;
+function partDamage(part, fever) {
+	return PART_DAMAGE[part] * (fever ? 2 : 1);
+}
+function isFever(timeLeft, playing) {
+	return playing && timeLeft > 0 && timeLeft <= 5;
+}
+function koBonus(timeLeft) {
+	return Math.max(0, Math.ceil(timeLeft)) * 200;
+}
+function dodged(targetShift, shiftNow) {
+	return Math.abs(shiftNow - targetShift) >= 110;
+}
+/** 카메라 속 몸의 가로 위치(0~1, 거울) → 다윗의 좌우 위치. 화면 가운데가 0. */
+function shiftFromBody(bodyX) {
+	return Math.max(-280, Math.min(280, (bodyX - .5) * 1100));
+}
+/** 체력 비율 → 투구 반창고·금 같은 상처 단계(0~3). */
+function woundStage(hpRatio) {
+	if (hpRatio <= .15) return 3;
+	if (hpRatio <= .4) return 2;
+	if (hpRatio <= .7) return 1;
+	return 0;
+}
+/** 운영자가 고르는 거대 골리앗 체력. 한 판 평균 3천~5천 점 기준.
+* 10만 ≈ 25판, 30만 ≈ 75판, 50만 ≈ 120판, 100만 ≈ 250판. */
+var GIANT_PRESETS = [
+	1e5,
+	3e5,
+	5e5,
+	1e6
+];
+var GIANT_DEFAULT_MAX = 3e5;
+function dayKey(at) {
+	const d = new Date(at);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function freshGiant(day, max = GIANT_DEFAULT_MAX) {
+	return {
+		day,
+		max,
+		hp: max,
+		plays: 0,
+		defeated: 0,
+		lastKoAt: null
+	};
+}
+/** 저장값을 믿지 않고 고친다. 날짜가 다르면 새 날로. */
+function normalizeGiant(raw, today) {
+	const r = raw && typeof raw === "object" ? raw : {};
+	const max = typeof r.max === "number" && r.max > 0 ? Math.round(r.max) : GIANT_DEFAULT_MAX;
+	if (r.day !== today) return freshGiant(today, max);
+	const hp = typeof r.hp === "number" ? Math.max(0, Math.min(max, Math.round(r.hp))) : max;
+	return {
+		day: today,
+		max,
+		hp: hp > 0 ? hp : max,
+		plays: typeof r.plays === "number" && r.plays >= 0 ? Math.floor(r.plays) : 0,
+		defeated: typeof r.defeated === "number" && r.defeated >= 0 ? Math.floor(r.defeated) : 0,
+		lastKoAt: typeof r.lastKoAt === "number" ? r.lastKoAt : null
+	};
+}
+/** 한 판의 점수를 거대 골리앗에게 준다. 체력이 0이 되면 쓰러뜨림 +1, 새 거대 골리앗(남는 피해는 버림). */
+function contribute(state, points, at) {
+	const hit = Math.max(0, Math.round(points));
+	const plays = state.plays + 1;
+	if (hit >= state.hp) return {
+		state: {
+			...state,
+			hp: state.max,
+			plays,
+			defeated: state.defeated + 1,
+			lastKoAt: at
+		},
+		defeatedNow: true
+	};
+	return {
+		state: {
+			...state,
+			hp: state.hp - hit,
+			plays
+		},
+		defeatedNow: false
+	};
+}
+function resetGiant(state, max) {
+	return freshGiant(state.day, max);
+}
 /** 행사장판(SHOW_VERSES=false)에서는 빌드할 때 말씀 본문이 통째로 빠진다. */
 var VERSES = [
 	{
@@ -1921,6 +2169,22 @@ var Game = class {
 	/** 양손 번쩍을 유지한 시간(초). 잠깐 놓쳐도 바로 0이 되지 않는다. */
 	handsHold = 0;
 	playerWait = 0;
+	goliathHp = 100;
+	fever = false;
+	/** KO 연출이 시작된 뒤 지난 초(-1이면 KO 아님). */
+	koT = -1;
+	koTimeLeft = 0;
+	won = false;
+	koBonusPts = 0;
+	davidShift = 0;
+	davidTarget = 0;
+	stunLeft = 0;
+	spear = null;
+	spearIdx = 0;
+	dodges = 0;
+	giant = normalizeGiant(null, dayKey(Date.now()));
+	giantHit = 0;
+	giantKoNow = false;
 	handsLost = 0;
 	handsUpProgress = 0;
 	tooFar = false;
@@ -1983,6 +2247,7 @@ var Game = class {
 		this.audio = audio;
 		this.emit = emit;
 		this.scores = loadScores();
+		this.giant = loadGiant();
 		this.calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 		this.pushUi(true);
 	}
@@ -2084,6 +2349,7 @@ var Game = class {
 			return;
 		}
 		this.absentHold = 0;
+		if (frame.bodyX !== null) this.davidTarget = shiftFromBody(frame.bodyX);
 		this.armed = frame.armed;
 		this.chestStill = frame.chestStill;
 		if (frame.aim && !this.queued && !this.pointerHolding) {
@@ -2142,6 +2408,7 @@ var Game = class {
 		if (Math.hypot(x - this.pointerX0, y - this.pointerY0) > 36) this.pointerHolding = false;
 		this.pointerX = x;
 		this.pointerY = y;
+		if (this.checkMode && !this.pointerHolding) this.davidTarget = Math.max(-280, Math.min(280, x - WORLD_W / 2));
 		if (this.pointerHolding && (this.phase === "play" || this.phase === "practice")) {
 			this.aimX = Math.max(-1, Math.min(1, (x - WORLD_W / 2) / 280));
 			this.aimY = Math.max(-1, Math.min(1, (y - 670) / 340));
@@ -2240,8 +2507,19 @@ var Game = class {
 		this.lastNow = now;
 		if (this.hitStop > 0) this.hitStop = Math.max(0, this.hitStop - real);
 		this.time += real;
+		this.davidShift += (this.davidTarget - this.davidShift) * Math.min(1, real * 10);
+		if (this.stunLeft > 0) this.stunLeft = Math.max(0, this.stunLeft - real);
+		if (this.phase === "ko") this.stepKo(real);
+		if (this.phase === "play") this.stepSpear(real);
 		if (this.phase === "play" && this.playStart > 0) {
 			this.timeLeft = Math.max(0, 20 - (now - this.playStart) / 1e3);
+			if (!this.fever && isFever(this.timeLeft, true)) {
+				this.fever = true;
+				this.banner = "피버 타임! 2배";
+				this.bannerLife = 1.4;
+				this.audio.play("fever");
+				this.audio.setFast(true);
+			}
 			if (this.timeLeft <= 5 && this.timeLeft > 0) {
 				const sec = Math.ceil(this.timeLeft);
 				if (sec < this.lastUrgentTick) {
@@ -2374,7 +2652,23 @@ var Game = class {
 			sightX: this.aimX * 300 + WORLD_W / 2,
 			freezeLeft: this.freezeLeft,
 			goliathPose: this.goliathPose(),
-			davidPose: this.davidPose()
+			davidPose: this.davidPose(),
+			hpRatio: this.goliathHp / 100,
+			fever: this.fever,
+			koT: this.koT,
+			davidShift: this.davidShift,
+			spear: this.spearSim()
+		};
+	}
+	spearSim() {
+		const sp = this.spear;
+		if (!sp) return null;
+		const len = sp.stage === "tell" ? SPEAR_TELL : sp.stage === "fly" ? SPEAR_FLIGHT : 1;
+		return {
+			stage: sp.stage,
+			k: Math.min(1, sp.t / len),
+			targetX: WORLD_W / 2 + sp.targetShift,
+			dodged: sp.dodged
 		};
 	}
 	goStart() {
@@ -2451,6 +2745,19 @@ var Game = class {
 		this.throwCool = 0;
 		this.hitStop = 0;
 		this.absentHold = 0;
+		this.goliathHp = 100;
+		this.fever = false;
+		this.koT = -1;
+		this.koTimeLeft = 0;
+		this.won = false;
+		this.koBonusPts = 0;
+		this.stunLeft = 0;
+		this.spear = null;
+		this.spearIdx = 0;
+		this.dodges = 0;
+		this.giantHit = 0;
+		this.giantKoNow = false;
+		this.audio.setFast(false);
 		this.audio.play("start");
 		this.audio.startBeat();
 	}
@@ -2510,6 +2817,14 @@ var Game = class {
 	goAttract() {
 		this.audio.stopBeat();
 		this.phase = "attract";
+		this.koT = -1;
+		this.stagger = 0;
+		this.damage = 0;
+		this.goliathHp = 100;
+		this.fever = false;
+		this.spear = null;
+		this.stunLeft = 0;
+		this.audio.setFast(false);
 		this.handsHold = 0;
 		this.vacantHold = 0;
 		this.resultAcc = 0;
@@ -2537,11 +2852,23 @@ var Game = class {
 		this.vacantHold = 0;
 		this.stones = [];
 		this.queued = null;
-		this.timeLeft = 0;
+		this.timeLeft = this.won ? this.koTimeLeft : 0;
+		this.audio.setFast(false);
+		this.fever = false;
+		this.spear = null;
 		if (this.roundOpen) {
 			this.roundOpen = false;
+			if (this.won) {
+				this.koBonusPts = koBonus(this.koTimeLeft);
+				this.score += this.koBonusPts;
+			}
 			if (this.checkMode) this.resultRank = 0;
 			else {
+				const g = contribute(this.giant, this.score, Date.now());
+				this.giant = g.state;
+				this.giantHit = this.score;
+				this.giantKoNow = g.defeatedNow;
+				saveGiant(this.giant);
 				const saved = addScore(this.score, "webcam");
 				this.scores = saved.list;
 				this.resultRank = saved.rank;
@@ -2551,13 +2878,106 @@ var Game = class {
 				this.namingLeft = 60;
 			}
 		}
-		this.audio.play("end");
+		this.audio.play(this.giantKoNow ? "ko" : "end");
+		this.pushUi(true);
+	}
+	/** 골리앗 체력이 0: 쓰러지는 연출 후 결과로. */
+	startKo(x, y) {
+		this.phase = "ko";
+		this.koT = 0;
+		this.koTimeLeft = this.timeLeft;
+		this.won = true;
+		this.stones = [];
+		this.queued = null;
+		this.spear = null;
+		this.shieldUp = false;
+		this.shieldWarn = false;
+		this.stagger = 1;
+		this.trauma = .9;
+		this.hitStop = .12;
+		this.banner = null;
+		this.audio.stopBeat();
+		this.audio.play("ko");
+		for (let i = 0; i < 3; i++) this.burst(x + (i - 1) * 120, y, true);
+		this.pushUi(true);
+	}
+	stepKo(dt) {
+		this.koT += dt;
+		this.stagger = 1;
+		if (Math.random() < dt * 8) this.burst(WORLD_W * (.2 + Math.random() * .6), 300 + Math.random() * 700, true);
+		if (this.koT >= 2.8) this.finishRound();
+	}
+	/** 창 던지기: 예고(다윗 자리 표시) → 날아감 → 꽂힘. 그 사이 몸을 옆으로 옮기면 피한다. */
+	stepSpear(dt) {
+		const elapsed = 20 - this.timeLeft;
+		if (!this.spear) {
+			if (this.spearIdx >= SPEAR_AT.length || elapsed < SPEAR_AT[this.spearIdx] || this.freezeLeft > 0) return;
+			this.spearIdx += 1;
+			this.spear = {
+				stage: "tell",
+				t: 0,
+				targetShift: this.davidShift,
+				dodged: false
+			};
+			this.banner = "창이 날아와요! 옆으로 피하세요!";
+			this.bannerLife = SPEAR_TELL;
+			this.audio.play("warn");
+			return;
+		}
+		const sp = this.spear;
+		sp.t += dt;
+		if (sp.stage === "tell" && sp.t >= 1.5) {
+			sp.stage = "fly";
+			sp.t = 0;
+			this.audio.play("throw");
+		} else if (sp.stage === "fly" && sp.t >= .45) {
+			sp.stage = "stuck";
+			sp.t = 0;
+			sp.dodged = dodged(sp.targetShift, this.davidShift);
+			const x = WORLD_W / 2 + this.davidShift;
+			if (sp.dodged) {
+				this.dodges += 1;
+				this.score += 300;
+				this.floaters.push({
+					x,
+					y: 1380,
+					life: 1,
+					maxLife: 1,
+					text: "피했다!",
+					sub: `+300`,
+					color: "#fff4dc",
+					kind: "good"
+				});
+				this.audio.play("combo");
+			} else {
+				this.stunLeft = STUN_SECONDS;
+				this.trauma = Math.min(.8, this.trauma + .5);
+				this.breakCombo();
+				this.floaters.push({
+					x,
+					y: 1380,
+					life: 1,
+					maxLife: 1,
+					text: "으악!",
+					sub: "잠깐 기절",
+					color: "#fff4dc",
+					kind: "bad"
+				});
+				this.audio.play("hitShield");
+			}
+			this.pushUi(true);
+		} else if (sp.stage === "stuck" && sp.t >= 1) this.spear = null;
+	}
+	/** 운영자 화면: 거대 골리앗 다시 시작(체력 설정). */
+	resetGiant(max) {
+		this.giant = resetGiant(this.giant, max);
+		saveGiant(this.giant);
 		this.pushUi(true);
 	}
 	launch(ev, demo = false, immediate = false) {
 		const live = this.phase === "play" || this.phase === "practice";
 		if (!demo && !live) return false;
-		if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0)) return false;
+		if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0 || this.stunLeft > 0)) return false;
 		if (this.stones.length >= 6) return false;
 		if (!demo) ev = this.assistAim(ev);
 		this.aimX = ev.aimX;
@@ -2603,7 +3023,7 @@ var Game = class {
 		if (this.releaseLeft > 0) return;
 		const { ev, demo } = this.queued;
 		this.queued = null;
-		const flight = stoneFlight(ev.aimX, ev.aimY, ev.power, "throw", 0, this.time);
+		const flight = stoneFlight(ev.aimX, ev.aimY, ev.power, "throw", 0, this.time, this.davidShift);
 		this.stones.push({
 			x: flight.originX,
 			y: flight.originY,
@@ -2749,7 +3169,7 @@ var Game = class {
 			this.comboTimer = 2;
 			if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 		}
-		const gained = hitPoints(part, blocked ? 1 : this.combo);
+		const gained = hitPoints(part, blocked ? 1 : this.combo) * (this.fever ? 2 : 1);
 		this.score += gained;
 		this.hitLog.push({
 			part,
@@ -2781,8 +3201,10 @@ var Game = class {
 		this.burst(x, y, crit);
 		this.audio.play(sfx);
 		if (!blocked && this.combo >= 3) this.audio.play("combo");
-		if (crit || part === "투구") this.damage = Math.min(3, this.damage + 1);
 		if (crit) this.foreheadHits += 1;
+		this.goliathHp = Math.max(0, this.goliathHp - partDamage(part, this.fever));
+		this.damage = woundStage(this.goliathHp / 100);
+		if (this.goliathHp <= 0) this.startKo(x, y);
 	}
 	burst(x, y, big) {
 		const n = big ? 28 : 14;
@@ -2830,6 +3252,12 @@ var Game = class {
 	}
 	stepGoliath(dt) {
 		this.goliathBob = Math.sin(this.time * 1.7) * 6;
+		if (this.phase === "ko") {
+			this.shieldUp = false;
+			this.shieldWarn = false;
+			this.lean = 0;
+			return;
+		}
 		if (this.freezeLeft > 0) {
 			this.wasFrozen = true;
 			this.shieldUp = false;
@@ -3041,7 +3469,14 @@ var Game = class {
 			snap.naming ? 1 : 0,
 			snap.savedName ?? "",
 			Math.round(snap.handsUpProgress * 20),
-			snap.waitingForPlayer ? 1 : 0
+			snap.waitingForPlayer ? 1 : 0,
+			Math.round(snap.hpRatio * 100),
+			snap.fever ? 1 : 0,
+			snap.won ? 1 : 0,
+			snap.spearWarn ? 1 : 0,
+			snap.dodges,
+			snap.giant.hp,
+			snap.giant.max
 		].join("|");
 		if (!force && key === this.lastUiKey) return;
 		this.lastUiKey = key;
@@ -3083,7 +3518,21 @@ var Game = class {
 			inputVia: this.inputVia,
 			checkMode: this.checkMode,
 			handsUpProgress: this.handsUpProgress,
-			waitingForPlayer: this.waitingForPlayer()
+			waitingForPlayer: this.waitingForPlayer(),
+			hpRatio: this.goliathHp / 100,
+			fever: this.fever,
+			won: this.won,
+			koBonus: this.koBonusPts,
+			spearWarn: this.spear?.stage === "tell",
+			dodges: this.dodges,
+			giant: {
+				hp: this.giant.hp,
+				max: this.giant.max,
+				plays: this.giant.plays,
+				defeated: this.giant.defeated
+			},
+			giantHit: this.giantHit,
+			giantKoNow: this.giantKoNow
 		};
 	}
 	goliathPose() {
@@ -3093,6 +3542,7 @@ var Game = class {
 		return "idle";
 	}
 	davidPose() {
+		if (this.stunLeft > 0) return "stun";
 		if (this.freezeLeft > 0 && (this.phase === "play" || this.phase === "practice")) return "focus";
 		if (this.followLeft > 0 || this.queued) return "throw";
 		if (this.recoverLeft > 0) return "recover";
@@ -3118,13 +3568,16 @@ var Game = class {
 		if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
 		if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
 		if (this.tooFar) return "조금 더 앞으로 와 주세요";
-		if (this.lowInFrame && this.phase !== "play") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
-		if (this.offCenter && this.phase !== "play") return "화면 가운데로 와 주세요";
+		if (this.lowInFrame && this.phase !== "play" && this.phase !== "ko") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
+		if (this.offCenter && this.phase !== "play" && this.phase !== "ko") return "화면 가운데로 와 주세요";
 		if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
 		if (this.phase === "practice") {
 			if (this.armed) return "좋아요! 이제 앞으로 힘껏 던지세요";
 			return `손을 머리 위로 들었다가 앞으로 던지세요 (${this.practiceThrows}/${PRACTICE_THROWS})`;
 		}
+		if (this.phase === "ko") return "골리앗을 쓰러뜨렸다!";
+		if (this.phase === "play" && this.spear?.stage === "tell") return "몸을 옆으로! 창을 피하세요";
+		if (this.phase === "play" && this.stunLeft > 0) return "으악! 잠깐 기절";
 		if (this.phase === "play") {
 			if (this.freezeLeft > 0) return "골리앗이 멈췄습니다";
 			if (this.critOpen()) return "금빛이 보일 때 이마를 노려요";
@@ -3138,6 +3591,20 @@ var Game = class {
 		return "";
 	}
 };
+var GIANT_KEY = `${SCORES_KEY}-giant`;
+function loadGiant() {
+	try {
+		const raw = localStorage.getItem(GIANT_KEY);
+		return normalizeGiant(raw ? JSON.parse(raw) : null, dayKey(Date.now()));
+	} catch {
+		return normalizeGiant(null, dayKey(Date.now()));
+	}
+}
+function saveGiant(state) {
+	try {
+		localStorage.setItem(GIANT_KEY, JSON.stringify(state));
+	} catch {}
+}
 /** 무인 키오스크 운영용 도우미. 주소에 ?kiosk=1 이 있으면 켜진다(오프라인 설치판의 start.bat이 붙인다). */
 var CAMERA_KEY = "david-goliath-camera-id";
 function isKiosk() {
@@ -3382,7 +3849,7 @@ var SHIFTED = {
 	ㅐ: "ㅒ",
 	ㅔ: "ㅖ"
 };
-function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice, onSaveName, onSkipName, onRemoveRecord, onTestSound }) {
+function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmReset, onCancelReset, onRetryCamera, onRetryMotion, onOpenWindow, onSkipPractice, onSaveName, onSkipName, onRemoveRecord, onTestSound, onResetGiant }) {
 	const [adminOpen, setAdminOpen] = (0, import_react.useState)(false);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "pointer-events-none absolute inset-0 flex flex-col text-fg",
@@ -3424,7 +3891,8 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 				onSkip: onSkipPractice
 			}),
 			ui.phase === "countdown" && (ui.waitingForPlayer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WaitForPlayer, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Countdown, { n: ui.countdown })),
-			ui.phase === "play" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Hud, { ui }),
+			(ui.phase === "play" || ui.phase === "ko") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Hud, { ui }),
+			ui.phase === "ko" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(KoSplash, {}),
 			ui.phase === "result" && (ui.naming ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NameEntry, {
 				ui,
 				onSave: onSaveName,
@@ -3437,6 +3905,8 @@ function Overlays({ ui, onBegin, onStart, onNext, onMute, onAskReset, onConfirmR
 				scores: ui.scores,
 				onClose: () => setAdminOpen(false),
 				onRemove: onRemoveRecord,
+				giant: ui.giant,
+				onResetGiant,
 				onAskReset,
 				onTestSound,
 				sound: ui.muted ? "muted" : ui.sound
@@ -3544,7 +4014,7 @@ function HowToBlock({ compact }) {
 				children: [
 					"양손을 머리 위로 번쩍! 1초 유지하면 시작",
 					"손을 머리 위로 들었다가 앞으로 힘껏 던지기",
-					"금빛 표적이 뜰 때 이마를 맞히면 크리티컬!"
+					"창이 날아오면 몸을 옆으로 움직여 피하기!"
 				].map((text, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
 					className: "flex items-center gap-3",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -3559,7 +4029,7 @@ function HowToBlock({ compact }) {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 				className: "mt-2 text-center text-sm font-bold text-fg-muted",
-				children: [20, "초 동안 골리앗을 맞혀 점수를 모으세요"]
+				children: [20, "초 안에 골리앗을 쓰러뜨려라! 금빛 이마는 크리티컬, 마지막 5초는 2배"]
 			})
 		]
 	});
@@ -3686,7 +4156,7 @@ var MEDAL = [
 ];
 function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 	const month = monthKey(Date.now());
-	const top = monthlyRows(ui.scores, month).slice(0, 5);
+	const top = monthlyRows(ui.scores, month).slice(0, Math.min(3, 5));
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 			className: "pointer-events-none flex flex-col items-center gap-2 px-4 pt-4",
@@ -3732,6 +4202,7 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 					className: "mt-2.5 text-center text-sm font-bold text-fg-muted",
 					children: ui.motionHint
 				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GiantBar, { giant: ui.giant }),
 				ui.checkMode ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "mt-1 text-center text-xs text-fg-muted",
 					children: "화면을 밀어 던집니다. 점검 점수는 기록되지 않습니다."
@@ -3749,13 +4220,20 @@ function Attract({ ui, onStart, onOpenAdmin, onRetryCamera, onRetryMotion }) {
 						if (performance.now() - started > 1400) onOpenAdmin();
 					},
 					className: "mt-3 flex w-full items-center justify-between",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Ribbon, {
-						tone: "sun",
-						children: [Number(month.slice(5)), "월의 용사"]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "font-display text-sm text-don",
-						children: EDITION.boardTag
-					})]
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "sr-only",
+							children: "길게 눌러 운영자 화면"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Ribbon, {
+							tone: "sun",
+							children: [Number(month.slice(5)), "월의 용사"]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "font-display text-sm text-don",
+							children: EDITION.boardTag
+						})
+					]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
 					className: "mt-1.5 space-y-1",
@@ -4107,6 +4585,10 @@ function Hud({ ui }) {
 				})]
 			})]
 		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)(HpBar, {
+			ratio: ui.hpRatio,
+			fever: ui.fever
+		}),
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "relative h-24",
 			children: [
@@ -4153,7 +4635,7 @@ function Result({ ui, onNext }) {
 						className: "absolute -top-6 left-1/2 -translate-x-1/2",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 							className: "inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream",
-							children: isBest ? "최고 기록!" : "결과 발표"
+							children: ui.won ? "골리앗 KO!" : isBest ? "최고 기록!" : "아쉬워요!"
 						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
@@ -4161,30 +4643,51 @@ function Result({ ui, onNext }) {
 						children: ui.score.toLocaleString("ko-KR")
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "mt-3 font-display text-lg text-fg-muted",
+						className: `mt-2 font-display text-xl ${ui.won ? "text-don" : "text-ink"}`,
+						children: ui.won ? `${Math.ceil(ui.timeLeft)}초 남기고 쓰러뜨렸어요! 보너스 +${ui.koBonus.toLocaleString("ko-KR")}` : `골리앗 체력 ${Math.max(1, Math.round(ui.hpRatio * 100))}% 남았어요. 다시 도전!`
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "mt-1 font-display text-lg text-fg-muted",
 						children: ui.checkMode ? "점검은 기록되지 않습니다" : ui.savedName ? `${ui.savedName} 용사, 이달 ${ui.monthRank}위로 올라갔어요!` : ui.monthRank > 0 ? `이달 ${ui.monthRank}위` : "기록되지 않았습니다"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("dl", {
-						className: "mt-4 grid grid-cols-2 gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
-								className: "font-display text-sm",
-								children: "크리티컬"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", {
-								className: "font-display text-3xl tabular-nums",
-								children: ui.foreheadHits
-							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "rounded-2xl border-[0.25rem] border-ink bg-ka px-3 py-2 text-cream",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
-								className: "font-display text-sm",
-								children: "최대 콤보"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", {
-								className: "t-outline-sm font-display text-3xl tabular-nums",
-								children: ui.maxCombo
-							})]
-						})]
+						className: "mt-4 grid grid-cols-3 gap-2",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
+									className: "font-display text-sm",
+									children: "크리티컬"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", {
+									className: "font-display text-3xl tabular-nums",
+									children: ui.foreheadHits
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl border-[0.25rem] border-ink bg-ka px-3 py-2 text-cream",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
+									className: "font-display text-sm",
+									children: "최대 콤보"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", {
+									className: "t-outline-sm font-display text-3xl tabular-nums",
+									children: ui.maxCombo
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl border-[0.25rem] border-ink bg-cream px-3 py-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("dt", {
+									className: "font-display text-sm",
+									children: "창 피하기"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("dd", {
+									className: "font-display text-3xl tabular-nums",
+									children: ui.dodges
+								})]
+							})
+						]
+					}),
+					!ui.checkMode && ui.giantHit > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: `mt-3 rounded-2xl border-[0.25rem] border-ink px-3 py-2 font-display ${ui.giantKoNow ? "animate-throb bg-sun text-xl" : "bg-paper text-lg"}`,
+						children: ui.giantKoNow ? `거대 골리앗을 쓰러뜨렸어요! 오늘 ${ui.giant.defeated}번째!` : `거대 골리앗에게 ${ui.giantHit.toLocaleString("ko-KR")} 피해!`
 					}),
 					best > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 						className: "mt-3 text-sm font-bold text-fg-muted",
@@ -4310,7 +4813,7 @@ function NameEntry({ ui, onSave, onSkip }) {
 		]
 	});
 }
-function AdminPanel({ scores, onClose, onRemove, onAskReset, onTestSound, sound }) {
+function AdminPanel({ scores, onClose, onRemove, onAskReset, onTestSound, sound, giant, onResetGiant }) {
 	const [month, setMonth] = (0, import_react.useState)(() => monthKey(Date.now()));
 	const [armed, setArmed] = (0, import_react.useState)(null);
 	const [cameras, setCameras] = (0, import_react.useState)([]);
@@ -4438,6 +4941,32 @@ function AdminPanel({ scores, onClose, onRemove, onAskReset, onTestSound, sound 
 							value: c.id,
 							children: c.label
 						}, c.id))]
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mt-3 rounded-xl border-[0.1875rem] border-ink bg-sun/30 p-2 text-sm font-bold",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+						"거대 골리앗: 체력 ",
+						giant.hp.toLocaleString("ko-KR"),
+						" / ",
+						giant.max.toLocaleString("ko-KR"),
+						" · 오늘 ",
+						giant.plays,
+						"판 ·",
+						" ",
+						giant.defeated,
+						"마리 쓰러뜨림"
+					] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "mt-1.5 flex flex-wrap items-center gap-1.5",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-xs text-fg-muted",
+							children: "새로 시작(체력):"
+						}), GIANT_PRESETS.map((m) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => onResetGiant(m),
+							className: `h-8 rounded-lg border-2 border-ink px-2 text-xs ${m === giant.max ? "bg-sun" : "bg-cream"}`,
+							children: m >= 1e4 ? `${m / 1e4}만` : m
+						}, m))]
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -4627,6 +5156,79 @@ function PowerControl() {
 		})
 	] });
 }
+function HpBar({ ratio, fever }) {
+	const pct = Math.max(0, Math.min(1, ratio)) * 100;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "mt-2 flex items-center gap-2 px-3 pr-16",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: "t-outline-sm shrink-0 font-display text-lg text-cream",
+				children: "골리앗"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "relative h-7 flex-1 overflow-hidden rounded-full border-[0.25rem] border-ink bg-ink/70",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: `h-full rounded-full transition-[width] duration-200 ${pct > 40 ? "bg-don" : pct > 15 ? "bg-orange" : "animate-throb bg-sun"}`,
+					style: { width: `${pct}%` }
+				})
+			}),
+			fever && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: "animate-throb shrink-0 rounded-full border-[0.1875rem] border-ink bg-sun px-2 py-0.5 font-display text-sm text-don",
+				children: "피버 ×2"
+			})
+		]
+	});
+}
+function KoSplash() {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+			className: "animate-pop t-outline font-display text-[9rem] leading-none text-sun drop-shadow-[0_0.6rem_0_var(--color-ink)]",
+			children: "KO!"
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+			className: "animate-pop t-outline font-display text-4xl text-cream",
+			children: "골리앗을 쓰러뜨렸다!"
+		})]
+	});
+}
+function GiantBar({ giant }) {
+	const pct = giant.max > 0 ? Math.max(0, Math.min(1, giant.hp / giant.max)) * 100 : 100;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "mt-3 rounded-2xl border-[0.25rem] border-ink bg-sun/40 px-3 py-2",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center justify-between",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: "font-display text-base",
+					children: "오늘의 거대 골리앗"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: "text-xs font-bold text-fg-muted",
+					children: [
+						"도전 ",
+						giant.plays,
+						"명",
+						giant.defeated > 0 ? ` · ${giant.defeated}마리 쓰러뜨림` : ""
+					]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "mt-1 h-5 overflow-hidden rounded-full border-[0.1875rem] border-ink bg-white",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "h-full rounded-full bg-don",
+					style: { width: `${pct}%` }
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+				className: "mt-1 text-center font-display text-sm text-don",
+				children: [
+					"모두의 점수로 함께 쓰러뜨려요! 남은 체력 ",
+					Math.ceil(pct),
+					"%"
+				]
+			})
+		]
+	});
+}
 var NOSE = 0;
 var SHOULDER = [11, 12];
 var ELBOW = [13, 14];
@@ -4732,6 +5334,7 @@ var MotionTracker = class {
 			present: this.present,
 			tooFar: false,
 			lowInFrame: false,
+			bodyX: null,
 			offCenter: false,
 			handsUp: false,
 			armed: false,
@@ -4834,6 +5437,7 @@ var MotionTracker = class {
 			present: this.present,
 			tooFar: s < MOTION.nearScale,
 			lowInFrame: cy > MOTION.lowShoulderY,
+			bodyX: cxN,
 			offCenter: Math.abs(cxN - .5) > MOTION.centerSlack,
 			handsUp,
 			armed,
@@ -5015,6 +5619,7 @@ var EMPTY = {
 	aim: null,
 	tooFar: false,
 	lowInFrame: false,
+	bodyX: null,
 	offCenter: false
 };
 /** 초당 추론 횟수 상한. 빠른 팔 동작을 놓치지 않을 만큼. */
@@ -5266,6 +5871,7 @@ var PoseController = class {
 			aim: m.aim,
 			tooFar: m.tooFar,
 			lowInFrame: m.lowInFrame,
+			bodyX: m.bodyX,
 			offCenter: m.offCenter
 		};
 		return this.lastFrame;
@@ -5384,7 +5990,21 @@ var initialUi = () => ({
 	inputVia: "webcam",
 	checkMode: false,
 	handsUpProgress: 0,
-	waitingForPlayer: false
+	waitingForPlayer: false,
+	hpRatio: 1,
+	fever: false,
+	won: false,
+	koBonus: 0,
+	spearWarn: false,
+	dodges: 0,
+	giant: {
+		hp: 1,
+		max: 1,
+		plays: 0,
+		defeated: 0
+	},
+	giantHit: 0,
+	giantKoNow: false
 });
 function GameApp() {
 	const wrapRef = (0, import_react.useRef)(null);
@@ -5569,9 +6189,9 @@ function GameApp() {
 	const openNewWindow = () => {
 		window.open(window.location.href, "_blank", "noopener,noreferrer");
 	};
-	const pipLow = ui.phase === "play" || ui.phase === "practice" || ui.phase === "countdown";
+	const pipLow = ui.phase === "play" || ui.phase === "ko" || ui.phase === "practice" || ui.phase === "countdown";
 	const pipLabel = ui.modelState === "failed" ? "모션 실패" : ui.modelState === "loading" || ui.cameraState === "loading" ? "준비 중" : !ui.personPresent ? "어디 있나요?" : ui.armed && pipLow ? "던질 준비!" : "인식됨";
-	const showPip = ui.cameraState === "live" || ui.cameraState === "loading" ? ui.phase === "attract" || ui.phase === "start" || ui.phase === "practice" || ui.phase === "countdown" || ui.phase === "play" : false;
+	const showPip = ui.cameraState === "live" || ui.cameraState === "loading" ? ui.phase === "attract" || ui.phase === "start" || ui.phase === "practice" || ui.phase === "countdown" || ui.phase === "play" || ui.phase === "ko" : false;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "flex h-dvh w-full items-center justify-center bg-bg",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -5629,6 +6249,7 @@ function GameApp() {
 					onSkipName: () => gameRef.current?.skipName(),
 					onRemoveRecord: (at) => gameRef.current?.removeRecord(at),
 					onTestSound: () => gameRef.current?.testSound(),
+					onResetGiant: (max) => gameRef.current?.resetGiant(max),
 					onNext: () => gameRef.current?.nextPlayer(),
 					onMute: () => gameRef.current?.toggleMute(),
 					onAskReset: () => gameRef.current?.askReset(),
