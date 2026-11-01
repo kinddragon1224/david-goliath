@@ -1,4 +1,4 @@
-import { preferredCameraId } from "./kiosk";
+import { isTv, preferredCameraId } from "./kiosk";
 import { MotionTracker, pickPlayer, type Aim, type BodyInput, type Landmark, type ThrowEvent } from "./motion";
 
 export type { Aim, Landmark, ThrowEvent };
@@ -284,7 +284,8 @@ export class PoseController {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     if (vw < 2 || vh < 2) return video;
-    const k = Math.min(1, INFER_LONG / Math.max(vw, vh));
+    // TV는 칩이 약해 조금 작게 읽는다
+    const k = Math.min(1, (isTv() ? 480 : INFER_LONG) / Math.max(vw, vh));
     const w = Math.round(vw * k);
     const h = Math.round(vh * k);
     if (!this.inferCanvas) this.inferCanvas = document.createElement("canvas");

@@ -7,6 +7,13 @@ export function isKiosk(): boolean {
   return new URLSearchParams(window.location.search).get("kiosk") === "1";
 }
 
+/** 구글 TV 앱(WebView)에서 열렸나. 앱이 주소에 ?tv=1 을 붙인다.
+ * TV는 리모컨으로 끄므로 전원 버튼을 숨기고, 칩이 약해 인식·그리기 부담을 줄인다. */
+export function isTv(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("tv") === "1";
+}
+
 export function preferredCameraId(): string | null {
   try {
     return localStorage.getItem(CAMERA_KEY);

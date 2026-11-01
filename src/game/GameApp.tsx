@@ -4,11 +4,11 @@ import { GameAudio } from "./audio";
 import { WORLD_H, WORLD_W, ROUND_SECONDS } from "./constants";
 import { drawPip } from "./draw";
 import { Game } from "./engine";
-import { Overlays } from "./overlays";
+import { Overlays, SidePanel } from "./overlays";
 import { PoseController } from "./pose";
 import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
-import { isKiosk, setupKiosk } from "./kiosk";
+import { isKiosk, isTv, setupKiosk } from "./kiosk";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
   if (!g) return;
@@ -81,6 +81,14 @@ export function GameApp() {
   const poseRef = useRef<PoseController | null>(null);
   const startingRef = useRef(false);
   const [ui, setUi] = useState<UiSnap>(initialUi);
+  // 가로 화면(TV): 가운데 게임, 왼쪽 큰 카메라, 오른쪽 거대 골리앗·순위
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const check = () => setWide(window.innerWidth / Math.max(1, window.innerHeight) > 1.2);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
   // 내 모습은 실제 카메라 영상으로 보여 준다. 얼굴을 숨겨야 하는 행사는 주소 끝에 ?camera=0
   const [showVideo, setShowVideo] = useState(true);
   useEffect(() => {
@@ -103,7 +111,7 @@ export function GameApp() {
 
     const resize = () => {
       const r = wrap.getBoundingClientRect();
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const dpr = Math.min(isTv() ? 1 : 2, window.devicePixelRatio || 1);
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -277,7 +285,8 @@ export function GameApp() {
     window.open(window.location.href, "_blank", "noopener,noreferrer");
   };
 
-  const pipLow = ui.phase === "play" || ui.phase === "ko" || ui.phase === "practice" || ui.phase === "countdown";
+  const pipLow =
+    ui.phase === "play" || ui.phase === "ko" || ui.phase === "practice" || ui.phase === "countdown";
   const pipLabel =
     ui.modelState === "failed"
       ? "모션 실패"
@@ -311,10 +320,15 @@ export function GameApp() {
       >
         <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
         <div
-          className={`pointer-events-none absolute z-10 transition-opacity ${pipLow ? "bottom-24 left-3" : "top-[35%] left-3"} ${showPip ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none z-10 transition-opacity ${wide ? "fixed top-1/2 -translate-y-1/2" : `absolute ${pipLow ? "bottom-24 left-3" : "top-[35%] left-3"}`} ${showPip || wide ? "opacity-100" : "opacity-0"}`}
+          style={wide ? { left: SIDE_GAP, width: SIDE_W } : undefined}
         >
+          {wide && (
+            <p className="t-outline mb-3 text-center font-display text-3xl text-cream">내 모습</p>
+          )}
           <div
-            className="relative h-48 w-36 overflow-hidden rounded-2xl border-[0.3125rem] border-ink bg-ink shadow-[0_0.3125rem_0_var(--color-ink)]"
+            className={`relative overflow-hidden rounded-2xl border-[0.3125rem] border-ink bg-ink shadow-[0_0.3125rem_0_var(--color-ink)] ${wide ? "w-full" : "h-48 w-36"}`}
+            style={wide ? { aspectRatio: "3 / 4" } : undefined}
           >
             <video
               ref={videoRef}
@@ -355,11 +369,21 @@ export function GameApp() {
           onAskReset={() => gameRef.current?.askReset()}
           onConfirmReset={() => gameRef.current?.confirmClear()}
           onCancelReset={() => gameRef.current?.cancelClear()}
+          wide={wide}
         />
       </div>
+      {wide && (
+        <div className="fixed top-1/2 -translate-y-1/2" style={{ right: SIDE_GAP, width: SIDE_W }}>
+          <SidePanel ui={ui} />
+        </div>
+      )}
     </div>
   );
 }
+
+/** 가로 화면에서 게임 양옆 칸의 폭과 여백. 게임 칸은 세로 9:16. */
+const SIDE_W = "calc((100dvw - 100dvh * 9 / 16) / 2 * 0.84)";
+const SIDE_GAP = "calc((100dvw - 100dvh * 9 / 16) / 2 * 0.08)";
 
 function dprScale(canvas: HTMLCanvasElement): number {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
