@@ -78,7 +78,8 @@ jobs:
         run: |
           TAG="tv-$EDITION"
           gh release delete "$TAG" --yes --cleanup-tag || true
-          gh release create "$TAG" out/*.apk \
+          cp dist-offline/*.zip out/
+          gh release create "$TAG" out/*.apk out/*.zip \
             --target "$GITHUB_SHA" \
             --title "구글 TV 설치 파일 · $EDITION · v$APP_VERSION" \
-            --notes "구글 TV(안드로이드 TV)에 USB 웹캠을 꽂아 쓰는 설치 파일입니다. 설치 방법은 android/README.md 를 보세요. (빌드 ${{ github.run_number }}, ${GITHUB_SHA::7})"
+            --notes "apk: 구글 TV(안드로이드 TV)+USB 웹캠용. zip: 윈도우 노트북·미니PC+웹캠용(압축 풀고 설치안내.txt). 설치 방법은 android/README.md 를 보세요. (빌드 ${{ github.run_number }}, ${GITHUB_SHA::7})"
