@@ -49,7 +49,9 @@ export function setupKiosk(): () => void {
   // 화면 꺼짐 방지: 탭이 다시 보일 때마다 다시 잡는다
   type WakeLock = { release: () => Promise<void> };
   let lock: WakeLock | null = null;
-  const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<WakeLock> } };
+  const nav = navigator as Navigator & {
+    wakeLock?: { request: (t: "screen") => Promise<WakeLock> };
+  };
   const grab = () => {
     if (!nav.wakeLock || document.visibilityState !== "visible") return;
     nav.wakeLock

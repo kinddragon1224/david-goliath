@@ -53,11 +53,20 @@ function slingHand(pose: DavidPose, charge: number, time: number): { x: number; 
   return { x: 98, y: -86 };
 }
 
-export function davidHandLocal(pose: DavidPose, charge: number, time: number): { x: number; y: number } {
+export function davidHandLocal(
+  pose: DavidPose,
+  charge: number,
+  time: number,
+): { x: number; y: number } {
   return slingHand(pose, charge, time);
 }
 
-export function davidMotion(pose: DavidPose, aimX: number, charge: number, time: number): { x: number; y: number; rot: number } {
+export function davidMotion(
+  pose: DavidPose,
+  aimX: number,
+  charge: number,
+  time: number,
+): { x: number; y: number; rot: number } {
   const aim = Math.max(-1, Math.min(1, aimX)) * 0.05;
   if (pose === "ready") return { x: 0, y: 0, rot: aim - 0.06 - charge * 0.05 };
   if (pose === "spin") return { x: -4, y: 0, rot: aim - 0.1 };
@@ -69,7 +78,13 @@ export function davidMotion(pose: DavidPose, aimX: number, charge: number, time:
 }
 
 /** 돌이 떠나는 월드 좌표. 물매 손 위치를 몸 회전과 축척에 맞춰 옮긴다. */
-export function davidSlingWorld(pose: DavidPose, aimX: number, charge: number, time: number, shift = 0): { x: number; y: number } {
+export function davidSlingWorld(
+  pose: DavidPose,
+  aimX: number,
+  charge: number,
+  time: number,
+  shift = 0,
+): { x: number; y: number } {
   const motion = davidMotion(pose, aimX, charge, time);
   const hand = slingHand(pose, charge, time);
   const lx = hand.x * DAVID_SCALE;

@@ -58,6 +58,7 @@ const initialUi = (): UiSnap => ({
   freezeCd: 0,
   freezeFound: false,
   inputVia: "webcam",
+  homeProgress: 0,
   checkMode: false,
   handsUpProgress: 0,
   waitingForPlayer: false,
@@ -369,6 +370,7 @@ export function GameApp() {
           onAskReset={() => gameRef.current?.askReset()}
           onConfirmReset={() => gameRef.current?.confirmClear()}
           onCancelReset={() => gameRef.current?.cancelClear()}
+          onHome={() => gameRef.current?.goHome()}
           wide={wide}
         />
       </div>

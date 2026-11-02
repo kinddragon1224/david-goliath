@@ -1,4 +1,13 @@
-import { DAVID_FOOT_WORLD, DAVID_LOCAL, DAVID_SCALE, davidHandLocal, davidMotion, GOLIATH_LOCAL, shieldLocal, type DavidPose } from "./art";
+import {
+  DAVID_FOOT_WORLD,
+  DAVID_LOCAL,
+  DAVID_SCALE,
+  davidHandLocal,
+  davidMotion,
+  GOLIATH_LOCAL,
+  shieldLocal,
+  type DavidPose,
+} from "./art";
 import { BEAT_BPM, GRAVITY, WORLD_H, WORLD_W } from "./constants";
 import { goliathAngle, stoneFlight } from "./rules";
 import type { Floater, GameSim } from "./types";
@@ -31,12 +40,26 @@ function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number):
   ctx.arc(x, y, r, 0, Math.PI * 2);
 }
 
-function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, rot = 0): void {
+function ellipse(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  rot = 0,
+): void {
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
 }
 
-function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+function rrect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
 }
@@ -404,7 +427,11 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.translate(gx, gy + GOLIATH_LOCAL.foot.y);
   // KO: 발을 축으로 옆으로 쿵 쓰러진다(0.7초), 살짝 튕긴 뒤 멈춤
   const fall = sim.koT >= 0 ? koFall(sim.koT) : 0;
-  ctx.rotate(goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) + (sim.koT >= 0 ? 0 : wobble) + fall * 1.32);
+  ctx.rotate(
+    goliathAngle(sim.stagger, sim.downed, sim.shieldUp, sim.lean) +
+      (sim.koT >= 0 ? 0 : wobble) +
+      fall * 1.32,
+  );
   if (sim.downed) ctx.translate(40, 80);
   ctx.scale(1 + pulse * 0.012, 1 - pulse * 0.018);
   ctx.translate(-GOLIATH_LOCAL.foot.x, -GOLIATH_LOCAL.foot.y);
@@ -417,21 +444,21 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   // 창(몸 뒤). 던진 창이 날아가는 동안에는 손에 없다.
   const spearOut = !!sim.spear && sim.spear.stage !== "tell";
   if (!spearOut) {
-  rrect(ctx, -272, 170, 26, 1130, 13);
-  ink(ctx, "#b8763a");
-  ctx.beginPath();
-  ctx.moveTo(-259, 60);
-  ctx.lineTo(-222, 190);
-  ctx.lineTo(-296, 190);
-  ctx.closePath();
-  ink(ctx, "#d9dde6");
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.beginPath();
-  ctx.moveTo(-262, 90);
-  ctx.lineTo(-272, 180);
-  ctx.lineTo(-262, 180);
-  ctx.closePath();
-  ctx.fill();
+    rrect(ctx, -272, 170, 26, 1130, 13);
+    ink(ctx, "#b8763a");
+    ctx.beginPath();
+    ctx.moveTo(-259, 60);
+    ctx.lineTo(-222, 190);
+    ctx.lineTo(-296, 190);
+    ctx.closePath();
+    ink(ctx, "#d9dde6");
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.beginPath();
+    ctx.moveTo(-262, 90);
+    ctx.lineTo(-272, 180);
+    ctx.lineTo(-262, 180);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // 다리와 신발
@@ -581,7 +608,10 @@ function drawGoliath(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   }
 
   // 열린 급소: 금빛 표적
-  if (sim.critOpen && (sim.phase === "play" || sim.phase === "countdown" || sim.phase === "practice")) {
+  if (
+    sim.critOpen &&
+    (sim.phase === "play" || sim.phase === "countdown" || sim.phase === "practice")
+  ) {
     const F = GOLIATH_LOCAL.forehead;
     const k = 1 + Math.sin(sim.time * 12) * 0.08;
     ctx.lineWidth = 22;
@@ -1021,7 +1051,12 @@ function drawDavid(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.restore();
 }
 
-function drawSling(ctx: CanvasRenderingContext2D, pose: DavidPose, hand: { x: number; y: number }, sim: GameSim): void {
+function drawSling(
+  ctx: CanvasRenderingContext2D,
+  pose: DavidPose,
+  hand: { x: number; y: number },
+  sim: GameSim,
+): void {
   let px = hand.x + 8;
   let py = hand.y + 54;
   let loaded = true;
@@ -1064,7 +1099,15 @@ function drawSling(ctx: CanvasRenderingContext2D, pose: DavidPose, hand: { x: nu
 function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   if (sim.phase !== "play" && sim.phase !== "countdown" && sim.phase !== "practice") return;
   const power = sim.armed || sim.charge > 0.15 ? Math.max(0.7, sim.charge) : 0.78;
-  const flight = stoneFlight(sim.aimX, sim.aimY, power, sim.davidPose, sim.charge, sim.time, sim.davidShift);
+  const flight = stoneFlight(
+    sim.aimX,
+    sim.aimY,
+    power,
+    sim.davidPose,
+    sim.charge,
+    sim.time,
+    sim.davidShift,
+  );
   const hot = sim.armed || sim.charge > 0.3;
   ctx.save();
   ctx.globalAlpha = hot ? 0.95 : 0.6;
@@ -1359,7 +1402,6 @@ function drawSpearMark(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.setLineDash([]);
   ctx.restore();
 }
-
 
 /** 골리앗 손에서 다윗 자리로 날아가 땅에 꽂히는 창. */
 function drawSpear(ctx: CanvasRenderingContext2D, sim: GameSim): void {

@@ -4,14 +4,14 @@
 
 export type BossPart = "이마" | "투구" | "몸통" | "방패";
 
-/** 골리앗 체력. 아이 기준으로 10명 중 6~7명이 20초 안에 쓰러뜨리는 정도를 노린 값. */
-export const GOLIATH_HP = 100;
+/** 골리앗 체력. 잘하는 사람이 피버 타임(마지막 5초)에 겨우 쓰러뜨리는 정도. 10명 중 2~3명 KO 목표. */
+export const GOLIATH_HP = 170;
 
 /** 부위별 피해. 방패는 막힘. */
 export const PART_DAMAGE: Record<BossPart, number> = {
-  이마: 30,
-  투구: 14,
-  몸통: 7,
+  이마: 24,
+  투구: 9,
+  몸통: 4,
   방패: 0,
 };
 

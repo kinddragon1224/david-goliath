@@ -51,7 +51,9 @@ function decompose(ch: string | undefined): Syl | null {
 }
 
 function compose({ cho, jung, jong }: Syl): string {
-  return String.fromCharCode(BASE + CHO.indexOf(cho) * 588 + JUNG.indexOf(jung) * 28 + JONG.indexOf(jong));
+  return String.fromCharCode(
+    BASE + CHO.indexOf(cho) * 588 + JUNG.indexOf(jung) * 28 + JONG.indexOf(jong),
+  );
 }
 
 /** 글자 끝에 자모 하나를 넣는다. */
@@ -67,7 +69,10 @@ export function typeJamo(text: string, j: string): string {
         const pair = split(JONG_PAIR, last.jong);
         const keep = pair ? pair[0] : "";
         const move = pair ? pair[1] : last.jong;
-        if (CHO.includes(move)) return head + compose({ ...last, jong: keep }) + compose({ cho: move, jung: j, jong: "" });
+        if (CHO.includes(move))
+          return (
+            head + compose({ ...last, jong: keep }) + compose({ cho: move, jung: j, jong: "" })
+          );
         return text + j;
       }
       const both = VOWEL_PAIR[last.jung + j];

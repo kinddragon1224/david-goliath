@@ -1,13 +1,6 @@
 import { GOLIATH_LOCAL, shieldLocal, type DavidPose, type GoliathPose } from "./art";
 import { GameAudio } from "./audio";
-import {
-  GRAVITY,
-  MAX_STONES,
-  ROUND_SECONDS,
-  URGENT_SECONDS,
-  WORLD_H,
-  WORLD_W,
-} from "./constants";
+import { GRAVITY, MAX_STONES, ROUND_SECONDS, URGENT_SECONDS, WORLD_H, WORLD_W } from "./constants";
 import { drawWorld } from "./draw";
 import type { PoseFrame, ThrowEvent } from "./pose";
 import {
@@ -25,7 +18,16 @@ import {
   type GoliathAct,
   type HitPart,
 } from "./rules";
-import { addScore, clearScores, deleteScore, loadScores, qualifiesForName, setScoreName, type InputVia, type ScoreRecord } from "./scores";
+import {
+  addScore,
+  clearScores,
+  deleteScore,
+  loadScores,
+  qualifiesForName,
+  setScoreName,
+  type InputVia,
+  type ScoreRecord,
+} from "./scores";
 import { NAME_ENTRY_SECONDS, SCORES_KEY } from "./constants";
 import {
   DAVID_SHIFT_MAX,
@@ -45,7 +47,17 @@ import {
 } from "./boss";
 import { contribute, dayKey, normalizeGiant, resetGiant, type GiantState } from "./giant";
 import type { SpearSim } from "./types";
-import type { CameraState, Floater, GameSim, ModelState, Particle, Phase, Ring, Stone, UiSnap } from "./types";
+import type {
+  CameraState,
+  Floater,
+  GameSim,
+  ModelState,
+  Particle,
+  Phase,
+  Ring,
+  Stone,
+  UiSnap,
+} from "./types";
 import { VERSES, randomVerse, type Verse } from "./verses";
 
 const HANDS_UP_SECONDS = 1;
@@ -56,6 +68,8 @@ const PLAYER_WAIT_SECONDS = 12;
 const PRACTICE_THROWS = 2;
 const PRACTICE_MAX_SECONDS = 15;
 const AIM_ASSIST_PX = 110;
+/** 게임 중 양손을 이만큼(초) 들고 있으면 처음 화면으로. */
+const HOME_SECONDS = 2.5;
 
 export class Game {
   phase: Phase = "boot";
@@ -128,7 +142,12 @@ export class Game {
   davidShift = 0;
   private davidTarget = 0;
   private stunLeft = 0;
-  private spear: { stage: "tell" | "fly" | "stuck"; t: number; targetShift: number; dodged: boolean } | null = null;
+  private spear: {
+    stage: "tell" | "fly" | "stuck";
+    t: number;
+    targetShift: number;
+    dodged: boolean;
+  } | null = null;
   private spearIdx = 0;
   dodges = 0;
   giant: GiantState = normalizeGiant(null, dayKey(Date.now()));
@@ -160,6 +179,13 @@ export class Game {
   private dodgeFrom = WORLD_W / 2;
   private dodgeTo = WORLD_W / 2;
   private restFrom = WORLD_W / 2;
+  /** 쉬는 동안 골리앗이 걸어갈 곳. 가운데에만 서 있지 않고 좌우로 돌아다닌다. */
+  private restTo = WORLD_W / 2;
+
+  private wanderX(): number {
+    if (this.phase !== "play") return WORLD_W / 2;
+    return WORLD_W / 2 + (this.nextRand() * 2 - 1) * 210;
+  }
   private openCritUsed = false;
   private freezeCritUsed = false;
   private wasFrozen = false;
@@ -215,13 +241,19 @@ export class Game {
     this.pushUi(true);
   }
 
-  setReadiness(camera: CameraState, cameraError: string | null, model: ModelState, modelError: string | null): void {
+  setReadiness(
+    camera: CameraState,
+    cameraError: string | null,
+    model: ModelState,
+    modelError: string | null,
+  ): void {
     this.cameraState = camera;
     this.cameraError = camera === "denied" ? cameraError : null;
     this.modelState = model;
     this.modelError = model === "failed" ? modelError : null;
     this.poseReady = model === "ready";
-    const liveRound = this.phase === "play" || this.phase === "countdown" || this.phase === "practice";
+    const liveRound =
+      this.phase === "play" || this.phase === "countdown" || this.phase === "practice";
     if (liveRound && !this.checkMode && (camera !== "live" || model === "failed")) {
       const why = camera !== "live" ? "카메라가 끊겨" : "모션이 멈춰";
       this.abortRound(`${why} 이번 경기는 기록하지 않습니다`);
@@ -333,6 +365,42 @@ export class Game {
   }
 
   private handsUpSeen = false;
+  /** 게임 중 양손을 오래 들고 있으면 처음 화면으로. */
+  private homeHold = 0;
+  homeProgress = 0;
+  /** 처음 화면으로 돌아온 뒤 손을 한 번 내려야 다시 시작된다(들고 있던 손으로 바로 재시작 방지). */
+  private homeRelease = false;
+  private homeArmed = false;
+
+  /** 처음 화면으로(버튼·모션 공통). 이번 판은 기록하지 않는다. */
+  goHome(): void {
+    if (this.phase === "attract" || this.phase === "boot") return;
+    this.abortRound("처음 화면으로 돌아왔어요");
+    this.goAttract();
+    this.homeHold = 0;
+    this.homeProgress = 0;
+    this.homeRelease = true;
+  }
+
+  private stepHome(dt: number): void {
+    const active = this.phase === "countdown" || this.phase === "play" || this.phase === "ko";
+    if (!active || !this.poseReady || this.cameraState !== "live") {
+      this.homeHold = 0;
+      this.homeProgress = 0;
+      this.homeArmed = false;
+      return;
+    }
+    // 시작할 때 든 손을 한 번 내린 뒤부터 센다
+    if (!this.homeArmed) {
+      if (!this.handsUpSeen) this.homeArmed = true;
+      return;
+    }
+    if (this.handsUpSeen && this.personPresent) this.homeHold += dt;
+    else this.homeHold = Math.max(0, this.homeHold - dt * 3);
+    // 처음 0.6초는 표시하지 않는다(던지기 동작과 헷갈리지 않게)
+    this.homeProgress = Math.max(0, Math.min(1, (this.homeHold - 0.6) / (HOME_SECONDS - 0.6)));
+    if (this.homeHold >= HOME_SECONDS) this.goHome();
+  }
 
   /** 시작 동작: 양손을 머리 위로 1초 유지. 0.25초 이내로 놓친 것은 봐준다. */
   private stepHandsUp(dt: number): void {
@@ -342,6 +410,14 @@ export class Game {
       this.handsLost = 0;
       this.handsUpProgress = 0;
       return;
+    }
+    if (this.homeRelease) {
+      if (this.handsUpSeen) {
+        this.handsHold = 0;
+        this.handsUpProgress = 0;
+        return;
+      }
+      this.homeRelease = false;
     }
     if (this.handsUpSeen && this.personPresent) {
       this.handsHold += dt;
@@ -521,7 +597,12 @@ export class Game {
     if (this.freezeLeft > 0) this.freezeLeft = Math.max(0, this.freezeLeft - real);
     else this.motionTime += real;
     if (this.freezeCd > 0) this.freezeCd = Math.max(0, this.freezeCd - real);
-    if (this.phase === "play" && this.freezeCd <= 0 && this.freezeLeft <= 0 && (this.chestStill || this.pointerHolding)) {
+    if (
+      this.phase === "play" &&
+      this.freezeCd <= 0 &&
+      this.freezeLeft <= 0 &&
+      (this.chestStill || this.pointerHolding)
+    ) {
       this.freezeHold += real;
       if (this.freezeHold >= 1.2) this.triggerFreeze();
     } else if (!this.pointerHolding) {
@@ -554,7 +635,8 @@ export class Game {
     const amp = this.calm ? 0 : this.trauma * this.trauma;
     this.shakeX = (Math.random() - 0.5) * 10 * amp;
     this.shakeY = (Math.random() - 0.5) * 6 * amp;
-    const winding = (this.phase === "play" || this.phase === "practice") && (this.armed || this.pointerHolding);
+    const winding =
+      (this.phase === "play" || this.phase === "practice") && (this.armed || this.pointerHolding);
     if (winding) this.charge = Math.min(1, this.charge + real * 2.4);
     else this.charge = Math.max(0, this.charge - real * 2);
 
@@ -597,6 +679,7 @@ export class Game {
     }
 
     this.stepHandsUp(real);
+    this.stepHome(real);
     if (this.phase === "practice") {
       this.practiceIdle += real;
       if (this.practiceLeft > 0) {
@@ -666,11 +749,22 @@ export class Game {
     const sp = this.spear;
     if (!sp) return null;
     const len = sp.stage === "tell" ? SPEAR_TELL : sp.stage === "fly" ? SPEAR_FLIGHT : 1;
-    return { stage: sp.stage, k: Math.min(1, sp.t / len), targetX: WORLD_W / 2 + sp.targetShift, dodged: sp.dodged };
+    return {
+      stage: sp.stage,
+      k: Math.min(1, sp.t / len),
+      targetX: WORLD_W / 2 + sp.targetShift,
+      dodged: sp.dodged,
+    };
   }
 
   private goStart(): void {
-    if (this.phase === "start" || this.phase === "practice" || this.phase === "countdown" || this.phase === "play") return;
+    if (
+      this.phase === "start" ||
+      this.phase === "practice" ||
+      this.phase === "countdown" ||
+      this.phase === "play"
+    )
+      return;
     if (!this.readyToStart()) return;
     this.phase = "start";
     this.verse = randomVerse(this.verse.ref);
@@ -682,7 +776,13 @@ export class Game {
 
   /** 카운트다운을 멈추고 사람을 기다려야 하나(카메라로 하는 판인데 사람이 안 보임). */
   waitingForPlayer(): boolean {
-    return this.phase === "countdown" && !this.checkMode && this.cameraState === "live" && this.poseReady && !this.personPresent;
+    return (
+      this.phase === "countdown" &&
+      !this.checkMode &&
+      this.cameraState === "live" &&
+      this.poseReady &&
+      !this.personPresent
+    );
   }
 
   private goCountdown(): void {
@@ -926,7 +1026,12 @@ export class Game {
   private stepSpear(dt: number): void {
     const elapsed = ROUND_SECONDS - this.timeLeft;
     if (!this.spear) {
-      if (this.spearIdx >= SPEAR_AT.length || elapsed < SPEAR_AT[this.spearIdx] || this.freezeLeft > 0) return;
+      if (
+        this.spearIdx >= SPEAR_AT.length ||
+        elapsed < SPEAR_AT[this.spearIdx] ||
+        this.freezeLeft > 0
+      )
+        return;
       this.spearIdx += 1;
       this.spear = { stage: "tell", t: 0, targetShift: this.davidShift, dodged: false };
       this.banner = "창이 날아와요! 옆으로 피하세요!";
@@ -948,13 +1053,31 @@ export class Game {
       if (sp.dodged) {
         this.dodges += 1;
         this.score += DODGE_BONUS;
-        this.floaters.push({ x, y: 1380, life: 1, maxLife: 1, text: "피했다!", sub: `+${DODGE_BONUS}`, color: "#fff4dc", kind: "good" });
+        this.floaters.push({
+          x,
+          y: 1380,
+          life: 1,
+          maxLife: 1,
+          text: "피했다!",
+          sub: `+${DODGE_BONUS}`,
+          color: "#fff4dc",
+          kind: "good",
+        });
         this.audio.play("combo");
       } else {
         this.stunLeft = STUN_SECONDS;
         this.trauma = Math.min(0.8, this.trauma + 0.5);
         this.breakCombo();
-        this.floaters.push({ x, y: 1380, life: 1, maxLife: 1, text: "으악!", sub: "잠깐 기절", color: "#fff4dc", kind: "bad" });
+        this.floaters.push({
+          x,
+          y: 1380,
+          life: 1,
+          maxLife: 1,
+          text: "으악!",
+          sub: "잠깐 기절",
+          color: "#fff4dc",
+          kind: "bad",
+        });
         this.audio.play("hitShield");
       }
       this.pushUi(true);
@@ -973,7 +1096,8 @@ export class Game {
   private launch(ev: ThrowEvent, demo = false, immediate = false): boolean {
     const live = this.phase === "play" || this.phase === "practice";
     if (!demo && !live) return false;
-    if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0 || this.stunLeft > 0)) return false;
+    if (!demo && (this.throwCool > 0 || this.queued || this.followLeft > 0 || this.stunLeft > 0))
+      return false;
     if (this.stones.length >= MAX_STONES) return false;
     if (!demo) ev = this.assistAim(ev);
     this.aimX = ev.aimX;
@@ -1058,7 +1182,18 @@ export class Game {
       s.rot += s.spin * dt;
       if (s.y > WORLD_H + 40 || s.x < -80 || s.x > WORLD_W + 80 || s.y < -120) {
         s.live = false;
-        if (this.phase === "play") this.breakCombo();
+        if (this.phase === "play") {
+          this.breakCombo();
+          this.floaters.push({
+            x: Math.max(140, Math.min(WORLD_W - 140, s.x)),
+            y: Math.max(420, Math.min(1150, s.y < 0 ? 420 : 1150)),
+            life: 0.8,
+            maxLife: 0.8,
+            text: "빗나감!",
+            color: "#fff4dc",
+            kind: "bad",
+          });
+        }
         continue;
       }
       this.collide(s, x0, y0, dt);
@@ -1117,8 +1252,16 @@ export class Game {
       hits.push({ t, part });
     };
     add(segmentHitsCircle(a0.x, a0.y, a1.x, a1.y, sh.x, sh.y, sh.r + STONE_R), "방패", aimedShield);
-    add(segmentHitsEllipse(a0.x, a0.y, a1.x, a1.y, F.x, F.y, F.rx + 16, F.ry + 12), "이마", aimedFore || aimedHead);
-    add(segmentHitsCircle(a0.x, a0.y, a1.x, a1.y, H.x, H.y, H.r + STONE_R), "투구", aimedFore || aimedHead);
+    add(
+      segmentHitsEllipse(a0.x, a0.y, a1.x, a1.y, F.x, F.y, F.rx + 16, F.ry + 12),
+      "이마",
+      aimedFore || aimedHead,
+    );
+    add(
+      segmentHitsCircle(a0.x, a0.y, a1.x, a1.y, H.x, H.y, H.r + STONE_R),
+      "투구",
+      aimedFore || aimedHead,
+    );
     add(segmentHitsBox(a0.x, a0.y, a1.x, a1.y, T.x, T.y, T.w, T.h, 16, 12), "몸통", aimedTorso);
     add(segmentHitsBox(a0.x, a0.y, a1.x, a1.y, L.x, L.y, L.w, L.h, 16, 12), "몸통", aimedLegs);
     if (hits.length === 0) return;
@@ -1138,9 +1281,16 @@ export class Game {
     s.live = false;
   }
 
-  private registerHit(part: HitPart, x: number, y: number, sfx: "hitSoft" | "hitShield" | "hitHead"): void {
-    const kind = part === "이마" ? "crit" : part === "투구" ? "good" : part === "방패" ? "bad" : "ok";
-    const label = part === "이마" ? "크리티컬!" : part === "투구" ? "좋아!" : part === "방패" ? "막힘" : "명중";
+  private registerHit(
+    part: HitPart,
+    x: number,
+    y: number,
+    sfx: "hitSoft" | "hitShield" | "hitHead",
+  ): void {
+    const kind =
+      part === "이마" ? "crit" : part === "투구" ? "good" : part === "방패" ? "bad" : "ok";
+    const label =
+      part === "이마" ? "크리티컬!" : part === "투구" ? "좋아!" : part === "방패" ? "막힘" : "명중";
     if (this.phase === "practice") {
       this.hitFlash = 0.45;
       this.hitLog.push({ part, gained: 0 });
@@ -1168,7 +1318,13 @@ export class Game {
     this.stagger = crit ? 0.7 : 0.25;
     this.trauma = Math.min(0.7, this.trauma + (crit ? 0.45 : blocked ? 0.15 : 0.28));
     if (crit) this.hitStop = 0.045;
-    this.rings.push({ x, y, life: crit ? 0.45 : 0.32, maxLife: crit ? 0.45 : 0.32, r: crit ? 30 : 16 });
+    this.rings.push({
+      x,
+      y,
+      life: crit ? 0.45 : 0.32,
+      maxLife: crit ? 0.45 : 0.32,
+      r: crit ? 30 : 16,
+    });
     this.floaters.push({
       x,
       y: y - 30,
@@ -1192,7 +1348,9 @@ export class Game {
 
   private burst(x: number, y: number, big: boolean): void {
     const n = big ? 28 : 14;
-    const colors = big ? ["#ffd23a", "#f24a2a", "#ffffff", "#3fb8d9"] : ["#ffd23a", "#ffffff", "#ff8a1f"];
+    const colors = big
+      ? ["#ffd23a", "#f24a2a", "#ffffff", "#3fb8d9"]
+      : ["#ffd23a", "#ffffff", "#ff8a1f"];
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 80 + Math.random() * 280;
@@ -1247,6 +1405,7 @@ export class Game {
       this.aiPhase = "rest";
       this.aiT = 0;
       this.restFrom = this.goliathX;
+      this.restTo = this.wanderX();
       this.shieldUp = false;
       this.shieldWarn = false;
       this.openCritUsed = true;
@@ -1285,10 +1444,10 @@ export class Game {
 
   private phaseSeconds(elapsed: number): number {
     const band = combatBand(elapsed);
-    if (this.aiPhase === "rest") return 0.35;
+    if (this.aiPhase === "rest") return 0.55;
     if (this.aiPhase === "tell") return band.tell;
     if (this.aiPhase === "act") {
-      if (this.aiAct === "guard") return 0.85;
+      if (this.aiAct === "guard") return 1.15;
       if (this.aiAct === "left" || this.aiAct === "right") return 0.35;
       return 0.75;
     }
@@ -1314,6 +1473,7 @@ export class Game {
       if (this.aiAct === "idle") {
         this.aiPhase = "rest";
         this.restFrom = this.goliathX;
+        this.restTo = this.wanderX();
         return;
       }
       this.aiPhase = "open";
@@ -1322,6 +1482,7 @@ export class Game {
     }
     this.aiPhase = "rest";
     this.restFrom = this.goliathX;
+    this.restTo = this.wanderX();
     this.shieldUp = false;
     this.shieldWarn = false;
   }
@@ -1404,7 +1565,7 @@ export class Game {
       }
     }
     if (this.aiPhase === "rest") {
-      this.goliathX = this.restFrom + (WORLD_W / 2 - this.restFrom) * u;
+      this.goliathX = this.restFrom + (this.restTo - this.restFrom) * u;
     }
     if (this.aiPhase === "open") this.shieldUp = false;
   }
@@ -1505,6 +1666,7 @@ export class Game {
       inputVia: this.inputVia,
       checkMode: this.checkMode,
       handsUpProgress: this.handsUpProgress,
+      homeProgress: this.homeProgress,
       waitingForPlayer: this.waitingForPlayer(),
       hpRatio: this.goliathHp / GOLIATH_HP,
       fever: this.fever,
@@ -1512,7 +1674,12 @@ export class Game {
       koBonus: this.koBonusPts,
       spearWarn: this.spear?.stage === "tell",
       dodges: this.dodges,
-      giant: { hp: this.giant.hp, max: this.giant.max, plays: this.giant.plays, defeated: this.giant.defeated },
+      giant: {
+        hp: this.giant.hp,
+        max: this.giant.max,
+        plays: this.giant.plays,
+        defeated: this.giant.defeated,
+      },
       giantHit: this.giantHit,
       giantKoNow: this.giantKoNow,
     };
@@ -1553,9 +1720,12 @@ export class Game {
     if (!this.poseReady) return "모션이 준비되면 시작할 수 있습니다";
     if (!this.personPresent) return "카메라 앞에 상반신이 나오게 서 주세요";
     if (this.tooFar) return "조금 더 앞으로 와 주세요";
-    if (this.lowInFrame && this.phase !== "play" && this.phase !== "ko") return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
-    if (this.offCenter && this.phase !== "play" && this.phase !== "ko") return "화면 가운데로 와 주세요";
-    if (this.phase === "start" || this.phase === "attract") return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
+    if (this.lowInFrame && this.phase !== "play" && this.phase !== "ko")
+      return "한 걸음 뒤로 서 주세요. 몸이 화면 아래로 잘려요";
+    if (this.offCenter && this.phase !== "play" && this.phase !== "ko")
+      return "화면 가운데로 와 주세요";
+    if (this.phase === "start" || this.phase === "attract")
+      return "양손을 머리 위로 번쩍! 1초 유지하면 시작";
     if (this.phase === "practice") {
       if (this.armed) return "좋아요! 이제 앞으로 힘껏 던지세요";
       return `손을 머리 위로 들었다가 앞으로 던지세요 (${this.practiceThrows}/${PRACTICE_THROWS})`;

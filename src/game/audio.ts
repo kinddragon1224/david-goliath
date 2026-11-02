@@ -36,7 +36,9 @@ export class GameAudio {
 
   unlock = (): void => {
     if (!this.ctx) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx({ latencyHint: "interactive" });
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
@@ -171,7 +173,14 @@ export class GameAudio {
     this.noiseSweep(t, 0.05, 3200, 2400, gain * 0.5);
   }
 
-  private osc(freq: number, type: OscillatorType, t: number, dur: number, gain: number, freqEnd?: number): void {
+  private osc(
+    freq: number,
+    type: OscillatorType,
+    t: number,
+    dur: number,
+    gain: number,
+    freqEnd?: number,
+  ): void {
     if (!this.ctx || !this.master) return;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();

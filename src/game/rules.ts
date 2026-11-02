@@ -35,10 +35,12 @@ export type CombatBand = {
 };
 
 export function combatBand(elapsed: number): CombatBand {
-  // 20초 판 기준: 0~5초 쉬움, 5~13초 보통, 그 뒤 어려움
-  if (elapsed < 5) return { idle: 0.45, guard: 0.35, dodge: 0.2, tell: 0.55, dodgeDist: 80, open: 1.2 };
-  if (elapsed < 13) return { idle: 0.25, guard: 0.4, dodge: 0.35, tell: 0.45, dodgeDist: 110, open: 1.0 };
-  return { idle: 0.15, guard: 0.4, dodge: 0.45, tell: 0.35, dodgeDist: 140, open: 0.9 };
+  // 20초 판 기준: 0~5초 보통, 5~13초 어려움, 그 뒤 더 어려움. 막기·피하기가 자주 나와 빗나가는 돌이 생긴다.
+  if (elapsed < 5)
+    return { idle: 0.25, guard: 0.4, dodge: 0.35, tell: 0.45, dodgeDist: 220, open: 0.95 };
+  if (elapsed < 13)
+    return { idle: 0.12, guard: 0.43, dodge: 0.45, tell: 0.38, dodgeDist: 280, open: 0.8 };
+  return { idle: 0.08, guard: 0.42, dodge: 0.5, tell: 0.3, dodgeDist: 320, open: 0.7 };
 }
 
 export function goliathAngle(stagger: number, downed: boolean, guard = false, lean = 0): number {

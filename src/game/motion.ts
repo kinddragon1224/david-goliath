@@ -193,7 +193,8 @@ export class MotionTracker {
     const ls = P(SHOULDER[0]);
     const rs = P(SHOULDER[1]);
     const rawScale = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
-    const seen = ls.v > 0.4 && rs.v > 0.4 && rawScale > MOTION.minScale && (P(NOSE).v > 0.3 || P(23).v > 0.3);
+    const seen =
+      ls.v > 0.4 && rs.v > 0.4 && rawScale > MOTION.minScale && (P(NOSE).v > 0.3 || P(23).v > 0.3);
     if (!seen) {
       this.markAbsent();
       none.present = this.present;
@@ -367,7 +368,12 @@ export class MotionTracker {
     const settled = t - hand.readyT > 400;
     // 위로 올리는 동작은 장전이지 던지기가 아니다. 옆·아래로 휘두를 때만.
     const notUpward = v.vy > -2;
-    if (settled && notUpward && speed > MOTION.swingSpeed && travelOf(hand.hist, 0.25) > MOTION.swingTravel) {
+    if (
+      settled &&
+      notUpward &&
+      speed > MOTION.swingSpeed &&
+      travelOf(hand.hist, 0.25) > MOTION.swingTravel
+    ) {
       return { ...aimNow, power: clamp(0.45 + (speed / 12) * 0.55, 0.45, 1) };
     }
     return null;
@@ -375,7 +381,10 @@ export class MotionTracker {
 }
 
 /** 손 위치: 손목·새끼·검지 평균. 너무 빨라 손이 번지면 팔꿈치 방향으로 짐작한다. */
-function handPoint(body: BodyInput, side: number): { X: number; Y: number; z: number; conf: number; fromWrist: boolean } | null {
+function handPoint(
+  body: BodyInput,
+  side: number,
+): { X: number; Y: number; z: number; conf: number; fromWrist: boolean } | null {
   const { img, aspect } = body;
   const z = (i: number) => body.worldZ?.[i] ?? 0;
   let sw = 0;
@@ -408,7 +417,10 @@ function handPoint(body: BodyInput, side: number): { X: number; Y: number; z: nu
 }
 
 /** 최근 window초 사이 속도(s/초, m/초). */
-function velocity(hist: HandSample[], window: number): { vx: number; vy: number; vdz: number } | null {
+function velocity(
+  hist: HandSample[],
+  window: number,
+): { vx: number; vy: number; vdz: number } | null {
   if (hist.length < 2) return null;
   const cur = hist[hist.length - 1];
   let ref: HandSample | null = null;

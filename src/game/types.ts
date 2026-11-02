@@ -2,7 +2,8 @@ import type { DavidPose, GoliathPose } from "./art";
 import type { Verse } from "./verses";
 import type { ScoreRecord } from "./scores";
 
-export type Phase = "boot" | "attract" | "start" | "practice" | "countdown" | "play" | "ko" | "result";
+export type Phase =
+  "boot" | "attract" | "start" | "practice" | "countdown" | "play" | "ko" | "result";
 export type CameraState = "off" | "loading" | "live" | "denied";
 export type ModelState = "off" | "loading" | "ready" | "failed";
 
@@ -137,6 +138,8 @@ export type UiSnap = {
   checkMode: boolean;
   /** 양손 번쩍 유지 정도 0..1. */
   handsUpProgress: number;
+  /** 처음 화면으로 돌아가기 동작 진행(0~1). */
+  homeProgress: number;
   /** 카운트다운 중인데 카메라에 사람이 안 보여 기다리는 중. */
   waitingForPlayer: boolean;
   /** 골리앗 체력 비율 0~1. */

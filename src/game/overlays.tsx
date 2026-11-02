@@ -1,4 +1,4 @@
-import { Power, Volume2, VolumeX } from "lucide-react";
+import { Home, Power, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   APP_VERSION,
@@ -42,6 +42,8 @@ type Props = {
   onRemoveRecord: (at: number) => void;
   onTestSound: () => void;
   onResetGiant: (max: number) => void;
+  /** 게임 중 처음 화면으로. */
+  onHome?: () => void;
   /** 가로 TV 화면. 순위·방법·거대 골리앗은 오른쪽 패널로 옮긴다. */
   wide?: boolean;
 };
@@ -102,6 +104,7 @@ export function Overlays({
   onRemoveRecord,
   onTestSound,
   onResetGiant,
+  onHome,
   wide = false,
 }: Props) {
   const [adminOpen, setAdminOpen] = useState(false);
@@ -159,6 +162,18 @@ export function Overlays({
       {ui.phase === "countdown" &&
         (ui.waitingForPlayer ? <WaitForPlayer /> : <Countdown n={ui.countdown} />)}
       {(ui.phase === "play" || ui.phase === "ko") && <Hud ui={ui} />}
+      {(ui.phase === "countdown" || ui.phase === "play" || ui.phase === "ko") && onHome && (
+        <button
+          type="button"
+          onClick={onHome}
+          className="t-btn pointer-events-auto absolute bottom-24 left-3 z-20 flex h-11 items-center gap-1.5 bg-cream px-3 font-display text-sm text-ink"
+          aria-label="처음 화면으로"
+        >
+          <Home className="size-5" strokeWidth={3} />
+          처음으로
+        </button>
+      )}
+      {ui.homeProgress > 0 && <HomeHold progress={ui.homeProgress} />}
       {ui.phase === "ko" && <KoSplash />}
       {ui.phase === "result" &&
         (ui.naming ? (
@@ -1493,6 +1508,42 @@ export function SidePanel({ ui }: { ui: UiSnap }) {
         </ol>
       </div>
       {!EDITION.showVerses && <HowToBlock compact />}
+    </div>
+  );
+}
+
+/** 게임 중 양손을 계속 들고 있으면 처음 화면으로 돌아가는 진행 표시. */
+function HomeHold({ progress }: { progress: number }) {
+  const r = 44;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink/40">
+      <div className="relative size-40">
+        <svg viewBox="0 0 100 100" className="size-full -rotate-90">
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="rgba(42,22,12,0.85)"
+            stroke="rgba(255,244,220,0.3)"
+            strokeWidth="8"
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke="var(--color-sun)"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - progress)}
+          />
+        </svg>
+        <Home className="absolute inset-0 m-auto size-16 text-cream" strokeWidth={2.5} />
+      </div>
+      <p className="t-outline mt-4 font-display text-4xl text-cream">처음 화면으로 돌아가요</p>
+      <p className="t-outline-sm mt-1 font-display text-xl text-cream">계속하려면 손을 내리세요</p>
     </div>
   );
 }

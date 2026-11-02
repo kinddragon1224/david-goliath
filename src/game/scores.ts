@@ -31,7 +31,9 @@ export function loadScores(): ScoreRecord[] {
           typeof (row as ScoreRecord).at === "number",
       )
       .filter((row) => row.via !== "pointer")
-      .map((row) => (typeof row.name === "string" ? { ...row, name: cleanName(row.name) || undefined } : row));
+      .map((row) =>
+        typeof row.name === "string" ? { ...row, name: cleanName(row.name) || undefined } : row,
+      );
     if (rows.length !== (parsed as unknown[]).length) saveScores(rows);
     return rows.sort(byScore);
   } catch {
@@ -49,7 +51,10 @@ export function saveScores(rows: ScoreRecord[]): void {
   }
 }
 
-export function addScore(score: number, via: InputVia): { list: ScoreRecord[]; rank: number; monthRank: number; at: number } {
+export function addScore(
+  score: number,
+  via: InputVia,
+): { list: ScoreRecord[]; rank: number; monthRank: number; at: number } {
   const at = Date.now();
   try {
     const all = [...loadScores(), { score, at, via, ruleset: RULESET_VERSION }];

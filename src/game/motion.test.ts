@@ -5,7 +5,13 @@ import { MotionTracker, type BodyInput, type Landmark } from "./motion.ts";
 /** 화면 가운데 선 사람. scale은 어깨너비(화면 높이 대비). hand(t)는 몸 좌표(어깨너비 단위). */
 function body(
   t: number,
-  opts: { scale?: number; cx?: number; right?: { x: number; y: number; z?: number }; left?: { x: number; y: number }; vis?: number },
+  opts: {
+    scale?: number;
+    cx?: number;
+    right?: { x: number; y: number; z?: number };
+    left?: { x: number; y: number };
+    vis?: number;
+  },
 ): BodyInput {
   const aspect = 4 / 3;
   const s = opts.scale ?? 0.2;
@@ -33,7 +39,10 @@ function body(
 
 function run(frames: (t: number) => Parameters<typeof body>[1], ms: number, fps = 30) {
   const tr = new MotionTracker();
-  const events: { t: number; ev: NonNullable<ReturnType<MotionTracker["update"]>["throwEvent"]> }[] = [];
+  const events: {
+    t: number;
+    ev: NonNullable<ReturnType<MotionTracker["update"]>["throwEvent"]>;
+  }[] = [];
   let last: ReturnType<MotionTracker["update"]> | null = null;
   for (let t = 0; t <= ms; t += 1000 / fps) {
     last = tr.update(body(t, frames(t)), t);
@@ -95,7 +104,14 @@ test("몸 전체가 옆으로 빨리 움직여도 던지기가 아니다", () =>
 
 test("양손 번쩍은 시작 동작이고, 내리는 것은 던지기가 아니다", () => {
   const frames = (t: number) => {
-    const y = t < 300 ? 1.5 : t < 700 ? lerp(1.5, -1.4, (t - 300) / 400) : t < 1700 ? -1.4 : lerp(-1.4, 1.5, (t - 1700) / 150);
+    const y =
+      t < 300
+        ? 1.5
+        : t < 700
+          ? lerp(1.5, -1.4, (t - 300) / 400)
+          : t < 1700
+            ? -1.4
+            : lerp(-1.4, 1.5, (t - 1700) / 150);
     return { left: { x: -0.55, y }, right: { x: 0.55, y } };
   };
   const tr = new MotionTracker();
@@ -133,14 +149,23 @@ test("너무 멀면 알려 준다", () => {
 });
 
 test("장전 없이 옆으로 크게 휘둘러도 던지기로 잡는다", () => {
-  const { events } = run((t) => ({ right: { x: t < 800 ? 1.4 : lerp(1.4, -0.6, (t - 800) / 160), y: 0.6 } }), 1400);
+  const { events } = run(
+    (t) => ({ right: { x: t < 800 ? 1.4 : lerp(1.4, -0.6, (t - 800) / 160), y: 0.6 } }),
+    1400,
+  );
   assert.equal(events.length, 1);
 });
 
 test("가만히 서 있을 때 카메라 떨림으로는 던지지 않는다", () => {
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 0.16;
-  const { events } = run(() => ({ right: { x: 0.6 + rnd(), y: 1.5 + rnd() }, left: { x: -0.6 + rnd(), y: 1.5 + rnd() } }), 5000);
+  const { events } = run(
+    () => ({
+      right: { x: 0.6 + rnd(), y: 1.5 + rnd() },
+      left: { x: -0.6 + rnd(), y: 1.5 + rnd() },
+    }),
+    5000,
+  );
   assert.equal(events.length, 0);
 });
 
@@ -169,14 +194,22 @@ test("빠르게 들어 올린 뒤 내리찍으면 그때 한 번 던진다", () 
 
 test("들어 올리는 속도가 어떻든(0.1~0.6초) 들기만 하면 안 나간다", () => {
   for (const ms of [100, 150, 250, 400, 600]) {
-    const { events } = run((t) => ({ right: { x: 0.55, y: t < 800 ? 1.5 : lerp(1.5, -1.3, (t - 800) / ms) } }), 2000);
+    const { events } = run(
+      (t) => ({ right: { x: 0.55, y: t < 800 ? 1.5 : lerp(1.5, -1.3, (t - 800) / ms) } }),
+      2000,
+    );
     assert.equal(events.length, 0, `raise in ${ms}ms`);
   }
 });
 
 test("머리 위에서 손을 좌우로 흔들어도 안 나간다", () => {
   const { events } = run(
-    (t) => ({ right: { x: t < 800 ? 0.55 : 0.55 + Math.sin(t / 60) * 0.8, y: t < 500 ? lerp(1.5, -1.2, t / 500) : -1.2 } }),
+    (t) => ({
+      right: {
+        x: t < 800 ? 0.55 : 0.55 + Math.sin(t / 60) * 0.8,
+        y: t < 500 ? lerp(1.5, -1.2, t / 500) : -1.2,
+      },
+    }),
     3000,
   );
   assert.equal(events.length, 0);
