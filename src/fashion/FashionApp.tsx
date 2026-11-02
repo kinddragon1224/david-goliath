@@ -1039,18 +1039,64 @@ function AttractOverlay({
   onStart: () => void;
 }) {
   const info = stationInfo(station);
+  // 지나가는 사람을 끌어당기는 문구: 3.5초마다 바뀐다
+  const top = ui.todayTop[0]?.s;
+  const teasers = [
+    TEASER[station],
+    "완성한 옷을 거울 속 내 몸에 입혀 줘요!",
+    "중촌 청년 디자이너 6팀의 옷을 만들어요",
+    ...(top ? [`오늘 최고 ${top.toLocaleString("ko-KR")}점 · 도전!`] : []),
+  ];
+  const [ti, setTi] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTi((i) => i + 1), 3500);
+    return () => window.clearInterval(id);
+  }, []);
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-between p-[3%]">
-      <div className="f-card pointer-events-auto px-8 py-3 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-[3%]">
+      {/* 무대 조명 빛줄기 + 반짝이 */}
+      <div className="pointer-events-none absolute inset-0">
+        {[8, 30, 52, 74].map((l, i) => (
+          <div
+            key={l}
+            className="f-beam"
+            style={{
+              left: `${l}%`,
+              animationDelay: `${-i * 1.3}s`,
+              animationDuration: `${4 + i}s`,
+            }}
+          />
+        ))}
+        {Array.from({ length: 14 }, (_, i) => (
+          <span
+            key={i}
+            className="f-twinkle text-2xl"
+            style={{
+              left: `${(i * 37) % 96}%`,
+              top: `${(i * 53) % 70}%`,
+              animationDelay: `${-(i * 0.37) % 1.8}s`,
+            }}
+          >
+            ✦
+          </span>
+        ))}
+      </div>
+      <div className="f-card pointer-events-auto relative px-8 py-3 text-center">
         <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
           WEAVE ON · AX 패션체험 {info.no}
         </p>
         <h1 className="f-serif f-pearl mt-0.5 text-5xl leading-tight">{info.title}</h1>
         <p className="f-serif mt-1 text-xl text-[var(--f-muted)]">{info.line}</p>
       </div>
-      <div className="w-full max-w-[56rem]">
+      <div key={ti} className="f-card animate-pop relative px-8 py-3">
+        <p className="f-serif f-pearl text-center text-5xl leading-tight">
+          {teasers[ti % teasers.length]}
+        </p>
+      </div>
+      <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
-          <p className="f-serif flex-1 rounded-full bg-black/55 px-5 py-2.5 text-center text-xl">
+          <HandsUpFigure />
+          <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#241638]/90 px-5 py-2.5 text-center text-2xl">
             {!ready
               ? "카메라를 준비하고 있어요"
               : ui.present
@@ -1069,6 +1115,47 @@ function AttractOverlay({
         </div>
       </div>
     </div>
+  );
+}
+
+const TEASER: Record<FashionStation, string> = {
+  iron: "두 손으로 다리면 점수 2배!",
+  scissors: "두 손으로 양쪽에서 오리면 2배 빨라요!",
+  sewing: "빨리 이어 꿰매면 황금실 피버!",
+  rhythm: "음악에 맞춰 가면무도회 주인공!",
+};
+
+/** 대기 화면: 양손을 번쩍 들었다 내리는 사람(따라 하면 시작). */
+function HandsUpFigure() {
+  const arm = "#fff1b8";
+  return (
+    <svg viewBox="0 0 60 80" className="h-24 w-18 shrink-0" aria-hidden="true">
+      <circle cx="30" cy="14" r="9" fill={arm} />
+      <rect x="22" y="25" width="16" height="30" rx="7" fill={arm} />
+      <rect x="23" y="54" width="6" height="22" rx="3" fill={arm} />
+      <rect x="31" y="54" width="6" height="22" rx="3" fill={arm} />
+      {/* 어깨를 축으로 팔이 위로 올라간다 */}
+      <rect
+        className="f-arm"
+        style={{ transformOrigin: "50% 0%", ["--up" as string]: "165deg" }}
+        x="16"
+        y="27"
+        width="6"
+        height="20"
+        rx="3"
+        fill={arm}
+      />
+      <rect
+        className="f-arm"
+        style={{ transformOrigin: "50% 0%", ["--up" as string]: "-165deg" }}
+        x="38"
+        y="27"
+        width="6"
+        height="20"
+        rx="3"
+        fill={arm}
+      />
+    </svg>
   );
 }
 

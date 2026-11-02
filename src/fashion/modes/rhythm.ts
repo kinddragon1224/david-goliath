@@ -253,7 +253,7 @@ export class RhythmMode implements Mode {
     const sec = this.started
       ? sectionOf(Math.max(4, (now - this.t0) / BEAT))
       : Math.floor(t / 6) % 4;
-    drawKpopStage(ctx, this.W, this.H, t, pump, fever, sec);
+    drawBallroom(ctx, this.W, this.H, t, pump, fever, sec);
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,224,138,${this.flash})`;
       ctx.fillRect(0, 0, this.W, this.H);
@@ -606,8 +606,8 @@ function drawStarHand(ctx: CanvasRenderingContext2D, h: Hand, r: number, t: numb
   ctx.restore();
 }
 
-/** K-팝 무대: LED 전광판 + 레이저 + 반짝이는 바닥 + 응원봉 관객. */
-function drawKpopStage(
+/** 가면무도회 연회장: 금빛 모자이크 벽 + 샹들리에 + 조명 빛줄기 + 대리석 바닥 + 촛불 든 손님. */
+function drawBallroom(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
@@ -617,16 +617,16 @@ function drawKpopStage(
   sec: number,
 ): void {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#07050d");
-  bg.addColorStop(1, "#140b22");
+  bg.addColorStop(0, "#2a1240");
+  bg.addColorStop(1, "#140822");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // LED 전광판(점 화면). 구간마다 무늬가 바뀐다.
+  // 금빛 모자이크 벽(점 화면). 구간마다 무늬가 바뀐다.
   const cols = 44;
   const cell = W / cols;
   const rows = Math.floor((H * 0.58) / cell);
-  const hueBase = fever ? 45 : [320, 270, 190, 30][sec % 4];
+  const hueBase = fever ? 45 : [330, 42, 285, 20][sec % 4];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const u = c / cols - 0.5;
@@ -640,20 +640,57 @@ function drawKpopStage(
         k = rows - r < colH ? 1 : 0.08;
       }
       if (k < 0.12) continue;
-      const hue = (hueBase + u * 120 + t * 20) % 360;
-      ctx.fillStyle = `hsla(${hue}, 90%, ${55 + k * 20}%, ${0.1 + k * 0.38 + pump * 0.08})`;
+      const hue = (hueBase + u * 40 + Math.sin(t) * 10 + 360) % 360;
+      ctx.fillStyle = `hsla(${hue}, 80%, ${58 + k * 20}%, ${0.1 + k * 0.38 + pump * 0.08})`;
       ctx.fillRect(c * cell + cell * 0.18, r * cell + cell * 0.18, cell * 0.64, cell * 0.64);
     }
   }
-  // 전광판 아래 테두리 빛
-  ctx.fillStyle = `rgba(255,255,255,${0.15 + pump * 0.2})`;
-  ctx.fillRect(0, rows * cell, W, 3);
+  // 벽 아래 금 몰딩
+  ctx.fillStyle = "#c99a3b";
+  ctx.fillRect(0, rows * cell, W, 6);
+  ctx.fillStyle = `rgba(255,241,184,${0.4 + pump * 0.4})`;
+  ctx.fillRect(0, rows * cell, W, 2);
 
-  // 레이저
+  // 샹들리에: 금 고리 + 박자에 흔들리는 크리스털
+  const cx = W / 2;
+  const cy = H * 0.1;
+  ctx.save();
+  ctx.strokeStyle = "#e9c46a";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, cy - 20);
+  ctx.stroke();
+  for (const [rx, ry] of [
+    [W * 0.12, 20],
+    [W * 0.08, 14],
+  ]) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + ry, rx, ry * 0.6, 0, 0, Math.PI);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#fff6d6";
+  ctx.shadowColor = "#ffe08a";
+  ctx.shadowBlur = 14 + pump * 18;
+  for (let i = 0; i < 13; i++) {
+    const a = (i / 12) * Math.PI;
+    const x = cx + Math.cos(a) * W * 0.12;
+    const y = cy + 30 + Math.sin(a) * 12 + Math.sin(t * 3 + i) * 3 * (1 + pump);
+    ctx.beginPath();
+    ctx.moveTo(x, y - 8);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x, y + 10);
+    ctx.lineTo(x - 4, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 조명 빛줄기
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   const beams = fever ? 10 : 6;
-  const colors = fever ? ["#ffe08a", "#ffffff", "#ffb347"] : ["#ff7eb6", "#6fe0ff", "#b18cff"];
+  const colors = fever ? ["#ffe08a", "#ffffff", "#ffb347"] : ["#ffd27a", "#ff9fcb", "#fff1d0"];
   for (let i = 0; i < beams; i++) {
     const fromLeft = i % 2 === 0;
     const ox = fromLeft ? 0 : W;
@@ -678,14 +715,14 @@ function drawKpopStage(
   }
   ctx.restore();
 
-  // 무대 바닥: 반사 + 원근 격자
+  // 대리석 연회장 바닥: 반사 + 원근 금줄
   const fy = H * 0.6;
   const fg = ctx.createLinearGradient(0, fy, 0, H);
-  fg.addColorStop(0, "rgba(40,24,70,0.9)");
-  fg.addColorStop(1, "rgba(12,8,22,0.95)");
+  fg.addColorStop(0, "rgba(96,62,110,0.92)");
+  fg.addColorStop(1, "rgba(34,18,44,0.96)");
   ctx.fillStyle = fg;
   ctx.fillRect(0, fy, W, H - fy);
-  ctx.strokeStyle = `rgba(200,184,255,${0.12 + pump * 0.1})`;
+  ctx.strokeStyle = `rgba(233,196,106,${0.22 + pump * 0.12})`;
   ctx.lineWidth = 2;
   for (let i = -8; i <= 8; i++) {
     ctx.beginPath();
@@ -707,7 +744,7 @@ function drawKpopStage(
   ctx.fillStyle = sp;
   ctx.fillRect(0, fy, W, H - fy);
 
-  // 응원봉 관객(맨 아래)
+  // 촛불 든 가면무도회 손님(맨 아래)
   const n = 22;
   for (let i = 0; i < n; i++) {
     const x = (i + 0.5) * (W / n) + Math.sin(i * 3.1) * 12;
@@ -721,13 +758,19 @@ function drawKpopStage(
     const sy2 = y - 18;
     const tx = sx + Math.sin(sway) * 50;
     const ty = sy2 - Math.cos(sway) * 50;
-    ctx.strokeStyle = "#2a2238";
+    ctx.strokeStyle = "#c99a3b";
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(sx, sy2);
     ctx.lineTo(tx, ty);
     ctx.stroke();
-    const col = fever ? "#ffe08a" : ["#ff7eb6", "#6fe0ff", "#b18cff", "#ffffff"][i % 4];
+    // 손님 얼굴 위 금 가면
+    ctx.fillStyle = "#e9c46a";
+    ctx.beginPath();
+    ctx.ellipse(x - 8, y - 6, 8, 5, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(x + 8, y - 6, 8, 5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    const col = fever ? "#ffe08a" : ["#ffd27a", "#ff9fcb", "#fff1d0", "#ffb347"][i % 4];
     ctx.save();
     ctx.shadowColor = col;
     ctx.shadowBlur = 20 + pump * 20;

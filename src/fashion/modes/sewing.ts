@@ -1,5 +1,7 @@
 import {
   drawHandGlow,
+  drawPalace,
+  fabricTexture,
   TONE,
   type DemoHand,
   type Fx,
@@ -62,18 +64,6 @@ const SEAMS: Seam[] = [
 const HOLES = 10;
 /** 솔기마다 바뀌는 오방색 실. */
 const THREADS = ["#e8505b", "#2f6fb5", "#e0a91f", "#2e8b57"];
-/** 조각보 천 색(오방색 + 파스텔). */
-const PATCH = [
-  "#e8505b",
-  "#f28a9b",
-  "#2f6fb5",
-  "#7fb0e0",
-  "#f5c242",
-  "#f7f1e3",
-  "#3b3b4f",
-  "#6cc3a0",
-  "#c9a0dc",
-];
 const SEAM_BONUS = 400;
 const COMBO_GAP = 1.6;
 const FEVER_AT = 5;
@@ -200,28 +190,28 @@ export class SewingMode implements Mode {
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     const s = this.seam();
-    // 남색 비단 바탕 + 금박 구름무늬
-    drawSilk(ctx, this.W, this.H, t);
-    // 바탕 옷: 오방색 조각보
+    // 쪽빛 왕궁 방
+    drawPalace(ctx, this.W, this.H, t, ["#1d2f5e", "#0e1630"]);
+    // 바탕 옷: 브랜드 옷 색 그대로 + 천 결
     const p = this.box;
     const path = pathOf(toWorld(s.garment, p));
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 30;
     ctx.shadowOffsetY = 12;
-    ctx.fillStyle = "#f7f1e3";
+    ctx.fillStyle = s.garment.color;
     ctx.fill(path);
     ctx.restore();
     ctx.save();
     ctx.clip(path);
-    drawBojagi(ctx, p.x, p.y, p.w, p.h, this.si);
+    fabricTexture(ctx, p.x, p.y, p.w, p.h, s.garment.shade);
     ctx.restore();
     ctx.strokeStyle = "#d4a63c";
     ctx.lineWidth = 5;
     ctx.stroke(path);
 
-    // 꿰맬 길 안내
-    ctx.strokeStyle = "rgba(42,34,56,0.55)";
+    // 꿰맬 길 안내(어두운 옷 위에서는 밝게)
+    ctx.strokeStyle = s.garment === ECO ? "rgba(255,240,210,0.7)" : "rgba(42,34,56,0.55)";
     ctx.lineWidth = 4;
     ctx.setLineDash([10, 12]);
     ctx.beginPath();
@@ -433,92 +423,4 @@ function drawNeedle(
     }
     ctx.globalAlpha = 1;
   }
-}
-
-/** 남색 비단 + 금박 구름무늬. */
-function drawSilk(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, "#1c2550");
-  g.addColorStop(0.5, "#141a3a");
-  g.addColorStop(1, "#22163e");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  // 비단 광택
-  const sx = ((t * 160) % (W + 800)) - 400;
-  const sh = ctx.createLinearGradient(sx - 300, 0, sx + 300, H);
-  sh.addColorStop(0, "rgba(255,255,255,0)");
-  sh.addColorStop(0.5, "rgba(255,255,255,0.06)");
-  sh.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = sh;
-  ctx.fillRect(0, 0, W, H);
-  // 구름무늬(소용돌이 셋)
-  ctx.strokeStyle = "rgba(212,166,60,0.35)";
-  ctx.lineWidth = 3;
-  for (let j = 0; j < 4; j++) {
-    for (let i = 0; i < 6; i++) {
-      const cx = (i + (j % 2) * 0.5) * (W / 5.5) + 40;
-      const cy = (j + 0.5) * (H / 4);
-      for (const [dx, r] of [
-        [-28, 18],
-        [0, 26],
-        [28, 18],
-      ]) {
-        ctx.beginPath();
-        ctx.arc(cx + dx, cy, r, Math.PI, Math.PI * 2.4);
-        ctx.stroke();
-      }
-      ctx.beginPath();
-      ctx.moveTo(cx - 46, cy + 4);
-      ctx.lineTo(cx + 46, cy + 4);
-      ctx.stroke();
-    }
-  }
-}
-
-/** 오방색 조각보: 크기가 다른 사각 조각 + 박음질 테두리. */
-function drawBojagi(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  seed: number,
-): void {
-  let s = (seed + 3) * 9301;
-  const rnd = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  const split = (rx: number, ry: number, rw: number, rh: number, depth: number) => {
-    if (depth > 4 || (rw < w * 0.16 && rh < h * 0.16)) {
-      ctx.fillStyle = PATCH[Math.floor(rnd() * PATCH.length)];
-      ctx.fillRect(rx, ry, rw, rh);
-      ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.75)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([7, 6]);
-      ctx.strokeRect(rx + 6, ry + 6, rw - 12, rh - 12);
-      ctx.restore();
-      ctx.strokeStyle = "rgba(40,30,50,0.45)";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(rx, ry, rw, rh);
-      return;
-    }
-    const k = 0.3 + rnd() * 0.4;
-    if (rw > rh) {
-      split(rx, ry, rw * k, rh, depth + 1);
-      split(rx + rw * k, ry, rw * (1 - k), rh, depth + 1);
-    } else {
-      split(rx, ry, rw, rh * k, depth + 1);
-      split(rx, ry + rh * k, rw, rh * (1 - k), depth + 1);
-    }
-  };
-  split(x, y, w, h, 0);
-  // 비단 윤기
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, "rgba(255,255,255,0.18)");
-  g.addColorStop(0.5, "rgba(255,255,255,0)");
-  g.addColorStop(1, "rgba(255,255,255,0.12)");
-  ctx.fillStyle = g;
-  ctx.fillRect(x, y, w, h);
 }

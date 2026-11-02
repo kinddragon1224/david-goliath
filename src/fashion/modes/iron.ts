@@ -1,5 +1,6 @@
 import {
   drawHandGlow,
+  drawPalace,
   fabricTexture,
   rng,
   TONE,
@@ -530,91 +531,7 @@ function drawBoutique(
   t: number,
   done: Garment[],
 ): void {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#3b2160");
-  g.addColorStop(1, "#1d1033");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
-  ctx.save();
-  const s = Math.min(W, H) * 0.09;
-  ctx.strokeStyle = "rgba(255,214,140,0.10)";
-  ctx.fillStyle = "rgba(255,214,140,0.10)";
-  ctx.lineWidth = 2;
-  for (let y = -s; y < H + s; y += s) {
-    for (let x = -s; x < W + s; x += s) {
-      const ox = (Math.round(y / s) % 2) * (s / 2);
-      const cx = x + ox;
-      ctx.beginPath();
-      ctx.moveTo(cx, y - s * 0.42);
-      ctx.lineTo(cx + s * 0.42, y);
-      ctx.lineTo(cx, y + s * 0.42);
-      ctx.lineTo(cx - s * 0.42, y);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(cx, y, s * 0.06, s * 0.16, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx, y, s * 0.16, s * 0.06, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-  // 양옆 금테 아치 창(궁전 벽)
-  for (const ax of [0.02, 0.84]) {
-    const x = W * ax;
-    const w = W * 0.14;
-    const top = H * 0.16;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x, H);
-    ctx.lineTo(x, top + w / 2);
-    ctx.arc(x + w / 2, top + w / 2, w / 2, Math.PI, 0);
-    ctx.lineTo(x + w, H);
-    ctx.closePath();
-    const wg = ctx.createLinearGradient(0, top, 0, H);
-    wg.addColorStop(0, "rgba(140,190,255,0.35)");
-    wg.addColorStop(1, "rgba(60,30,90,0.2)");
-    ctx.fillStyle = wg;
-    ctx.fill();
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = "#c99a3b";
-    ctx.stroke();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#fff1b8";
-    ctx.stroke();
-    ctx.restore();
-  }
-  // 샹들리에 빛(위에서 내려와 흔들리는 금빛)
-  for (const fx of [0.25, 0.5, 0.75]) {
-    const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.85);
-    lg.addColorStop(0, `rgba(255,226,150,${0.22 + Math.sin(t * 1.5 + fx * 9) * 0.04})`);
-    lg.addColorStop(1, "rgba(255,226,150,0)");
-    ctx.fillStyle = lg;
-    ctx.fillRect(0, 0, W, H);
-  }
-  // 반짝이 가루
-  ctx.save();
-  ctx.fillStyle = "#fff1b8";
-  for (let i = 0; i < 26; i++) {
-    const k = (Math.sin(t * 2.2 + i * 1.9) + 1) / 2;
-    const x = ((i * 0.381) % 1) * W;
-    const y = ((i * 0.617) % 1) * H * 0.9;
-    ctx.globalAlpha = k * 0.8;
-    const r = 2 + k * 4;
-    ctx.beginPath();
-    ctx.moveTo(x, y - r * 2);
-    ctx.lineTo(x + r * 0.5, y);
-    ctx.lineTo(x, y + r * 2);
-    ctx.lineTo(x - r * 0.5, y);
-    ctx.closePath();
-    ctx.moveTo(x - r * 2, y);
-    ctx.lineTo(x, y + r * 0.5);
-    ctx.lineTo(x + r * 2, y);
-    ctx.lineTo(x, y - r * 0.5);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
+  drawPalace(ctx, W, H, t);
   // 금 행거와 완성한 옷
   const ry = H * 0.075;
   ctx.strokeStyle = "#d4af5f";

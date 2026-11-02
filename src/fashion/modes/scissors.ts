@@ -1,5 +1,6 @@
 import {
   drawHandGlow,
+  drawPalace,
   TONE,
   type DemoHand,
   type Fx,
@@ -192,7 +193,7 @@ export class ScissorsMode implements Mode {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
-    drawMat(ctx, this.W, this.H);
+    drawMat(ctx, this.W, this.H, t);
     const f = this.fabric;
     // 원단
     ctx.save();
@@ -393,43 +394,33 @@ export class ScissorsMode implements Mode {
   }
 }
 
-/** 초록 재단 매트: 눈금 + 자. */
-function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number): void {
-  // 페이퍼 크래프트: 물결 모양 색종이가 겹겹이 쌓인 바탕
-  const layers = ["#2b1f4a", "#3b2a66", "#5a3f8c", "#8b6cc4", "#c7a6e8", "#f2c6de"];
-  ctx.fillStyle = "#1c1430";
-  ctx.fillRect(0, 0, W, H);
-  layers.forEach((c, i) => {
-    const base = H * (0.12 + i * 0.16);
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.35)";
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = -6;
-    ctx.fillStyle = c;
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    ctx.lineTo(0, base);
-    for (let x = 0; x <= W; x += 40)
-      ctx.lineTo(x, base + Math.sin(x / 90 + i * 1.3) * 22 + Math.sin(x / 37 + i) * 6);
-    ctx.lineTo(W, H);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  });
-  // 종이 별 장식
-  ctx.fillStyle = "rgba(255,244,214,0.75)";
-  for (let i = 0; i < 14; i++) {
-    const x = (((i * 97) % 100) / 100) * W;
-    const y = (((i * 53) % 100) / 100) * H * 0.5;
-    ctx.beginPath();
-    for (let k = 0; k < 10; k++) {
-      const r = k % 2 ? 5 : 12;
-      const a = (k / 10) * Math.PI * 2 - Math.PI / 2;
-      ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-    }
-    ctx.closePath();
-    ctx.fill();
-  }
+/** 왕실 재단실: 장밋빛 벽 + 원단 아래 호두나무 재단 탁자(금 모서리). */
+function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
+  drawPalace(ctx, W, H, t, ["#5a1f3d", "#2a0f22"]);
+  const x = W * 0.12;
+  const y = H * 0.03;
+  const w = W * 0.76;
+  const h = H * 0.94;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 12;
+  const wood = ctx.createLinearGradient(0, y, 0, y + h);
+  wood.addColorStop(0, "#6b4223");
+  wood.addColorStop(1, "#3e2412");
+  ctx.fillStyle = wood;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 18);
+  ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = "#c99a3b";
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 18);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#fff1b8";
+  ctx.stroke();
 }
 
 /** 원단 무늬. */
