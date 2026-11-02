@@ -4,6 +4,10 @@ export type Pt = [number, number];
 
 export type Garment = {
   name: string;
+  /** 위브온 중촌 청년 디자이너 브랜드(룩북 기준). */
+  brand?: string;
+  /** 피날레에 입힐 때: 상의·하의는 한 벌로 겹쳐 입고, whole(원피스류)은 혼자. */
+  kind?: "top" | "bottom" | "whole";
   /** 너비/높이 비율. */
   aspect: number;
   color: string;
@@ -63,6 +67,7 @@ export const SHIRT: Garment = {
 
 export const DRESS: Garment = {
   name: "원피스",
+  kind: "whole",
   aspect: 0.82,
   color: "#ffd9ea",
   shade: "#d690b4",
@@ -126,15 +131,170 @@ export const JACKET: Garment = {
   ],
 };
 
-const ALL = [SHIRT, DRESS, PANTS, SKIRT, JACKET];
-const BOTTOMS = [PANTS, SKIRT];
+/* ── 위브온 중촌 청년 디자이너 6팀의 대표 옷(룩북 사진을 보고 그린 실루엣·색) ── */
+
+export const SEOLBAEK: Garment = {
+  name: "쪽빛 한복",
+  brand: "설백",
+  kind: "whole",
+  aspect: 0.86,
+  color: "#9cc2ea",
+  shade: "#3d6aa8",
+  pts: [
+    [0.38, 0.03],
+    ...arc(0.5, 0.03, 0.12, 0.09, Math.PI, 0, 8).slice(1, -1),
+    [0.62, 0.03],
+    [0.8, 0.07],
+    [0.98, 0.2],
+    [0.9, 0.31],
+    [0.72, 0.24],
+    [0.66, 0.3],
+    ...wave(0.97, 0.03, 0.96, 0.02, 4, 24),
+    [0.34, 0.3],
+    [0.28, 0.24],
+    [0.1, 0.31],
+    [0.02, 0.2],
+    [0.2, 0.07],
+  ],
+};
+
+export const SILUA: Garment = {
+  name: "웨딩드레스",
+  brand: "실루아",
+  kind: "whole",
+  aspect: 0.9,
+  color: "#fbf6ee",
+  shade: "#c4b69c",
+  pts: [
+    [0.36, 0.05],
+    [0.5, 0.11],
+    [0.64, 0.05],
+    [0.66, 0.2],
+    [0.6, 0.4],
+    ...wave(1.0, 0.0, 0.97, 0.015, 6, 30),
+    [0.4, 0.4],
+    [0.34, 0.2],
+  ],
+};
+
+export const TAILORED: Garment = {
+  name: "테일러드 재킷",
+  brand: "042테일러링",
+  kind: "top",
+  aspect: 0.95,
+  color: "#efe5d3",
+  shade: "#a3927a",
+  pts: [
+    [0.36, 0.03],
+    [0.5, 0.42],
+    [0.64, 0.03],
+    [0.86, 0.09],
+    [1.0, 0.85],
+    [0.88, 0.87],
+    [0.8, 0.42],
+    [0.82, 0.98],
+    [0.18, 0.98],
+    [0.2, 0.42],
+    [0.12, 0.87],
+    [0.0, 0.85],
+    [0.14, 0.09],
+  ],
+};
+
+export const LUMINO: Garment = {
+  name: "시폰 원피스",
+  brand: "루미노",
+  kind: "whole",
+  aspect: 0.86,
+  color: "#cfe6f7",
+  shade: "#7aa6cf",
+  pts: [
+    [0.36, 0.04],
+    ...arc(0.5, 0.04, 0.14, 0.1, Math.PI, 0, 8).slice(1, -1),
+    [0.64, 0.04],
+    [0.84, 0.08],
+    [0.95, 0.2],
+    [0.84, 0.29],
+    [0.72, 0.22],
+    [0.68, 0.4],
+    ...wave(0.93, 0.07, 0.95, 0.03, 3, 20),
+    [0.32, 0.4],
+    [0.28, 0.22],
+    [0.16, 0.29],
+    [0.05, 0.2],
+    [0.16, 0.08],
+  ],
+};
+
+export const RESTITCH: Garment = {
+  name: "오프숄더 드레스",
+  brand: "리스티치",
+  kind: "whole",
+  aspect: 0.82,
+  color: "#dfe4fb",
+  shade: "#8f99d2",
+  pts: [
+    [0.1, 0.12],
+    ...wave(0.1, 0.9, 0.11, 0.015, 5, 20).slice(1, -1),
+    [0.9, 0.12],
+    [0.9, 0.21],
+    [0.7, 0.25],
+    [0.66, 0.4],
+    [0.96, 0.97],
+    [0.04, 0.97],
+    [0.34, 0.4],
+    [0.3, 0.25],
+    [0.1, 0.21],
+  ],
+};
+
+export const ECO: Garment = {
+  name: "고딕 원피스",
+  brand: "에코아카이브",
+  kind: "whole",
+  aspect: 0.86,
+  color: "#3d3848",
+  shade: "#14111a",
+  pts: [
+    [0.38, 0.03],
+    [0.5, 0.14],
+    [0.62, 0.03],
+    [0.82, 0.08],
+    [0.96, 0.36],
+    [0.84, 0.4],
+    [0.72, 0.22],
+    [0.7, 0.5],
+    [0.95, 0.9],
+    [0.84, 0.97],
+    [0.73, 0.9],
+    [0.62, 0.97],
+    [0.5, 0.9],
+    [0.38, 0.97],
+    [0.27, 0.9],
+    [0.16, 0.97],
+    [0.05, 0.9],
+    [0.3, 0.5],
+    [0.28, 0.22],
+    [0.16, 0.4],
+    [0.04, 0.36],
+    [0.18, 0.08],
+  ],
+};
+
+/** 화면에 띄우는 옷 이름: "설백 쪽빛 한복". */
+export function fullName(g: Garment): string {
+  return g.brand ? `${g.brand} ${g.name}` : g.name;
+}
+
+const ALL = [SHIRT, DRESS, PANTS, SKIRT, JACKET, SEOLBAEK, SILUA, TAILORED, LUMINO, RESTITCH, ECO];
 
 /** 피날레에 입힐 옷: 완성한 옷 중 마지막 상의(원피스 포함) + 마지막 하의. 하나도 없으면 기본 한 벌. */
 export function pickOutfit(names: string[], fallback: Garment = SHIRT): Garment[] {
   const made = names.map((n) => ALL.find((g) => g.name === n)).filter((g): g is Garment => !!g);
-  const top = made.filter((g) => !BOTTOMS.includes(g)).at(-1);
-  const bottom = made.filter((g) => BOTTOMS.includes(g)).at(-1);
-  if (top === DRESS) return [DRESS];
+  const isBottom = (g: Garment) => g.kind === "bottom" || g === PANTS || g === SKIRT;
+  const top = made.filter((g) => !isBottom(g)).at(-1);
+  const bottom = made.filter(isBottom).at(-1);
+  if (top?.kind === "whole") return [top];
   const out = [bottom, top].filter((g): g is Garment => !!g);
   return out.length ? out : [fallback];
 }
@@ -146,6 +306,12 @@ const FIT: Record<string, { anchor: "shoulder" | "hip"; sw: number; th: number; 
   [DRESS.name]: { anchor: "shoulder", sw: 1.9, th: 2.1, top: 0.05 },
   [PANTS.name]: { anchor: "hip", sw: 2.4, th: 1.7, top: 0.04 },
   [SKIRT.name]: { anchor: "hip", sw: 3.0, th: 0.95, top: 0.1 },
+  [SEOLBAEK.name]: { anchor: "shoulder", sw: 2.0, th: 2.3, top: 0.05 },
+  [SILUA.name]: { anchor: "shoulder", sw: 2.2, th: 2.4, top: 0.06 },
+  [TAILORED.name]: { anchor: "shoulder", sw: 1.6, th: 1.35, top: 0.07 },
+  [LUMINO.name]: { anchor: "shoulder", sw: 1.9, th: 2.1, top: 0.05 },
+  [RESTITCH.name]: { anchor: "shoulder", sw: 2.0, th: 2.2, top: 0.0 },
+  [ECO.name]: { anchor: "shoulder", sw: 1.8, th: 1.8, top: 0.05 },
 };
 
 export type Body = { ls: Pt; rs: Pt; lh: Pt; rh: Pt };

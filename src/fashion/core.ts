@@ -1,6 +1,6 @@
 import { OneEuro } from "@/game/motion";
 import type { PoseFrame } from "@/game/pose";
-import { JACKET, SHIRT, pickOutfit, type Garment, type Pt } from "./garments";
+import { ECO, LUMINO, pickOutfit, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
@@ -384,7 +384,7 @@ export class FashionGame implements Fx {
     this.lastTick = 99;
     this.outfit = pickOutfit(
       this.collected.map((c) => c.label),
-      this.station === "rhythm" ? JACKET : SHIRT,
+      this.station === "rhythm" ? ECO : LUMINO,
     );
     this.gradeSaid = false;
     this.sound.play("complete");
@@ -900,17 +900,17 @@ export class FashionGame implements Fx {
 
 /* ───────── 공통 그림 ───────── */
 
-/** 아틀리에 배경(화면 전체): 깊은 밤색 위에 진주빛 번짐. */
+/** 왕실 배경(화면 전체): 자줏빛 벨벳 위에 금빛 번짐과 비단 리본. */
 export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#16111f");
-  g.addColorStop(1, "#09080e");
+  g.addColorStop(0, "#2a1744");
+  g.addColorStop(1, "#120a20");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   const glows: [number, number, string][] = [
-    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255,184,220,0.16)"],
-    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(184,170,255,0.16)"],
-    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(160,240,224,0.12)"],
+    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255,214,120,0.16)"],
+    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(255,170,210,0.14)"],
+    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(255,226,150,0.14)"],
   ];
   for (const [x, y, c] of glows) {
     const r = Math.max(W, H) * 0.55;
@@ -927,11 +927,11 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number
     const amp = H * (0.12 + i * 0.03);
     const thick = H * (0.05 + i * 0.015);
     const g2 = ctx.createLinearGradient(0, 0, W, 0);
-    g2.addColorStop(0, "rgba(255,214,234,0)");
-    g2.addColorStop(0.3, "rgba(255,214,234,0.10)");
-    g2.addColorStop(0.55, "rgba(216,204,255,0.13)");
-    g2.addColorStop(0.8, "rgba(196,244,234,0.10)");
-    g2.addColorStop(1, "rgba(196,244,234,0)");
+    g2.addColorStop(0, "rgba(255,226,150,0)");
+    g2.addColorStop(0.3, "rgba(255,226,150,0.10)");
+    g2.addColorStop(0.55, "rgba(255,200,220,0.12)");
+    g2.addColorStop(0.8, "rgba(255,240,200,0.10)");
+    g2.addColorStop(1, "rgba(255,240,200,0)");
     ctx.fillStyle = g2;
     ctx.beginPath();
     const N = 24;

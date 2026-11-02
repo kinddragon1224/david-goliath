@@ -1207,6 +1207,11 @@ function CollectionCard({ item }: { item: Item }) {
         </span>
       )}
       <p className="mt-1 text-center text-xs font-bold whitespace-nowrap">{item.label}</p>
+      {item.shape && item.note && (
+        <p className="text-center text-[0.65rem] whitespace-nowrap text-[var(--f-gold)]">
+          {item.note}
+        </p>
+      )}
     </div>
   );
 }

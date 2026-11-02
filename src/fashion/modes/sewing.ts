@@ -11,7 +11,17 @@ import {
   type QueueItem,
   type Stat,
 } from "../core";
-import { DRESS, SHIRT, SKIRT, pathOf, place, toWorld, type Garment } from "../garments";
+import {
+  ECO,
+  SEOLBAEK,
+  SILUA,
+  TAILORED,
+  fullName,
+  pathOf,
+  place,
+  toWorld,
+  type Garment,
+} from "../garments";
 
 /** 05 바느질 챌린지
  * 손이 바늘. 번호 붙은 바늘구멍을 차례로 콕 찍으면 실이 따라와 한 땀씩 꿰매진다.
@@ -26,27 +36,27 @@ type Seam = {
 
 const SEAMS: Seam[] = [
   {
-    name: "치마 밑단",
-    garment: SKIRT,
-    line: (k) => [0.1 + 0.8 * k, 0.78 + Math.sin(k * Math.PI * 2) * 0.05],
+    name: "한복 치마 밑단",
+    garment: SEOLBAEK,
+    line: (k) => [0.15 + 0.7 * k, 0.8 + Math.sin(k * Math.PI * 2) * 0.05],
   },
   {
-    name: "티셔츠 브이넥",
-    garment: SHIRT,
+    name: "재킷 라펠",
+    garment: TAILORED,
     line: (k) => [0.3 + 0.4 * k, 0.1 + (1 - Math.abs(k * 2 - 1)) * 0.36],
   },
   {
-    name: "원피스 단추 둘레",
-    garment: DRESS,
+    name: "웨딩드레스 레이스 둘레",
+    garment: SILUA,
     line: (k, aspect) => [
-      0.5 + (Math.cos(k * Math.PI * 2 - Math.PI / 2) * 0.27) / aspect,
-      0.56 + Math.sin(k * Math.PI * 2 - Math.PI / 2) * 0.27,
+      0.5 + (Math.cos(k * Math.PI * 2 - Math.PI / 2) * 0.2) / aspect,
+      0.68 + Math.sin(k * Math.PI * 2 - Math.PI / 2) * 0.2,
     ],
   },
   {
-    name: "티셔츠 옆선",
-    garment: SHIRT,
-    line: (k) => [0.5 + Math.sin(k * Math.PI * 3) * 0.17, 0.14 + 0.78 * k],
+    name: "고딕 원피스 옆선",
+    garment: ECO,
+    line: (k) => [0.5 + Math.sin(k * Math.PI * 3) * 0.15, 0.2 + 0.66 * k],
   },
 ];
 const HOLES = 10;
@@ -177,7 +187,7 @@ export class SewingMode implements Mode {
     });
     if (this.next >= this.holes.length) {
       fx.score(SEAM_BONUS, this.W / 2, this.H * 0.4, `보너스 +${SEAM_BONUS}`, "pink");
-      fx.celebrate(`${this.seam().garment.name} 완성!`, "pink");
+      fx.celebrate(`${fullName(this.seam().garment)} 완성!`, "pink");
       fx.sfx("complete");
       this.sewn.push(this.seam());
       this.si++;
@@ -352,8 +362,10 @@ export class SewingMode implements Mode {
   }
 
   collection(): Item[] {
+    // 이름은 옷 이름(피날레에서 그 옷을 입혀 준다), 아래에 브랜드
     return this.sewn.map((s) => ({
-      label: s.name,
+      label: s.garment.name,
+      note: s.garment.brand,
       shape: s.garment.pts,
       aspect: s.garment.aspect,
       color: s.garment.color,

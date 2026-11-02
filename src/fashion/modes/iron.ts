@@ -14,11 +14,13 @@ import {
   type Stat,
 } from "../core";
 import {
-  DRESS,
-  JACKET,
-  PANTS,
-  SHIRT,
-  SKIRT,
+  ECO,
+  LUMINO,
+  RESTITCH,
+  SEOLBAEK,
+  SILUA,
+  TAILORED,
+  fullName,
   inside,
   pathOf,
   place,
@@ -31,7 +33,7 @@ import {
  * 손이 다리미. 다림판 위 옷을 쓱쓱 문질러 주름을 편다. 다 펴면 옷이 개켜져 옷걸이로 가고 다음 옷.
  * 쉬지 않고 다리면 스팀 게이지가 차고, 가득 차면 4초 동안 '스팀 부스트'(다리미가 커지고 점수 1.5배). */
 
-const ORDER: Garment[] = [SHIRT, SKIRT, DRESS, PANTS, JACKET];
+const ORDER: Garment[] = [LUMINO, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
 const COLS = 28;
 const ROWS = 22;
 /** 이만큼 펴면 완성. */
@@ -246,7 +248,7 @@ export class IronMode implements Mode {
         `보너스 +${GARMENT_BONUS}`,
         "pink",
       );
-      fx.celebrate(`${g.name} 완성!`, "pink");
+      fx.celebrate(`${fullName(g)} 완성!`, "pink");
       fx.sfx("complete");
       this.finished.push(g);
       this.fly = {
@@ -438,6 +440,7 @@ export class IronMode implements Mode {
   collection(): Item[] {
     return this.finished.map((g) => ({
       label: g.name,
+      note: g.brand,
       shape: g.pts,
       aspect: g.aspect,
       color: g.color,
@@ -482,13 +485,13 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 14;
   const g = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  g.addColorStop(0, "#f4eef8");
-  g.addColorStop(1, "#d9cfe6");
+  g.addColorStop(0, "#fbf3e2");
+  g.addColorStop(1, "#ead8b6");
   ctx.fillStyle = g;
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.clip();
-  ctx.strokeStyle = "rgba(200,184,255,0.25)";
+  ctx.strokeStyle = "rgba(201,154,59,0.16)";
   ctx.lineWidth = 18;
   for (let x = x0 - H; x < x1 + H; x += 54) {
     ctx.beginPath();
@@ -497,13 +500,13 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
     ctx.stroke();
   }
   ctx.restore();
-  // 크롬 테두리
+  // 금 테두리
   ctx.save();
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 10;
   const chrome = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  chrome.addColorStop(0, "#ffffff");
-  chrome.addColorStop(0.5, "#9aa3b5");
-  chrome.addColorStop(1, "#e8ecf4");
+  chrome.addColorStop(0, "#fff1b8");
+  chrome.addColorStop(0.5, "#c99a3b");
+  chrome.addColorStop(1, "#f2d38a");
   ctx.strokeStyle = chrome;
   ctx.beginPath();
   ctx.moveTo(x0 + hh * 0.2, cy);
@@ -519,7 +522,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.restore();
 }
 
-/** 명품 부티크: 검은 대리석 + 금빛 결 + 위쪽 금 행거에 완성한 옷이 걸린다. */
+/** 왕실 의상실: 자줏빛 다마스크 벽지 + 금테 아치 + 샹들리에 빛 + 위쪽 금 행거에 완성한 옷이 걸린다. */
 function drawBoutique(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -527,38 +530,91 @@ function drawBoutique(
   t: number,
   done: Garment[],
 ): void {
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, "#15131c");
-  g.addColorStop(0.5, "#1f1b29");
-  g.addColorStop(1, "#110f17");
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#3b2160");
+  g.addColorStop(1, "#1d1033");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // 금빛 대리석 결
+  // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
   ctx.save();
-  ctx.lineCap = "round";
-  for (let i = 0; i < 9; i++) {
-    ctx.strokeStyle = `rgba(212,175,95,${0.1 + (i % 3) * 0.05})`;
-    ctx.lineWidth = 1.5 + (i % 3);
-    ctx.beginPath();
-    let x = (i / 9) * W - 120;
-    let y = -20;
-    ctx.moveTo(x, y);
-    for (let k = 0; k < 14; k++) {
-      x += 30 + Math.sin(i * 3 + k) * 22;
-      y += H / 12 + Math.cos(i + k * 1.7) * 18;
-      ctx.lineTo(x, y);
+  const s = Math.min(W, H) * 0.09;
+  ctx.strokeStyle = "rgba(255,214,140,0.10)";
+  ctx.fillStyle = "rgba(255,214,140,0.10)";
+  ctx.lineWidth = 2;
+  for (let y = -s; y < H + s; y += s) {
+    for (let x = -s; x < W + s; x += s) {
+      const ox = (Math.round(y / s) % 2) * (s / 2);
+      const cx = x + ox;
+      ctx.beginPath();
+      ctx.moveTo(cx, y - s * 0.42);
+      ctx.lineTo(cx + s * 0.42, y);
+      ctx.lineTo(cx, y + s * 0.42);
+      ctx.lineTo(cx - s * 0.42, y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(cx, y, s * 0.06, s * 0.16, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, y, s * 0.16, s * 0.06, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.stroke();
   }
   ctx.restore();
-  // 부티크 조명(위에서 내려오는 원뿔 빛)
-  for (const fx of [0.2, 0.5, 0.8]) {
-    const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.9);
-    lg.addColorStop(0, `rgba(255,240,210,${0.16 + Math.sin(t * 1.5 + fx * 9) * 0.03})`);
-    lg.addColorStop(1, "rgba(255,240,210,0)");
+  // 양옆 금테 아치 창(궁전 벽)
+  for (const ax of [0.02, 0.84]) {
+    const x = W * ax;
+    const w = W * 0.14;
+    const top = H * 0.16;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, H);
+    ctx.lineTo(x, top + w / 2);
+    ctx.arc(x + w / 2, top + w / 2, w / 2, Math.PI, 0);
+    ctx.lineTo(x + w, H);
+    ctx.closePath();
+    const wg = ctx.createLinearGradient(0, top, 0, H);
+    wg.addColorStop(0, "rgba(140,190,255,0.35)");
+    wg.addColorStop(1, "rgba(60,30,90,0.2)");
+    ctx.fillStyle = wg;
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "#c99a3b";
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#fff1b8";
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 샹들리에 빛(위에서 내려와 흔들리는 금빛)
+  for (const fx of [0.25, 0.5, 0.75]) {
+    const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.85);
+    lg.addColorStop(0, `rgba(255,226,150,${0.22 + Math.sin(t * 1.5 + fx * 9) * 0.04})`);
+    lg.addColorStop(1, "rgba(255,226,150,0)");
     ctx.fillStyle = lg;
     ctx.fillRect(0, 0, W, H);
   }
+  // 반짝이 가루
+  ctx.save();
+  ctx.fillStyle = "#fff1b8";
+  for (let i = 0; i < 26; i++) {
+    const k = (Math.sin(t * 2.2 + i * 1.9) + 1) / 2;
+    const x = ((i * 0.381) % 1) * W;
+    const y = ((i * 0.617) % 1) * H * 0.9;
+    ctx.globalAlpha = k * 0.8;
+    const r = 2 + k * 4;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 2);
+    ctx.lineTo(x + r * 0.5, y);
+    ctx.lineTo(x, y + r * 2);
+    ctx.lineTo(x - r * 0.5, y);
+    ctx.closePath();
+    ctx.moveTo(x - r * 2, y);
+    ctx.lineTo(x, y + r * 0.5);
+    ctx.lineTo(x + r * 2, y);
+    ctx.lineTo(x, y - r * 0.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
   // 금 행거와 완성한 옷
   const ry = H * 0.075;
   ctx.strokeStyle = "#d4af5f";

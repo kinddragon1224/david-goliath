@@ -12,11 +12,13 @@ import {
   type Stat,
 } from "../core";
 import {
-  DRESS,
-  JACKET,
-  PANTS,
-  SHIRT,
-  SKIRT,
+  ECO,
+  LUMINO,
+  RESTITCH,
+  SEOLBAEK,
+  SILUA,
+  TAILORED,
+  fullName,
   pathOf,
   place,
   resample,
@@ -29,7 +31,7 @@ import {
  * 손이 가위. 재단 매트 위 원단에 분필로 그린 옷본 선을 따라 한 바퀴 오린다.
  * 빛나는 점(지금 자를 곳)에 손을 대고 화살표 쪽으로 천천히 움직이면 잘려 나간다. */
 
-const ORDER: Garment[] = [SKIRT, SHIRT, PANTS, DRESS, JACKET];
+const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LUMINO, SILUA];
 const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
 const PIECE_BONUS = 600;
 
@@ -42,7 +44,7 @@ export class ScissorsMode implements Mode {
   private W = 1400;
   private H = 860;
   private gi = 0;
-  private garment: Garment = SKIRT;
+  private garment: Garment = RESTITCH;
   private pts: Pt[] = [];
   private outline = new Path2D();
   private path: Pt[] = [];
@@ -171,7 +173,7 @@ export class ScissorsMode implements Mode {
         acc >= 80 ? `깔끔한 재단! +${bonus}` : `보너스 +${bonus}`,
         "mint",
       );
-      fx.celebrate(`${this.garment.name} 완성!`, "mint");
+      fx.celebrate(`${fullName(this.garment)} 완성!`, "mint");
       fx.sfx("complete");
       if (acc >= 80) fx.say("clean-cut", true);
       this.fall = { path: this.outline, color: this.garment.color, t: 0 };
@@ -367,6 +369,7 @@ export class ScissorsMode implements Mode {
   collection(): Item[] {
     return this.finished.map((g) => ({
       label: g.name,
+      note: g.brand,
       shape: g.pts,
       aspect: g.aspect,
       color: g.color,

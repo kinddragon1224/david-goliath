@@ -6,8 +6,11 @@ import {
   JACKET,
   PANTS,
   SHIRT,
+  SEOLBAEK,
   SKIRT,
+  TAILORED,
   fitGarment,
+  fullName,
   inside,
   pickOutfit,
   place,
@@ -21,6 +24,13 @@ test("피날레 옷: 마지막 상의 + 마지막 하의, 원피스는 혼자, �
   assert.deepEqual(pickOutfit(["치마"]), [SKIRT]);
   assert.deepEqual(pickOutfit([]), [SHIRT]);
   assert.deepEqual(pickOutfit(["도입"], JACKET), [JACKET]);
+});
+
+test("브랜드 옷: 원피스류는 혼자, 재킷은 하의와 한 벌, 이름은 '브랜드 옷'", () => {
+  assert.deepEqual(pickOutfit(["바지", "쪽빛 한복"]), [SEOLBAEK]);
+  assert.deepEqual(pickOutfit(["치마", "테일러드 재킷"]), [SKIRT, TAILORED]);
+  assert.equal(fullName(SEOLBAEK), "설백 쪽빛 한복");
+  assert.equal(fullName(SHIRT), "티셔츠");
 });
 
 test("옷을 몸에 맞추면 상의는 어깨에, 하의는 골반에 걸리고 몸이 기울면 같이 기운다", () => {
