@@ -182,6 +182,16 @@ export class RhythmMode implements Mode {
         this.judge.push({ pad: n.pad, text: "놓침", tone: "white", t: 0 });
       }
     }
+    // 런웨이 피버: 하늘에 불꽃
+    if (this.fever() && Math.random() < dt * 2.2) {
+      const tones: Tone[] = ["gold", "pink", "mint", "white"];
+      fx.burst(
+        this.W * (0.15 + Math.random() * 0.7),
+        this.H * (0.08 + Math.random() * 0.25),
+        22,
+        tones[(Math.random() * 4) | 0],
+      );
+    }
     const left = this.notes.filter((n) => n.state === "wait").length;
     this.hint = this.fever()
       ? `런웨이 피버! ${this.combo}콤보 · 점수 1.5배`
@@ -222,55 +232,26 @@ export class RhythmMode implements Mode {
     const pump = Math.pow(1 - beatPhase, 3);
     const fever = this.fever();
 
-    // 무대 바닥
-    ctx.fillStyle = "#120e1c";
-    ctx.fillRect(0, 0, this.W, this.H);
-    // 조명
-    for (let i = 0; i < 5; i++) {
-      const x = this.W * (0.1 + i * 0.2);
-      const sway = Math.sin(t * 0.8 + i) * this.W * 0.08;
-      const g = ctx.createLinearGradient(x, 0, x + sway, this.H);
-      const c = [TONE.pink, TONE.mint, TONE.gold, TONE.mint, TONE.pink][i];
-      g.addColorStop(0, c + (fever ? "70" : "40"));
-      g.addColorStop(1, c + "00");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(x - 20, 0);
-      ctx.lineTo(x + 20, 0);
-      ctx.lineTo(x + sway + this.W * 0.09, this.H);
-      ctx.lineTo(x + sway - this.W * 0.09, this.H);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // 런웨이(원근)
-    ctx.save();
-    const rg = ctx.createLinearGradient(0, this.H * 0.5, 0, this.H);
-    rg.addColorStop(0, "rgba(255,255,255,0.02)");
-    rg.addColorStop(1, `rgba(255,255,255,${0.08 + pump * 0.05})`);
-    ctx.fillStyle = rg;
-    ctx.beginPath();
-    ctx.moveTo(this.W * 0.44, this.H * 0.45);
-    ctx.lineTo(this.W * 0.56, this.H * 0.45);
-    ctx.lineTo(this.W * 0.68, this.H);
-    ctx.lineTo(this.W * 0.32, this.H);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    // 이퀄라이저
-    const bars = 28;
-    for (let i = 0; i < bars; i++) {
-      const v = 0.25 + 0.75 * Math.abs(Math.sin(i * 1.7 + t * 3)) * (0.4 + pump * 0.6);
-      const bw = this.W / bars;
-      ctx.fillStyle = i % 2 ? "rgba(255,184,220,0.3)" : "rgba(168,240,224,0.3)";
-      ctx.fillRect(i * bw + 3, this.H - v * this.H * 0.1, bw - 6, v * this.H * 0.1);
-    }
+    const sec = this.started
+      ? sectionOf(Math.max(4, (now - this.t0) / BEAT))
+      : Math.floor(t / 6) % 4;
+    drawKpopStage(ctx, this.W, this.H, t, pump, fever, sec);
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,224,138,${this.flash})`;
       ctx.fillRect(0, 0, this.W, this.H);
     }
 
     // 가운데 마네킹: 내 팔을 따라 한다
-    drawMannequin(ctx, this.W, this.H, hands, pump, fever, t);
+    drawMannequin(
+      ctx,
+      this.W,
+      this.H,
+      hands,
+      pump,
+      fever,
+      t,
+      this.started ? sectionOf(Math.max(4, (now - this.t0) / BEAT)) : 0,
+    );
 
     // 패드
     this.pads.forEach((p, pi) => {
@@ -450,6 +431,14 @@ function drawPalm(
 }
 
 /** 런웨이 마네킹. 어깨에서 사람 손 위치로 팔을 뻗는다. */
+/** 구간마다 바뀌는 무대 의상. */
+const OUTFITS: [string, string, string][] = [
+  ["#ffd6ea", "#d8ccff", "#c4f4ea"],
+  ["#ff7eb6", "#b18cff", "#6fe0ff"],
+  ["#ffe08a", "#ff9fcb", "#c8b8ff"],
+  ["#ffffff", "#ffe08a", "#ffb347"],
+];
+
 function drawMannequin(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -458,6 +447,7 @@ function drawMannequin(
   pump: number,
   fever: boolean,
   t: number,
+  look: number,
 ): void {
   const cx = W / 2;
   const sy = H * 0.4;
@@ -470,9 +460,10 @@ function drawMannequin(
   ctx.shadowBlur = 30 + pump * 30;
   // 드레스
   const dg = ctx.createLinearGradient(cx, sy, cx, H * 0.92);
-  dg.addColorStop(0, fever ? "#ffe08a" : "#ffd6ea");
-  dg.addColorStop(0.5, "#d8ccff");
-  dg.addColorStop(1, "#c4f4ea");
+  const o = fever ? OUTFITS[3] : OUTFITS[look % OUTFITS.length];
+  dg.addColorStop(0, o[0]);
+  dg.addColorStop(0.5, o[1]);
+  dg.addColorStop(1, o[2]);
   ctx.fillStyle = dg;
   const sway = Math.sin(t * 4) * 14;
   ctx.beginPath();
@@ -484,6 +475,23 @@ function drawMannequin(
   ctx.quadraticCurveTo(cx - sw * 2.4 + sway, H * 0.75, cx - sw * 0.55, H * 0.55);
   ctx.closePath();
   ctx.fill();
+  // 스팽글
+  ctx.save();
+  ctx.clip();
+  ctx.shadowBlur = 0;
+  for (let i = 0; i < 26; i++) {
+    const tw = (Math.sin(t * 7 + i * 2.3) + 1) / 2;
+    if (tw < 0.6) continue;
+    const px = cx + Math.sin(i * 12.9898) * sw * 2;
+    const py = sy + (((i * 37) % 100) / 100) * (H * 0.5);
+    ctx.fillStyle = `rgba(255,255,255,${(tw - 0.6) * 2.4})`;
+    ctx.beginPath();
+    ctx.arc(px, py, 3 + tw * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 30 + pump * 30;
   // 머리·목
   ctx.fillStyle = "#f6f1ff";
   ctx.beginPath();
@@ -543,4 +551,137 @@ function drawStarHand(ctx: CanvasRenderingContext2D, h: Hand, r: number, t: numb
   ctx.closePath();
   ctx.fill();
   ctx.restore();
+}
+
+/** K-팝 무대: LED 전광판 + 레이저 + 반짝이는 바닥 + 응원봉 관객. */
+function drawKpopStage(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  pump: number,
+  fever: boolean,
+  sec: number,
+): void {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#07050d");
+  bg.addColorStop(1, "#140b22");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // LED 전광판(점 화면). 구간마다 무늬가 바뀐다.
+  const cols = 44;
+  const cell = W / cols;
+  const rows = Math.floor((H * 0.58) / cell);
+  const hueBase = fever ? 45 : [320, 270, 190, 30][sec % 4];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const u = c / cols - 0.5;
+      const v = r / rows - 0.5;
+      let k: number;
+      if (fever || sec % 4 === 3) k = (Math.sin((u + v) * 14 - t * 6) + 1) / 2;
+      else if (sec % 4 === 0) k = (Math.sin(u * 10 + t * 2.4) * Math.cos(v * 6 - t * 1.6) + 1) / 2;
+      else if (sec % 4 === 1) k = (Math.sin(Math.hypot(u * 1.6, v) * 26 - t * 5) + 1) / 2;
+      else {
+        const colH = (Math.abs(Math.sin(c * 0.7 + t * 3)) * 0.6 + pump * 0.4) * rows;
+        k = rows - r < colH ? 1 : 0.08;
+      }
+      if (k < 0.12) continue;
+      const hue = (hueBase + u * 120 + t * 20) % 360;
+      ctx.fillStyle = `hsla(${hue}, 90%, ${55 + k * 20}%, ${0.1 + k * 0.38 + pump * 0.08})`;
+      ctx.fillRect(c * cell + cell * 0.18, r * cell + cell * 0.18, cell * 0.64, cell * 0.64);
+    }
+  }
+  // 전광판 아래 테두리 빛
+  ctx.fillStyle = `rgba(255,255,255,${0.15 + pump * 0.2})`;
+  ctx.fillRect(0, rows * cell, W, 3);
+
+  // 레이저
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const beams = fever ? 10 : 6;
+  const colors = fever ? ["#ffe08a", "#ffffff", "#ffb347"] : ["#ff7eb6", "#6fe0ff", "#b18cff"];
+  for (let i = 0; i < beams; i++) {
+    const fromLeft = i % 2 === 0;
+    const ox = fromLeft ? 0 : W;
+    const oy = H * 0.02;
+    const a =
+      (fromLeft ? 0.35 : Math.PI - 0.35) +
+      (fromLeft ? 1 : -1) * (Math.sin(t * (0.9 + i * 0.13) + i) * 0.45 + i * 0.06);
+    const L = W * 1.4;
+    const ex = ox + Math.cos(a) * L;
+    const ey = oy + Math.sin(a) * L;
+    const col = colors[i % colors.length];
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.12 + pump * 0.1;
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.globalAlpha = 0.55 + pump * 0.3;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 무대 바닥: 반사 + 원근 격자
+  const fy = H * 0.6;
+  const fg = ctx.createLinearGradient(0, fy, 0, H);
+  fg.addColorStop(0, "rgba(40,24,70,0.9)");
+  fg.addColorStop(1, "rgba(12,8,22,0.95)");
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, fy, W, H - fy);
+  ctx.strokeStyle = `rgba(200,184,255,${0.12 + pump * 0.1})`;
+  ctx.lineWidth = 2;
+  for (let i = -8; i <= 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + i * 30, fy);
+    ctx.lineTo(W / 2 + i * 170, H);
+    ctx.stroke();
+  }
+  for (let j = 1; j < 6; j++) {
+    const y = fy + (H - fy) * Math.pow(j / 6, 1.6);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  // 바닥 스포트라이트
+  const sp = ctx.createRadialGradient(W / 2, H * 0.9, 0, W / 2, H * 0.9, W * 0.3);
+  sp.addColorStop(0, `rgba(255,255,255,${0.16 + pump * 0.1})`);
+  sp.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = sp;
+  ctx.fillRect(0, fy, W, H - fy);
+
+  // 응원봉 관객(맨 아래)
+  const n = 22;
+  for (let i = 0; i < n; i++) {
+    const x = (i + 0.5) * (W / n) + Math.sin(i * 3.1) * 12;
+    const y = H - 14 + Math.sin(i * 1.7) * 6;
+    ctx.fillStyle = "#05030a";
+    ctx.beginPath();
+    ctx.ellipse(x, y, 26, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const sway = Math.sin(t * (Math.PI * 2 * 0.93) + i * 0.6) * 0.5;
+    const sx = x + 16;
+    const sy2 = y - 18;
+    const tx = sx + Math.sin(sway) * 50;
+    const ty = sy2 - Math.cos(sway) * 50;
+    ctx.strokeStyle = "#2a2238";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy2);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    const col = fever ? "#ffe08a" : ["#ff7eb6", "#6fe0ff", "#b18cff", "#ffffff"][i % 4];
+    ctx.save();
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 20 + pump * 20;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 9 + pump * 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }

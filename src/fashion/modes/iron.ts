@@ -253,6 +253,7 @@ export class IronMode implements Mode {
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
     const g = this.garment();
+    drawBoutique(ctx, this.W, this.H, t, this.finished);
     drawBoard(ctx, this.W, this.H);
 
     // 옷
@@ -434,13 +435,13 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 14;
   const g = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  g.addColorStop(0, "#3a3150");
-  g.addColorStop(1, "#2a2340");
+  g.addColorStop(0, "#f4eef8");
+  g.addColorStop(1, "#d9cfe6");
   ctx.fillStyle = g;
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.clip();
-  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.strokeStyle = "rgba(200,184,255,0.25)";
   ctx.lineWidth = 18;
   for (let x = x0 - H; x < x1 + H; x += 54) {
     ctx.beginPath();
@@ -449,6 +450,104 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
     ctx.stroke();
   }
   ctx.restore();
+  // 크롬 테두리
+  ctx.save();
+  ctx.lineWidth = 8;
+  const chrome = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
+  chrome.addColorStop(0, "#ffffff");
+  chrome.addColorStop(0.5, "#9aa3b5");
+  chrome.addColorStop(1, "#e8ecf4");
+  ctx.strokeStyle = chrome;
+  ctx.beginPath();
+  ctx.moveTo(x0 + hh * 0.2, cy);
+  ctx.bezierCurveTo(x0 + W * 0.08, cy - hh, x0 + W * 0.2, cy - hh, x0 + W * 0.3, cy - hh);
+  ctx.lineTo(x1 - 40, cy - hh);
+  ctx.quadraticCurveTo(x1, cy - hh, x1, cy - hh + 40);
+  ctx.lineTo(x1, cy + hh - 40);
+  ctx.quadraticCurveTo(x1, cy + hh, x1 - 40, cy + hh);
+  ctx.lineTo(x0 + W * 0.3, cy + hh);
+  ctx.bezierCurveTo(x0 + W * 0.2, cy + hh, x0 + W * 0.08, cy + hh, x0 + hh * 0.2, cy);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 명품 부티크: 검은 대리석 + 금빛 결 + 위쪽 금 행거에 완성한 옷이 걸린다. */
+function drawBoutique(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  done: Garment[],
+): void {
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "#15131c");
+  g.addColorStop(0.5, "#1f1b29");
+  g.addColorStop(1, "#110f17");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // 금빛 대리석 결
+  ctx.save();
+  ctx.lineCap = "round";
+  for (let i = 0; i < 9; i++) {
+    ctx.strokeStyle = `rgba(212,175,95,${0.1 + (i % 3) * 0.05})`;
+    ctx.lineWidth = 1.5 + (i % 3);
+    ctx.beginPath();
+    let x = (i / 9) * W - 120;
+    let y = -20;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 14; k++) {
+      x += 30 + Math.sin(i * 3 + k) * 22;
+      y += H / 12 + Math.cos(i + k * 1.7) * 18;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 부티크 조명(위에서 내려오는 원뿔 빛)
+  for (const fx of [0.2, 0.5, 0.8]) {
+    const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.9);
+    lg.addColorStop(0, `rgba(255,240,210,${0.16 + Math.sin(t * 1.5 + fx * 9) * 0.03})`);
+    lg.addColorStop(1, "rgba(255,240,210,0)");
+    ctx.fillStyle = lg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // 금 행거와 완성한 옷
+  const ry = H * 0.075;
+  ctx.strokeStyle = "#d4af5f";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(W * 0.08, ry);
+  ctx.lineTo(W * 0.92, ry);
+  ctx.stroke();
+  done.slice(-8).forEach((gm, i) => {
+    const x = W * 0.12 + i * W * 0.1;
+    const sway = Math.sin(t * 2 + i) * 0.06;
+    ctx.save();
+    ctx.translate(x, ry);
+    ctx.rotate(sway);
+    ctx.strokeStyle = "#d4af5f";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 12);
+    ctx.lineTo(-28, 26);
+    ctx.lineTo(28, 26);
+    ctx.lineTo(0, 12);
+    ctx.stroke();
+    const h = 74;
+    const w = h * gm.aspect;
+    ctx.beginPath();
+    gm.pts.forEach(([u, v], k) =>
+      k ? ctx.lineTo(-w / 2 + u * w, 22 + v * h) : ctx.moveTo(-w / 2 + u * w, 22 + v * h),
+    );
+    ctx.closePath();
+    ctx.fillStyle = gm.color;
+    ctx.shadowColor = "#ffe08a";
+    ctx.shadowBlur = 16;
+    ctx.fill();
+    ctx.restore();
+  });
 }
 
 /** 다리미 그림. 손 위치가 다리미 바닥 가운데. */

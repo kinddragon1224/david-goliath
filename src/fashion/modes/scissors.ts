@@ -356,27 +356,41 @@ export class ScissorsMode implements Mode {
 
 /** 초록 재단 매트: 눈금 + 자. */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number): void {
-  ctx.fillStyle = "#1f3b35";
+  // 페이퍼 크래프트: 물결 모양 색종이가 겹겹이 쌓인 바탕
+  const layers = ["#2b1f4a", "#3b2a66", "#5a3f8c", "#8b6cc4", "#c7a6e8", "#f2c6de"];
+  ctx.fillStyle = "#1c1430";
   ctx.fillRect(0, 0, W, H);
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= W; x += 35) {
-    ctx.strokeStyle = x % 175 === 0 ? "rgba(220,255,240,0.22)" : "rgba(220,255,240,0.08)";
+  layers.forEach((c, i) => {
+    const base = H * (0.12 + i * 0.16);
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = -6;
+    ctx.fillStyle = c;
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= H; y += 35) {
-    ctx.strokeStyle = y % 175 === 0 ? "rgba(220,255,240,0.22)" : "rgba(220,255,240,0.08)";
+    ctx.moveTo(0, H);
+    ctx.lineTo(0, base);
+    for (let x = 0; x <= W; x += 40)
+      ctx.lineTo(x, base + Math.sin(x / 90 + i * 1.3) * 22 + Math.sin(x / 37 + i) * 6);
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+  // 종이 별 장식
+  ctx.fillStyle = "rgba(255,244,214,0.75)";
+  for (let i = 0; i < 14; i++) {
+    const x = (((i * 97) % 100) / 100) * W;
+    const y = (((i * 53) % 100) / 100) * H * 0.5;
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
-    ctx.stroke();
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? 5 : 12;
+      const a = (k / 10) * Math.PI * 2 - Math.PI / 2;
+      ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
-  ctx.fillStyle = "rgba(220,255,240,0.35)";
-  ctx.font = "600 16px sans-serif";
-  ctx.textAlign = "center";
-  for (let x = 175, i = 5; x < W; x += 175, i += 5) ctx.fillText(String(i), x, 22);
 }
 
 /** 원단 무늬. */
