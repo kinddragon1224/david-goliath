@@ -74,7 +74,7 @@ export class SewingMode implements Mode {
   seconds = 30;
   hint = "바늘 손으로 반짝이는 구멍을 콕! 차례대로 꿰매요";
   tip = "번호 순서대로 콕콕! 빨리 이어 찍으면 콤보";
-  grades: [number, number, number] = [8000, 5500, 3000];
+  grades: [number, number, number] = [40000, 20000, 8000];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;
@@ -191,7 +191,7 @@ export class SewingMode implements Mode {
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     const s = this.seam();
     // 쪽빛 왕궁 방
-    drawPalace(ctx, this.W, this.H, t, ["#1d2f5e", "#0e1630"]);
+    drawPalace(ctx, this.W, this.H, t, ["#1d2f5e", "#0e1630"], "sewing");
     // 바탕 옷: 브랜드 옷 색 그대로 + 천 결
     const p = this.box;
     const path = pathOf(toWorld(s.garment, p));

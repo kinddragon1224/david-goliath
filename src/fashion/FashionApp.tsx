@@ -1174,7 +1174,7 @@ function FinaleOverlay({
       className={`absolute inset-0 flex items-center justify-center gap-[3%] overflow-hidden rounded-[2rem] p-[2.5%] ${f ? "" : "invisible"}`}
       style={{
         background:
-          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(255,236,170,0.3), transparent 70%), rgba(12,10,20,0.94)",
+          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(255,236,170,0.3), transparent 70%), linear-gradient(rgba(12,10,20,0.72), rgba(12,10,20,0.82)), url(/art/rhythm.webp) center/cover, #0c0a14",
       }}
     >
       <div className="flex w-[24%] flex-col items-end gap-3 text-right">
@@ -1256,9 +1256,15 @@ function ResultOverlay({
           <div>
             <p className="f-serif mb-2 text-xl">나의 컬렉션</p>
             <div className="flex flex-wrap gap-3">
-              {ui.collection.map((c, i) => (
+              {/* 너무 많으면 최근 6개만, 나머지는 +N */}
+              {ui.collection.slice(-6).map((c, i) => (
                 <CollectionCard key={`${c.label}-${i}`} item={c} />
               ))}
+              {ui.collection.length > 6 && (
+                <div className="f-serif flex w-[6.5rem] items-center justify-center rounded-2xl border border-white/20 bg-white/5 text-2xl text-[var(--f-gold)]">
+                  +{ui.collection.length - 6}
+                </div>
+              )}
             </div>
           </div>
         )}

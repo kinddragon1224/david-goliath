@@ -40,7 +40,7 @@ export class ScissorsMode implements Mode {
   seconds = 40;
   hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
   tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
-  grades: [number, number, number] = [3600, 2400, 1300];
+  grades: [number, number, number] = [16000, 8000, 3500];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;
@@ -396,7 +396,7 @@ export class ScissorsMode implements Mode {
 
 /** 왕실 재단실: 장밋빛 벽 + 원단 아래 호두나무 재단 탁자(금 모서리). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  drawPalace(ctx, W, H, t, ["#5a1f3d", "#2a0f22"]);
+  drawPalace(ctx, W, H, t, ["#5a1f3d", "#2a0f22"], "scissors");
   const x = W * 0.12;
   const y = H * 0.03;
   const w = W * 0.76;

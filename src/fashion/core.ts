@@ -1128,6 +1128,42 @@ export function ease(a: number, b: number, k: number): number {
   return a + (b - a) * s;
 }
 
+const ART = new Map<string, HTMLImageElement>();
+
+/** public/art/<name>.webp를 한 번만 불러 둔다. 다 불러오기 전(또는 실패)엔 null. */
+function artImage(name: string): HTMLImageElement | null {
+  if (typeof Image === "undefined") return null;
+  let img = ART.get(name);
+  if (!img) {
+    img = new Image();
+    img.src = `/art/${name}.webp`;
+    ART.set(name, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/** 배경 그림을 무대에 꽉 채워(넘치는 쪽은 잘라) 깔고, 가운데를 살짝 어둡게 해 게임 그림이 잘 보이게. 그렸으면 true. */
+export function drawArt(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  name: string,
+  dim = 0.42,
+): boolean {
+  const img = artImage(name);
+  if (!img) return false;
+  const k = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+  const w = img.naturalWidth * k;
+  const h = img.naturalHeight * k;
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.7);
+  v.addColorStop(0, `rgba(20,10,32,${dim})`);
+  v.addColorStop(1, `rgba(20,10,32,${dim * 0.4})`);
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+  return true;
+}
+
 /** 왕궁 방(게임 무대 공통): 벽지 색 + 다마스크 무늬 + 양옆 금테 아치 창 + 샹들리에 빛 + 반짝이. */
 export function drawPalace(
   ctx: CanvasRenderingContext2D,
@@ -1135,60 +1171,64 @@ export function drawPalace(
   H: number,
   t: number,
   wall: [string, string] = ["#3b2160", "#1d1033"],
+  art?: string,
 ): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, wall[0]);
   g.addColorStop(1, wall[1]);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
-  ctx.save();
-  const s = Math.min(W, H) * 0.09;
-  ctx.strokeStyle = "rgba(255,214,140,0.10)";
-  ctx.fillStyle = "rgba(255,214,140,0.10)";
-  ctx.lineWidth = 2;
-  for (let y = -s; y < H + s; y += s) {
-    for (let x = -s; x < W + s; x += s) {
-      const ox = (Math.round(y / s) % 2) * (s / 2);
-      const cx = x + ox;
-      ctx.beginPath();
-      ctx.moveTo(cx, y - s * 0.42);
-      ctx.lineTo(cx + s * 0.42, y);
-      ctx.lineTo(cx, y + s * 0.42);
-      ctx.lineTo(cx - s * 0.42, y);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(cx, y, s * 0.06, s * 0.16, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx, y, s * 0.16, s * 0.06, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-  // 양옆 금테 아치 창(궁전 벽)
-  for (const ax of [0.02, 0.84]) {
-    const x = W * ax;
-    const w = W * 0.14;
-    const top = H * 0.16;
+  // 그린 배경 그림(public/art)이 있으면 꽉 채워 깔고 살짝 어둡게. 없으면 아래 무늬로 그린다.
+  if (!art || !drawArt(ctx, W, H, art)) {
+    // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x, H);
-    ctx.lineTo(x, top + w / 2);
-    ctx.arc(x + w / 2, top + w / 2, w / 2, Math.PI, 0);
-    ctx.lineTo(x + w, H);
-    ctx.closePath();
-    const wg = ctx.createLinearGradient(0, top, 0, H);
-    wg.addColorStop(0, "rgba(140,190,255,0.35)");
-    wg.addColorStop(1, "rgba(60,30,90,0.2)");
-    ctx.fillStyle = wg;
-    ctx.fill();
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = "#c99a3b";
-    ctx.stroke();
+    const s = Math.min(W, H) * 0.09;
+    ctx.strokeStyle = "rgba(255,214,140,0.10)";
+    ctx.fillStyle = "rgba(255,214,140,0.10)";
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#fff1b8";
-    ctx.stroke();
+    for (let y = -s; y < H + s; y += s) {
+      for (let x = -s; x < W + s; x += s) {
+        const ox = (Math.round(y / s) % 2) * (s / 2);
+        const cx = x + ox;
+        ctx.beginPath();
+        ctx.moveTo(cx, y - s * 0.42);
+        ctx.lineTo(cx + s * 0.42, y);
+        ctx.lineTo(cx, y + s * 0.42);
+        ctx.lineTo(cx - s * 0.42, y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, y, s * 0.06, s * 0.16, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, y, s * 0.16, s * 0.06, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.restore();
+    // 양옆 금테 아치 창(궁전 벽)
+    for (const ax of [0.02, 0.84]) {
+      const x = W * ax;
+      const w = W * 0.14;
+      const top = H * 0.16;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, H);
+      ctx.lineTo(x, top + w / 2);
+      ctx.arc(x + w / 2, top + w / 2, w / 2, Math.PI, 0);
+      ctx.lineTo(x + w, H);
+      ctx.closePath();
+      const wg = ctx.createLinearGradient(0, top, 0, H);
+      wg.addColorStop(0, "rgba(140,190,255,0.35)");
+      wg.addColorStop(1, "rgba(60,30,90,0.2)");
+      ctx.fillStyle = wg;
+      ctx.fill();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = "#c99a3b";
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#fff1b8";
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   // 샹들리에 빛(위에서 내려와 흔들리는 금빛)
   for (const fx of [0.25, 0.5, 0.75]) {

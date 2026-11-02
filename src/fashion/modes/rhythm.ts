@@ -1,4 +1,5 @@
 import {
+  drawArt,
   drawHandGlow,
   TONE,
   type DemoHand,
@@ -76,7 +77,7 @@ export class RhythmMode implements Mode {
   seconds = Math.ceil(BARS * 4 * BEAT + 1.5);
   hint = "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요";
   tip = "원 안에 3·2·1 다음 '지금!'이 뜨면 손을 대요";
-  grades: [number, number, number] = [16000, 11000, 6000];
+  grades: [number, number, number] = [24000, 12000, 5000];
   music = null;
   private W = 1400;
   private H = 860;
@@ -621,70 +622,75 @@ function drawBallroom(
   bg.addColorStop(1, "#140822");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  // 그린 연회장 그림이 있으면 그걸 깔고, 모자이크 벽·샹들리에·바닥은 건너뛴다
+  const art = drawArt(ctx, W, H, "rhythm", 0.32 - pump * 0.12);
 
-  // 금빛 모자이크 벽(점 화면). 구간마다 무늬가 바뀐다.
-  const cols = 44;
-  const cell = W / cols;
-  const rows = Math.floor((H * 0.58) / cell);
-  const hueBase = fever ? 45 : [330, 42, 285, 20][sec % 4];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const u = c / cols - 0.5;
-      const v = r / rows - 0.5;
-      let k: number;
-      if (fever || sec % 4 === 3) k = (Math.sin((u + v) * 14 - t * 6) + 1) / 2;
-      else if (sec % 4 === 0) k = (Math.sin(u * 10 + t * 2.4) * Math.cos(v * 6 - t * 1.6) + 1) / 2;
-      else if (sec % 4 === 1) k = (Math.sin(Math.hypot(u * 1.6, v) * 26 - t * 5) + 1) / 2;
-      else {
-        const colH = (Math.abs(Math.sin(c * 0.7 + t * 3)) * 0.6 + pump * 0.4) * rows;
-        k = rows - r < colH ? 1 : 0.08;
+  if (!art) {
+    // 금빛 모자이크 벽(점 화면). 구간마다 무늬가 바뀐다.
+    const cols = 44;
+    const cell = W / cols;
+    const rows = Math.floor((H * 0.58) / cell);
+    const hueBase = fever ? 45 : [330, 42, 285, 20][sec % 4];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const u = c / cols - 0.5;
+        const v = r / rows - 0.5;
+        let k: number;
+        if (fever || sec % 4 === 3) k = (Math.sin((u + v) * 14 - t * 6) + 1) / 2;
+        else if (sec % 4 === 0)
+          k = (Math.sin(u * 10 + t * 2.4) * Math.cos(v * 6 - t * 1.6) + 1) / 2;
+        else if (sec % 4 === 1) k = (Math.sin(Math.hypot(u * 1.6, v) * 26 - t * 5) + 1) / 2;
+        else {
+          const colH = (Math.abs(Math.sin(c * 0.7 + t * 3)) * 0.6 + pump * 0.4) * rows;
+          k = rows - r < colH ? 1 : 0.08;
+        }
+        if (k < 0.12) continue;
+        const hue = (hueBase + u * 40 + Math.sin(t) * 10 + 360) % 360;
+        ctx.fillStyle = `hsla(${hue}, 80%, ${58 + k * 20}%, ${0.1 + k * 0.38 + pump * 0.08})`;
+        ctx.fillRect(c * cell + cell * 0.18, r * cell + cell * 0.18, cell * 0.64, cell * 0.64);
       }
-      if (k < 0.12) continue;
-      const hue = (hueBase + u * 40 + Math.sin(t) * 10 + 360) % 360;
-      ctx.fillStyle = `hsla(${hue}, 80%, ${58 + k * 20}%, ${0.1 + k * 0.38 + pump * 0.08})`;
-      ctx.fillRect(c * cell + cell * 0.18, r * cell + cell * 0.18, cell * 0.64, cell * 0.64);
     }
-  }
-  // 벽 아래 금 몰딩
-  ctx.fillStyle = "#c99a3b";
-  ctx.fillRect(0, rows * cell, W, 6);
-  ctx.fillStyle = `rgba(255,241,184,${0.4 + pump * 0.4})`;
-  ctx.fillRect(0, rows * cell, W, 2);
+    // 벽 아래 금 몰딩
+    ctx.fillStyle = "#c99a3b";
+    ctx.fillRect(0, rows * cell, W, 6);
+    ctx.fillStyle = `rgba(255,241,184,${0.4 + pump * 0.4})`;
+    ctx.fillRect(0, rows * cell, W, 2);
 
-  // 샹들리에: 금 고리 + 박자에 흔들리는 크리스털
-  const cx = W / 2;
-  const cy = H * 0.1;
-  ctx.save();
-  ctx.strokeStyle = "#e9c46a";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(cx, 0);
-  ctx.lineTo(cx, cy - 20);
-  ctx.stroke();
-  for (const [rx, ry] of [
-    [W * 0.12, 20],
-    [W * 0.08, 14],
-  ]) {
+    // 샹들리에: 금 고리 + 박자에 흔들리는 크리스털
+    const cx = W / 2;
+    const cy = H * 0.1;
+    ctx.save();
+    ctx.strokeStyle = "#e9c46a";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.ellipse(cx, cy + ry, rx, ry * 0.6, 0, 0, Math.PI);
+    ctx.moveTo(cx, 0);
+    ctx.lineTo(cx, cy - 20);
     ctx.stroke();
+    for (const [rx, ry] of [
+      [W * 0.12, 20],
+      [W * 0.08, 14],
+    ]) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + ry, rx, ry * 0.6, 0, 0, Math.PI);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#fff6d6";
+    ctx.shadowColor = "#ffe08a";
+    ctx.shadowBlur = 14 + pump * 18;
+    for (let i = 0; i < 13; i++) {
+      const a = (i / 12) * Math.PI;
+      const x = cx + Math.cos(a) * W * 0.12;
+      const y = cy + 30 + Math.sin(a) * 12 + Math.sin(t * 3 + i) * 3 * (1 + pump);
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8);
+      ctx.lineTo(x + 4, y);
+      ctx.lineTo(x, y + 10);
+      ctx.lineTo(x - 4, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
   }
-  ctx.fillStyle = "#fff6d6";
-  ctx.shadowColor = "#ffe08a";
-  ctx.shadowBlur = 14 + pump * 18;
-  for (let i = 0; i < 13; i++) {
-    const a = (i / 12) * Math.PI;
-    const x = cx + Math.cos(a) * W * 0.12;
-    const y = cy + 30 + Math.sin(a) * 12 + Math.sin(t * 3 + i) * 3 * (1 + pump);
-    ctx.beginPath();
-    ctx.moveTo(x, y - 8);
-    ctx.lineTo(x + 4, y);
-    ctx.lineTo(x, y + 10);
-    ctx.lineTo(x - 4, y);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
 
   // 조명 빛줄기
   ctx.save();
@@ -717,25 +723,27 @@ function drawBallroom(
 
   // 대리석 연회장 바닥: 반사 + 원근 금줄
   const fy = H * 0.6;
-  const fg = ctx.createLinearGradient(0, fy, 0, H);
-  fg.addColorStop(0, "rgba(96,62,110,0.92)");
-  fg.addColorStop(1, "rgba(34,18,44,0.96)");
-  ctx.fillStyle = fg;
-  ctx.fillRect(0, fy, W, H - fy);
-  ctx.strokeStyle = `rgba(233,196,106,${0.22 + pump * 0.12})`;
-  ctx.lineWidth = 2;
-  for (let i = -8; i <= 8; i++) {
-    ctx.beginPath();
-    ctx.moveTo(W / 2 + i * 30, fy);
-    ctx.lineTo(W / 2 + i * 170, H);
-    ctx.stroke();
-  }
-  for (let j = 1; j < 6; j++) {
-    const y = fy + (H - fy) * Math.pow(j / 6, 1.6);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
-    ctx.stroke();
+  if (!art) {
+    const fg = ctx.createLinearGradient(0, fy, 0, H);
+    fg.addColorStop(0, "rgba(96,62,110,0.92)");
+    fg.addColorStop(1, "rgba(34,18,44,0.96)");
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, fy, W, H - fy);
+    ctx.strokeStyle = `rgba(233,196,106,${0.22 + pump * 0.12})`;
+    ctx.lineWidth = 2;
+    for (let i = -8; i <= 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + i * 30, fy);
+      ctx.lineTo(W / 2 + i * 170, H);
+      ctx.stroke();
+    }
+    for (let j = 1; j < 6; j++) {
+      const y = fy + (H - fy) * Math.pow(j / 6, 1.6);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
   }
   // 바닥 스포트라이트
   const sp = ctx.createRadialGradient(W / 2, H * 0.9, 0, W / 2, H * 0.9, W * 0.3);

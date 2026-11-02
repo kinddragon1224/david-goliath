@@ -50,7 +50,7 @@ export class IronMode implements Mode {
   seconds = 30;
   hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
   tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
-  grades: [number, number, number] = [5200, 3600, 2000];
+  grades: [number, number, number] = [10000, 5000, 2000];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;
@@ -531,7 +531,7 @@ function drawBoutique(
   t: number,
   done: Garment[],
 ): void {
-  drawPalace(ctx, W, H, t);
+  drawPalace(ctx, W, H, t, undefined, "iron");
   // 금 행거와 완성한 옷
   const ry = H * 0.075;
   ctx.strokeStyle = "#d4af5f";

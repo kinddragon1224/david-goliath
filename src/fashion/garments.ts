@@ -292,9 +292,11 @@ const ALL = [SHIRT, DRESS, PANTS, SKIRT, JACKET, SEOLBAEK, SILUA, TAILORED, LUMI
 export function pickOutfit(names: string[], fallback: Garment = SHIRT): Garment[] {
   const made = names.map((n) => ALL.find((g) => g.name === n)).filter((g): g is Garment => !!g);
   const isBottom = (g: Garment) => g.kind === "bottom" || g === PANTS || g === SKIRT;
+  // 한 벌 옷(드레스·한복)을 하나라도 만들었으면 그게 피날레에 더 화려하다
+  const whole = made.filter((g) => g.kind === "whole").at(-1);
+  if (whole) return [whole];
   const top = made.filter((g) => !isBottom(g)).at(-1);
   const bottom = made.filter(isBottom).at(-1);
-  if (top?.kind === "whole") return [top];
   const out = [bottom, top].filter((g): g is Garment => !!g);
   return out.length ? out : [fallback];
 }
