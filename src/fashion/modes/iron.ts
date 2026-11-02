@@ -174,6 +174,7 @@ export class IronMode implements Mode {
     if (pair && !this.pair) {
       fx.score(0, this.W / 2, this.H * 0.18, "양손 다림질! 점수 2배", "gold");
       fx.sfx("perfect");
+      fx.say("iron-pair", true);
     }
     this.pair = pair;
     let ironing = false;
@@ -225,6 +226,7 @@ export class IronMode implements Mode {
         const h = hands.find((x) => x.on);
         fx.score(0, h?.x ?? this.W / 2, (h?.y ?? this.H / 2) - 60, "스팀 부스트!", "mint");
         fx.sfx("perfect");
+        fx.say("steam", true);
       }
     }
 

@@ -140,6 +140,7 @@ export class ScissorsMode implements Mode {
     if (pair && !this.pair) {
       fx.score(0, this.W / 2, this.H * 0.16, "양손 가위! 점수 2배", "gold");
       fx.sfx("perfect");
+      fx.say("scissors-pair", true);
     }
     this.pair = pair;
     if (adv > 0) {
@@ -172,6 +173,7 @@ export class ScissorsMode implements Mode {
       );
       fx.celebrate(`${this.garment.name} 완성!`, "mint");
       fx.sfx("complete");
+      if (acc >= 80) fx.say("clean-cut", true);
       this.fall = { path: this.outline, color: this.garment.color, t: 0 };
       this.finished.push(this.garment);
       this.gi++;

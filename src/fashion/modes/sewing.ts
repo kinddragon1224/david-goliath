@@ -172,6 +172,7 @@ export class SewingMode implements Mode {
       fx.score(pts, hole.x, hole.y - this.tol * 0.9, label, this.fever() ? "gold" : "white");
       fx.burst(hole.x, hole.y, this.fever() ? 14 : 8, "gold");
       fx.sfx(this.combo === FEVER_AT ? "perfect" : "stitch");
+      if (this.combo === FEVER_AT) fx.say("gold-fever", true);
       this.next++;
     });
     if (this.next >= this.holes.length) {

@@ -1,7 +1,7 @@
 import { OneEuro } from "@/game/motion";
 import type { PoseFrame } from "@/game/pose";
 import { JACKET, SHIRT, pickOutfit, type Garment, type Pt } from "./garments";
-import type { FashionSound, Sfx } from "./sound";
+import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
 /** 손 하나. 좌표는 무대(stage) 안 좌표. 가로는 늘 STAGE_W, 세로는 화면 비율에 맞춘다. */
@@ -29,6 +29,8 @@ export interface Fx {
   celebrate(text: string, tone?: Tone): void;
   /** 효과음. 대기 화면 시범 중에는 조용하다. */
   sfx(name: Sfx): void;
+  /** MC 음성. 게임 중에만 말한다. */
+  say(line: Line, urgent?: boolean): void;
   sound: FashionSound;
 }
 
@@ -246,6 +248,8 @@ export class FashionGame implements Fx {
   private collected: Item[] = [];
   private finalStats: Stat[] = [];
   finaleT = 0;
+  private gradeSaid = false;
+  private helloAt = -99;
   /** 피날레에 입힐 옷(그리는 순서: 하의 → 상의). */
   outfit: Garment[] = [];
 
@@ -343,6 +347,7 @@ export class FashionGame implements Fx {
     this.noHandT = 0;
     this.offTargetT = 0;
     this.sound.play("start");
+    this.sound.say("start", true);
     if (this.mode.music)
       this.sound.startMusic(
         96,
@@ -381,7 +386,9 @@ export class FashionGame implements Fx {
       this.collected.map((c) => c.label),
       this.station === "rhythm" ? JACKET : SHIRT,
     );
+    this.gradeSaid = false;
     this.sound.play("complete");
+    this.sound.say("finale", true);
     this.sound.startMusic(124, this.sound.now() + 0.3, 4, "dance");
     this.emit(true);
   }
@@ -389,6 +396,9 @@ export class FashionGame implements Fx {
   private goResult(): void {
     this.sound.stopMusic();
     this.sound.play("end");
+    // 피날레에서 등급을 이미 말했으면 마무리 인사, 아니면 등급 발표
+    this.sound.say(this.gradeSaid ? "end" : (`grade${this.grade}` as Line), true);
+    this.gradeSaid = false;
     this.phase = "result";
     this.resultT = RESULT_SECONDS;
     this.rain(this.grade <= 1 ? 220 : 120);
@@ -403,6 +413,16 @@ export class FashionGame implements Fx {
 
   /** 카메라 한 장면. 손 위치를 거르고 사람이 있는지 본다. reach는 화면 0~1 → 무대 좌표. */
   notePose(frame: PoseFrame, nowMs: number): void {
+    // 대기 화면에 사람이 들어오면 MC가 인사(12초에 한 번)
+    if (
+      frame.present &&
+      !this.present &&
+      this.phase === "attract" &&
+      this.time - this.helloAt > 12
+    ) {
+      this.helloAt = this.time;
+      this.sound.say("hello");
+    }
     this.present = frame.present;
     this.handsUpNow = frame.handsUp;
     const pointerLive = this.pointer && nowMs - this.pointer.at < 1500;
@@ -482,6 +502,7 @@ export class FashionGame implements Fx {
   celebrate(text: string, tone: Tone = "gold"): void {
     if (this.phase !== "play" && this.phase !== "attract") return;
     this.cele = { text, tone, t: 0 };
+    this.say("complete");
     this.rain(this.phase === "play" ? 140 : 50);
     this.burst(this.W / 2, this.H * 0.45, 40, tone);
   }
@@ -508,6 +529,10 @@ export class FashionGame implements Fx {
 
   sfx(name: Sfx): void {
     if (this.phase === "play") this.sound.play(name);
+  }
+
+  say(line: Line, urgent = false): void {
+    if (this.phase === "play") this.sound.say(line, urgent);
   }
 
   update(nowMs: number): void {
@@ -576,6 +601,7 @@ export class FashionGame implements Fx {
       this.timeLeft = Math.max(0, this.timeLeft - dt);
       const sec = Math.ceil(this.timeLeft);
       if (sec <= 5 && sec < this.lastSecond && sec > 0) this.sound.play("tick");
+      if (sec === 10 && this.lastSecond > 10 && this.mode.seconds > 15) this.sound.say("ten");
       this.lastSecond = sec;
       this.mode.update(dt, this.time, this.hands, this);
       this.absentT = this.present || this.pointer ? 0 : this.absentT + dt;
@@ -595,12 +621,19 @@ export class FashionGame implements Fx {
       const n = FINALE.shot - Math.floor(this.finaleT);
       if (this.finaleT >= FINALE.count && this.finaleT < FINALE.shot && n < this.lastTick) {
         this.sound.play("tick");
+        this.sound.say((["one", "two", "three"] as const)[n - 1] ?? "one", true);
         this.lastTick = n;
       }
       if (was < FINALE.shot && this.finaleT >= FINALE.shot) {
         this.sound.play("shutter");
+        this.sound.say("shot", true);
         this.rain(260);
         this.emit(true);
+      }
+      // 찰칵 뒤 화면에 "OO 탄생!"이 뜰 때 MC도 발표
+      if (!this.gradeSaid && this.finaleT >= FINALE.shot + 0.8) {
+        this.gradeSaid = true;
+        this.sound.say(`grade${this.grade}` as Line, true);
       }
       if (this.finaleT >= FINALE.end) this.goResult();
     } else if (this.phase === "result") {

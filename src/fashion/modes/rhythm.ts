@@ -99,6 +99,7 @@ export class RhythmMode implements Mode {
   private end = 0;
   private flash = 0;
   private demoPos: DemoHand[] = [];
+  private banzaiAt = 0;
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -134,6 +135,7 @@ export class RhythmMode implements Mode {
     }));
     this.end = this.t0 + BARS * 4 * BEAT;
     this.started = true;
+    fx.sound.say("rhythm-how", true);
     this.combo = 0;
   }
 
@@ -182,6 +184,19 @@ export class RhythmMode implements Mode {
         this.judge.push({ pad: n.pad, text: "놓침", tone: "white", t: 0 });
       }
     }
+    // 금빛 고리(두 손 만세)가 다가오면 MC가 미리 "만세!"
+    const ban = this.notes.find(
+      (n) =>
+        n.state === "wait" &&
+        n.pad === 0 &&
+        n.at - now > 0 &&
+        n.at - now < BEAT * 1.2 &&
+        this.notes.some((m) => m !== n && Math.abs(m.at - n.at) < 0.01),
+    );
+    if (ban && ban.at !== this.banzaiAt) {
+      this.banzaiAt = ban.at;
+      fx.say("banzai", true);
+    }
     // 런웨이 피버: 하늘에 불꽃
     if (this.fever() && Math.random() < dt * 2.2) {
       const tones: Tone[] = ["gold", "pink", "mint", "white"];
@@ -217,7 +232,10 @@ export class RhythmMode implements Mode {
     fx.score(pts, p.x, p.y - this.R * 1.25);
     fx.burst(p.x, p.y, kind === "perfect" ? 14 : 6, PAD_TONE[n.pad]);
     fx.sfx(kind);
-    if (this.combo === FEVER_AT) fx.score(0, this.W / 2, this.H * 0.2, "런웨이 피버!", "gold");
+    if (this.combo === FEVER_AT) {
+      fx.score(0, this.W / 2, this.H * 0.2, "런웨이 피버!", "gold");
+      fx.say("runway-fever", true);
+    } else if (this.combo % 8 === 0) fx.say(this.combo % 16 === 0 ? "perfect" : "great");
     this.judge.push({
       pad: n.pad,
       text: kind === "perfect" ? "퍼펙트!" : "좋아요",

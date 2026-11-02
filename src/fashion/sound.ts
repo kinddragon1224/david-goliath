@@ -13,7 +13,38 @@ export type Sfx =
   | "end"
   | "shutter";
 
+/** MC 음성(일레븐랩스로 미리 만든 파일, public/voice). 인터넷 없이 나온다. */
+export const LINES = [
+  "hello",
+  "start",
+  "perfect",
+  "great",
+  "complete",
+  "ten",
+  "end",
+  "iron-pair",
+  "steam",
+  "scissors-pair",
+  "clean-cut",
+  "gold-fever",
+  "runway-fever",
+  "banzai",
+  "rhythm-how",
+  "finale",
+  "three",
+  "two",
+  "one",
+  "shot",
+  "grade0",
+  "grade1",
+  "grade2",
+  "grade3",
+] as const;
+export type Line = (typeof LINES)[number];
+
 const VOLUME = 0.45;
+/** 음악·효과음 위로 또렷하게. */
+const VOICE_GAIN = 1.8;
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -24,6 +55,9 @@ export class FashionSound {
   muted = false;
   private musicTimer: ReturnType<typeof setInterval> | null = null;
   private steamUntil = 0;
+  private voices = new Map<Line, AudioBuffer>();
+  private voice: AudioBufferSourceNode | null = null;
+  private voiceUntil = 0;
 
   unlock = (): void => {
     if (!this.ctx) {
@@ -39,9 +73,39 @@ export class FashionSound {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this.loadVoices();
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
   };
+
+  /** MC 음성을 미리 받아 풀어 둔다. 없는 파일은 조용히 건너뛴다. */
+  private loadVoices(): void {
+    for (const line of LINES) {
+      fetch(`/voice/${line}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((b) => this.ctx!.decodeAudioData(b))
+        .then((buf) => this.voices.set(line, buf))
+        .catch(() => {});
+    }
+  }
+
+  /** MC 한마디. 말하는 중이면 넘어가고, urgent면 끊고 말한다. */
+  say(line: Line, urgent = false): void {
+    const ctx = this.ctx;
+    const buf = this.voices.get(line);
+    if (!ctx || !this.master || !buf || ctx.state !== "running") return;
+    const now = ctx.currentTime;
+    if (!urgent && now < this.voiceUntil) return;
+    this.voice?.stop();
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = VOICE_GAIN;
+    src.connect(g).connect(this.master);
+    src.start();
+    this.voice = src;
+    this.voiceUntil = now + buf.duration;
+  }
 
   get running(): boolean {
     return this.ctx?.state === "running";
