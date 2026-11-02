@@ -4,6 +4,9 @@ setlocal
 set "HERE=%~dp0"
 echo Setting up David ^& Goliath ...
 
+rem Stop a server left over from an earlier install (it would keep the port)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'powershell.exe' -and $_.CommandLine -like '*server.ps1*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
+
 rem Remove the "downloaded from internet" mark so Windows does not block the scripts
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath '%HERE%' -Recurse | Unblock-File" >nul 2>&1
 
