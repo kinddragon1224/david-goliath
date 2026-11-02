@@ -74,8 +74,8 @@ const PAD_TONE: Tone[] = ["pink", "mint", "pink", "mint"];
 
 export class RhythmMode implements Mode {
   seconds = Math.ceil(BARS * 4 * BEAT + 1.5);
-  hint = "고리가 원에 닿을 때 손을 대요!";
-  tip = "바깥 고리가 원에 딱 닿을 때 손을 대요";
+  hint = "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요";
+  tip = "원 안에 3·2·1 다음 '지금!'이 뜨면 손을 대요";
   grades: [number, number, number] = [16000, 11000, 6000];
   music = null;
   private W = 1400;
@@ -119,7 +119,7 @@ export class RhythmMode implements Mode {
     this.maxCombo = 0;
     this.judge = [];
     this.demoPos = [];
-    this.hint = "고리가 원에 닿을 때 손을 대요!";
+    this.hint = "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요";
   }
 
   begin(fx: Fx): void {
@@ -198,7 +198,7 @@ export class RhythmMode implements Mode {
       : this.combo >= 4
         ? `${this.combo}콤보! 계속 박자를 타요`
         : left > 0
-          ? "고리가 원에 닿을 때 손을 대요!"
+          ? "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요"
           : "멋진 무대였어요!";
   }
 
@@ -270,15 +270,50 @@ export class RhythmMode implements Mode {
       ctx.fill();
       ctx.stroke();
       ctx.restore();
-      drawPalm(
-        ctx,
-        p.x,
-        p.y,
-        this.R * 0.42,
-        active ? "#ffffff" : "rgba(255,255,255,0.45)",
-        pi % 2 === 1,
+      // 다가오는 박자: 음악 박에 맞춰 3·2·1 세다가 박자에 '지금!'
+      const next = this.notes.find(
+        (n) => n.pad === pi && n.state === "wait" && n.at - now < APPROACH && n.at - now > -GOOD,
       );
+      if (next) {
+        const left = next.at - now;
+        const now_ = left <= 0.1;
+        const label = now_ ? "지금!" : String(Math.ceil(left / BEAT - 0.1));
+        const pop = now_ ? 1.15 : 1 + Math.pow(1 - ((left / BEAT) % 1), 4) * 0.25;
+        ctx.save();
+        ctx.font = `800 ${Math.round(this.R * (now_ ? 0.62 : 0.9) * pop)}px "Gowun Batang", serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = "rgba(20,14,30,0.85)";
+        ctx.strokeText(label, p.x, p.y);
+        ctx.fillStyle = now_ ? TONE.gold : "#ffffff";
+        ctx.fillText(label, p.x, p.y);
+        ctx.restore();
+      } else drawPalm(ctx, p.x, p.y, this.R * 0.42, "rgba(255,255,255,0.45)", pi % 2 === 1);
     });
+
+    // 첫 마디: 음악에 맞춰 하나·둘·셋·넷 세기
+    const beatNo = Math.floor((now - this.t0) / BEAT);
+    if (this.started && beatNo >= 0 && beatNo < 4) {
+      const k = ((now - this.t0) / BEAT) % 1;
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.round(this.R * (1.1 + (1 - k) * 0.3))}px "Gowun Batang", serif`;
+      ctx.lineWidth = 12;
+      ctx.strokeStyle = "rgba(20,14,30,0.85)";
+      const word = ["하나", "둘", "셋", "넷"][beatNo];
+      ctx.strokeText(word, this.W / 2, this.H * 0.16);
+      ctx.fillStyle = TONE.gold;
+      ctx.fillText(word, this.W / 2, this.H * 0.16);
+      ctx.font = `700 ${Math.round(this.R * 0.34)}px "Gowun Batang", serif`;
+      ctx.lineWidth = 8;
+      const sub = "원 안 숫자가 '지금!'이 되면 손을 대요";
+      ctx.strokeText(sub, this.W / 2, this.H * 0.16 + this.R * 0.95);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(sub, this.W / 2, this.H * 0.16 + this.R * 0.95);
+      ctx.restore();
+    }
 
     // 다가오는 고리
     for (const n of this.notes) {

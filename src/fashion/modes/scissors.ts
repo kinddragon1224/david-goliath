@@ -35,8 +35,8 @@ const PIECE_BONUS = 600;
 
 export class ScissorsMode implements Mode {
   seconds = 40;
-  hint = "가위 손을 빛나는 점에 대고 선을 따라가요";
-  tip = "빛나는 점에 손을 대고, 화살표 쪽으로 천천히!";
+  hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
+  tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
   grades: [number, number, number] = [3600, 2400, 1300];
   music = "lofi" as const;
   private W = 1400;
@@ -57,7 +57,10 @@ export class ScissorsMode implements Mode {
   private snipT = 0;
   private fall: { path: Path2D; color: string; t: number } | null = null;
   private lastSnip = 0;
-  private activeHand = -1;
+  private back = 0;
+  private activeHands: number[] = [];
+  private pair = false;
+  private pairT = 0;
   private fabric = { x: 0, y: 0, w: 0, h: 0 };
 
   reset(W: number, H: number): void {
@@ -68,6 +71,8 @@ export class ScissorsMode implements Mode {
     this.onLine = 0;
     this.offLine = 0;
     this.fall = null;
+    this.pair = false;
+    this.pairT = 0;
     this.tol = Math.min(W, H) * 0.085;
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
@@ -81,13 +86,20 @@ export class ScissorsMode implements Mode {
     this.outline = pathOf(this.pts);
     this.path = resample(this.pts, this.step);
     this.cut = 0;
+    this.back = 0;
     this.pieceOn = 0;
     this.pieceOff = 0;
-    this.activeHand = -1;
+    this.activeHands = [];
   }
 
   private pct(): number {
-    return Math.floor((this.cut / this.path.length) * 100);
+    return Math.floor(((this.cut + this.back) / this.path.length) * 100);
+  }
+
+  /** 가위 자리 두 곳: 앞쪽(cut, 시계 방향)과 뒤쪽(back, 반대 방향). 둘이 만나면 완성. */
+  private front(side: 0 | 1): number {
+    const n = this.path.length;
+    return side === 0 ? this.cut % n : (n - this.back) % n;
   }
 
   update(dt: number, t: number, hands: Hand[], fx: Fx): void {
@@ -98,29 +110,46 @@ export class ScissorsMode implements Mode {
     }
     const n = this.path.length;
     const look = Math.ceil((this.tol * 2.2) / this.step);
-    let best = this.cut;
-    let bestHand = -1;
+    // 두 가위 자리를 따로 민다: 한 손이면 한쪽씩, 두 손이면 양쪽에서 동시에
+    const best = [this.cut, this.back];
+    const by = [-1, -1];
     hands.forEach((h, hi) => {
       if (!h.on) return;
-      // 지금 자를 곳 근처에 손이 있어야 앞으로 나간다
-      const [cx, cy] = this.path[this.cut % n];
-      if (Math.hypot(cx - h.x, cy - h.y) > this.tol * 1.6) return;
-      for (let k = 1; k <= look && this.cut + k <= n; k++) {
-        const [x, y] = this.path[(this.cut + k) % n];
-        if (Math.hypot(x - h.x, y - h.y) <= this.tol && this.cut + k > best) {
-          best = this.cut + k;
-          bestHand = hi;
+      for (const side of [0, 1] as const) {
+        // 지금 자를 곳 근처에 손이 있어야 앞으로 나간다
+        const [cx, cy] = this.path[this.front(side)];
+        if (Math.hypot(cx - h.x, cy - h.y) > this.tol * 1.6) continue;
+        const done = side === 0 ? this.cut : this.back;
+        const other = side === 0 ? this.back : this.cut;
+        for (let k = 1; k <= look && done + k + other <= n; k++) {
+          const i = side === 0 ? this.cut + k : n - this.back - k;
+          const [x, y] = this.path[((i % n) + n) % n];
+          if (Math.hypot(x - h.x, y - h.y) <= this.tol && done + k > best[side]) {
+            best[side] = done + k;
+            by[side] = hi;
+          }
         }
       }
     });
-    if (best > this.cut) {
-      const adv = best - this.cut;
-      this.cut = best;
-      this.activeHand = bestHand;
+    if (best[0] + best[1] > n) best[1] = n - best[0];
+    const adv = best[0] - this.cut + Math.max(0, best[1] - this.back);
+    // 두 손이 양쪽을 동시에 자르면 '양손 가위'(점수 2배). 잠깐 멈춰도 0.6초는 이어진다.
+    const both = by[0] >= 0 && by[1] >= 0 && by[0] !== by[1];
+    this.pairT = both ? 0.6 : Math.max(0, this.pairT - dt);
+    const pair = this.pairT > 0;
+    if (pair && !this.pair) {
+      fx.score(0, this.W / 2, this.H * 0.16, "양손 가위! 점수 2배", "gold");
+      fx.sfx("perfect");
+    }
+    this.pair = pair;
+    if (adv > 0) {
+      this.cut = best[0];
+      this.back = Math.max(this.back, best[1]);
+      this.activeHands = by.filter((i) => i >= 0);
       this.onLine += dt;
       this.pieceOn += dt;
-      const h = hands[bestHand];
-      fx.score(adv * 4, h.x, h.y);
+      const h = hands[this.activeHands[0]];
+      fx.score(adv * 4 * (pair ? 2 : 1), h.x, h.y);
       this.snipT = 0.18;
       if (t - this.lastSnip > 0.16) {
         fx.sfx("snip");
@@ -131,7 +160,7 @@ export class ScissorsMode implements Mode {
       this.pieceOff += dt;
     }
 
-    if (this.cut >= n) {
+    if (this.cut + this.back >= n) {
       const acc = this.pieceAcc();
       const bonus = PIECE_BONUS + (acc >= 80 ? 200 : 0);
       fx.score(
@@ -148,7 +177,9 @@ export class ScissorsMode implements Mode {
       this.gi++;
       this.load();
     }
-    this.hint = `${this.garment.name} 오리기 ${this.pct()}% · 빛나는 점을 따라 천천히!`;
+    this.hint = pair
+      ? `양손 가위! 점수 2배 · ${this.pct()}%`
+      : `${this.garment.name} 오리기 ${this.pct()}% · 두 손으로 양쪽에서 오리면 2배!`;
   }
 
   private pieceAcc(): number {
@@ -193,85 +224,83 @@ export class ScissorsMode implements Mode {
     const n = this.path.length;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    const end = n - this.back;
+    const line = (from: number, to: number) => {
+      ctx.beginPath();
+      const s = from <= to ? 1 : -1;
+      for (let i = from; s > 0 ? i <= to : i >= to; i += s) {
+        const [x, y] = this.path[((i % n) + n) % n];
+        if (i === from) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    };
     // 남은 길: 분필 점선
     ctx.strokeStyle = "rgba(30,24,44,0.8)";
     ctx.lineWidth = 5;
     ctx.setLineDash([14, 12]);
-    ctx.beginPath();
-    for (let i = this.cut; i <= n; i++) {
-      const [x, y] = this.path[i % n];
-      if (i === this.cut) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
+    line(this.cut, end);
     ctx.setLineDash([]);
-    // 바로 앞길: 밝게 강조
-    const ahead = Math.min(n, this.cut + 30);
+    // 바로 앞길(양쪽): 밝게 강조
     ctx.strokeStyle = "rgba(255,244,214,0.95)";
     ctx.lineWidth = 9;
     ctx.shadowColor = TONE.gold;
     ctx.shadowBlur = 14;
-    ctx.beginPath();
-    for (let i = this.cut; i <= ahead; i++) {
-      const [x, y] = this.path[i % n];
-      if (i === this.cut) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
+    line(this.cut, Math.min(end, this.cut + 30));
+    line(end, Math.max(this.cut, end - 30));
     ctx.shadowBlur = 0;
     // 자른 길: 원단이 벌어진 틈
-    if (this.cut > 0) {
+    for (const [from, to] of [
+      [0, this.cut],
+      [end, n],
+    ]) {
+      if (to <= from) continue;
       ctx.strokeStyle = "#141020";
       ctx.lineWidth = 7;
-      ctx.beginPath();
-      for (let i = 0; i <= this.cut; i++) {
-        const [x, y] = this.path[i % n];
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+      line(from, to);
       ctx.strokeStyle = "rgba(168,240,224,0.9)";
       ctx.lineWidth = 2;
-      ctx.stroke();
+      line(from, to);
     }
 
-    // 지금 자를 곳: 진행 고리 + 화살표
-    const [cx, cy] = this.path[this.cut % n];
-    const nx = this.path[(this.cut + Math.ceil(this.tol / this.step)) % n];
+    // 지금 자를 곳 두 군데: 고리 + 화살표(서로 반대 방향)
     const pulse = 1 + Math.sin(t * 6) * 0.12;
-    ctx.fillStyle = "rgba(255,224,138,0.22)";
-    ctx.beginPath();
-    ctx.arc(cx, cy, this.tol * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = TONE.gold;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(cx, cy, this.tol * 0.62, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * this.cut) / n);
-    ctx.stroke();
-    ctx.fillStyle = TONE.gold;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-    ctx.fill();
-    const a = Math.atan2(nx[1] - cy, nx[0] - cx);
-    ctx.save();
-    ctx.translate(cx + Math.cos(a) * this.tol * 1.25, cy + Math.sin(a) * this.tol * 1.25);
-    ctx.rotate(a);
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.moveTo(24, 0);
-    ctx.lineTo(-10, -18);
-    ctx.lineTo(-10, 18);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    if (this.cut === 0 && phase !== "result") {
+    const m = Math.ceil(this.tol / this.step);
+    for (const side of [0, 1] as const) {
+      const at = side === 0 ? this.cut : end;
+      const [cx, cy] = this.path[((at % n) + n) % n];
+      const nx = this.path[(((side === 0 ? at + m : at - m) % n) + n) % n];
+      ctx.fillStyle = side === 0 ? "rgba(255,224,138,0.22)" : "rgba(168,240,224,0.22)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, this.tol * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = side === 0 ? TONE.gold : TONE.mint;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.fill();
+      // 처음엔 두 점이 겹쳐 있으니 화살표를 옆으로 벌린다
+      const a = Math.atan2(nx[1] - cy, nx[0] - cx);
+      ctx.save();
+      ctx.translate(cx + Math.cos(a) * this.tol * 1.25, cy + Math.sin(a) * this.tol * 1.25);
+      ctx.rotate(a);
+      ctx.fillStyle = side === 0 ? "#ffffff" : TONE.mint;
+      ctx.beginPath();
+      ctx.moveTo(24, 0);
+      ctx.lineTo(-10, -18);
+      ctx.lineTo(-10, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    if (this.cut === 0 && this.back === 0 && phase !== "result") {
+      const [cx, cy] = this.path[0];
       ctx.font = `700 34px "Gowun Batang", serif`;
       ctx.textAlign = "center";
       ctx.lineWidth = 8;
       ctx.strokeStyle = "rgba(20,14,30,0.85)";
-      ctx.strokeText("여기서 시작!", cx, cy - this.tol - 20);
+      ctx.strokeText("두 손으로 양쪽으로!", cx, cy - this.tol - 20);
       ctx.fillStyle = TONE.gold;
-      ctx.fillText("여기서 시작!", cx, cy - this.tol - 20);
+      ctx.fillText("두 손으로 양쪽으로!", cx, cy - this.tol - 20);
     }
 
     // 다 오린 조각: 들려서 날아간다
@@ -292,7 +321,7 @@ export class ScissorsMode implements Mode {
     }
 
     hands.forEach((h, i) =>
-      drawScissors(ctx, h, this.tol, i === this.activeHand ? this.snipT : 0, t),
+      drawScissors(ctx, h, this.tol, this.activeHands.includes(i) ? this.snipT : 0, t),
     );
   }
 
@@ -343,9 +372,14 @@ export class ScissorsMode implements Mode {
   }
 
   demo(t: number): DemoHand[] {
+    // 시범도 두 손으로 양쪽에서
     const n = this.path.length;
     const [x, y] = this.path[(this.cut + 4) % n];
-    return [{ x: x + Math.sin(t * 5) * 8, y: y + Math.cos(t * 4) * 8 }];
+    const [bx, by] = this.path[(((n - this.back - 4) % n) + n) % n];
+    return [
+      { x: x + Math.sin(t * 5) * 8, y: y + Math.cos(t * 4) * 8 },
+      { x: bx + Math.cos(t * 5) * 8, y: by + Math.sin(t * 4) * 8 },
+    ];
   }
 
   target(): DemoHand {

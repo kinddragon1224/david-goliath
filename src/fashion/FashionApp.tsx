@@ -42,13 +42,13 @@ function makeMode(id: FashionStation): Mode {
 const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   iron: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "iron", text: "손이 다리미! 옷 위를 쓱쓱" },
+    { icon: "iron", text: "두 손으로 쓱쓱! 점수 2배" },
     { icon: "rack", text: "주름을 다 펴면 다음 옷" },
   ],
   scissors: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "scissors", text: "빛나는 점에 손을 대요" },
-    { icon: "path", text: "선을 따라 한 바퀴 오려요" },
+    { icon: "scissors", text: "빛나는 점 두 곳에 두 손을" },
+    { icon: "path", text: "양쪽으로 오려 가운데서 만나요" },
   ],
   sewing: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
@@ -57,7 +57,7 @@ const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   ],
   rhythm: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "ring", text: "고리가 닿을 때 손을 대요" },
+    { icon: "ring", text: "3·2·1 '지금!'에 손을 대요" },
     { icon: "music", text: "금빛 고리는 두 손 만세" },
   ],
 };

@@ -45,8 +45,8 @@ type Trail = { x: number; y: number; t: number; r: number };
 
 export class IronMode implements Mode {
   seconds = 30;
-  hint = "손을 옷 위로 쓱쓱! 다리미로 주름을 펴요";
-  tip = "손바닥을 펴고 옷 위를 크게 쓱쓱 문질러요";
+  hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
+  tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
   grades: [number, number, number] = [5200, 3600, 2000];
   music = "lofi" as const;
   private W = 1400;
@@ -69,6 +69,8 @@ export class IronMode implements Mode {
   private hot: DemoHand | null = null;
   private hotT = 0;
   private time = 0;
+  private pair = false;
+  private pairT = 0;
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -80,6 +82,8 @@ export class IronMode implements Mode {
     this.steamPuffs = [];
     this.steam = 0;
     this.boost = 0;
+    this.pair = false;
+    this.pairT = 0;
     this.rand = rng(7);
     this.ironR = Math.min(W, H) * 0.095;
     this.load();
@@ -161,6 +165,17 @@ export class IronMode implements Mode {
     this.boost = Math.max(0, this.boost - dt);
 
     const R = this.ironR * (this.boost > 0 ? 1.5 : 1);
+    // 두 손이 다 옷 위에서 움직이면 '양손 다림질': 점수 2배, 스팀 3배
+    // 방향을 바꾸느라 잠깐 멈춰도 0.6초는 이어지게
+    const both =
+      hands.filter((h) => h.on && h.speed > this.W * 0.04 && this.onCloth(h)).length >= 2;
+    this.pairT = both ? 0.6 : Math.max(0, this.pairT - dt);
+    const pair = this.pairT > 0 && hands.filter((h) => h.on).length >= 2;
+    if (pair && !this.pair) {
+      fx.score(0, this.W / 2, this.H * 0.18, "양손 다림질! 점수 2배", "gold");
+      fx.sfx("perfect");
+    }
+    this.pair = pair;
     let ironing = false;
     for (const h of hands) {
       if (!h.on) continue;
@@ -180,6 +195,7 @@ export class IronMode implements Mode {
         ironing = move > 0.08;
         let pts = (removed / this.total) * GARMENT_POINTS;
         if (this.boost > 0) pts *= 1.5;
+        if (pair) pts *= 2;
         this.earned += pts;
         fx.score(pts, h.x, h.y);
         if (move > 0.1) {
@@ -201,7 +217,7 @@ export class IronMode implements Mode {
     // 스팀 게이지
     if (this.boost <= 0) {
       this.steam = ironing
-        ? Math.min(1, this.steam + dt * 0.3)
+        ? Math.min(1, this.steam + dt * (pair ? 0.9 : 0.3))
         : Math.max(0, this.steam - dt * 0.2);
       if (this.steam >= 1) {
         this.steam = 0;
@@ -246,9 +262,17 @@ export class IronMode implements Mode {
     this.hint =
       this.boost > 0
         ? `스팀 부스트! 다리미가 커졌어요 · ${p}%`
-        : p >= 75
-          ? `${this.garment().name} ${p}% · 반짝이는 남은 주름을 찾아요!`
-          : `${this.garment().name} 주름 펴기 ${p}% · 쓱쓱 크게 문질러요`;
+        : pair
+          ? `양손 다림질! 점수 2배 · ${p}%`
+          : p >= 75
+            ? `${this.garment().name} ${p}% · 반짝이는 남은 주름을 찾아요!`
+            : `${this.garment().name} 주름 펴기 ${p}% · 두 손으로 다리면 2배!`;
+  }
+
+  private onCloth(h: Hand): boolean {
+    const b = this.box;
+    const m = this.ironR * 0.5;
+    return h.x > b.x - m && h.x < b.x + b.w + m && h.y > b.y - m && h.y < b.y + b.h + m;
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
@@ -360,7 +384,23 @@ export class IronMode implements Mode {
     ctx.globalAlpha = 1;
 
     const R = this.ironR * (this.boost > 0 ? 1.5 : 1);
-    for (const h of hands) drawIron(ctx, h, R, t, this.boost > 0);
+    // 양손 다림질: 두 다리미를 잇는 금빛 김 줄기
+    const on = hands.filter((h) => h.on);
+    if (this.pair && on.length >= 2) {
+      ctx.save();
+      ctx.strokeStyle = TONE.gold;
+      ctx.shadowColor = TONE.gold;
+      ctx.shadowBlur = 24;
+      ctx.lineWidth = 6 + Math.sin(t * 12) * 2;
+      ctx.setLineDash([18, 12]);
+      ctx.lineDashOffset = -t * 160;
+      ctx.beginPath();
+      ctx.moveTo(on[0].x, on[0].y);
+      ctx.lineTo(on[1].x, on[1].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const h of hands) drawIron(ctx, h, R, t, this.boost > 0 || this.pair);
   }
 
   stats(): Stat[] {
@@ -406,7 +446,12 @@ export class IronMode implements Mode {
     const b = this.box;
     const k = (t * 0.22) % 1;
     const y = b.y + b.h * (0.15 + 0.7 * (k < 0.5 ? k * 2 : 2 - k * 2));
-    return [{ x: b.x + b.w * (0.5 + Math.sin(t * 2.6) * 0.32), y }];
+    // 시범도 두 손으로: 왼쪽 반, 오른쪽 반을 나눠 다린다
+    const s = Math.sin(t * 2.6) * 0.16;
+    return [
+      { x: b.x + b.w * (0.3 + s), y },
+      { x: b.x + b.w * (0.7 - s), y: b.y + b.h - (y - b.y) },
+    ];
   }
 
   target(): DemoHand | null {
