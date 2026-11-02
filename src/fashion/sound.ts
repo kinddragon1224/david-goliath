@@ -1,7 +1,17 @@
 /** 패션 체험 효과음과 리듬 챌린지 음악. 파일 없이 Web Audio로 만든다(오프라인·TV 대응). */
 
 export type Sfx =
-  "tick" | "start" | "good" | "perfect" | "miss" | "complete" | "snip" | "stitch" | "steam" | "end";
+  | "tick"
+  | "start"
+  | "good"
+  | "perfect"
+  | "miss"
+  | "complete"
+  | "snip"
+  | "stitch"
+  | "steam"
+  | "end"
+  | "shutter";
 
 const VOLUME = 0.45;
 
@@ -133,6 +143,16 @@ export class FashionSound {
         break;
       case "end":
         [84, 79, 76, 72].forEach((n, i) => this.tone(NOTE(n), t + i * 0.09, 0.3, "triangle", 0.22));
+        break;
+      case "shutter":
+        // 찰-칵: 짧은 두 번의 기계음 + 반짝 화음
+        this.hiss(t, 0.04, 0.4, 3500, 2);
+        this.tone(1800, t, 0.02, "square", 0.08);
+        this.hiss(t + 0.09, 0.06, 0.45, 2500, 2);
+        this.tone(1200, t + 0.09, 0.03, "square", 0.08);
+        [84, 88, 91, 96].forEach((n, i) =>
+          this.tone(NOTE(n), t + 0.18 + i * 0.05, 0.5, "sine", 0.16),
+        );
         break;
     }
   }

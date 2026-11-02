@@ -11,6 +11,7 @@ import {
 } from "@/game/kiosk";
 import {
   drawBackdrop,
+  drawStar,
   FashionGame,
   GRADE_LINES,
   GRADE_NAMES,
@@ -20,7 +21,7 @@ import {
   type Mode,
   type QueueItem,
 } from "./core";
-import type { Pt } from "./garments";
+import { fitGarment, type Body, type Garment, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
 import { IronMode } from "./modes/iron";
@@ -88,6 +89,7 @@ const initialUi: FashionUi = {
   soundBlocked: false,
   resultLeft: 0,
   homeProgress: 0,
+  finale: null,
 };
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -126,6 +128,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mirrorRef = useRef<HTMLCanvasElement>(null);
+  const finaleRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<FashionGame | null>(null);
   const poseRef = useRef<PoseController | null>(null);
   const startingRef = useRef(false);
@@ -172,7 +175,8 @@ export function FashionApp({ station }: { station: FashionStation }) {
     resize();
     window.addEventListener("resize", resize);
 
-    const mirrorState = { cx: 0.5 };
+    const mirrorState: MirrorState = { cx: 0.5, body: null };
+    const finaleState: MirrorState = { cx: 0.5, body: null };
     let raf = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -192,6 +196,27 @@ export function FashionApp({ station }: { station: FashionStation }) {
       game.render(ctx);
       const m = mirrorRef.current?.getContext("2d");
       if (m) drawMirror(m, video, pose.status === "live" ? frame : null, mirrorState, now / 1000);
+      // 피날레: 큰 사진 틀에 옷을 입혀 그린다. 찰칵 뒤에는 그리지 않아 그 순간이 멈춰 보인다.
+      const fc = finaleRef.current;
+      if (fc && game.phase === "finale" && !game.finaleShot) {
+        const fw = Math.max(1, Math.round(fc.clientWidth * dpr));
+        const fh = Math.max(1, Math.round(fc.clientHeight * dpr));
+        if (fc.width !== fw || fc.height !== fh) {
+          fc.width = fw;
+          fc.height = fh;
+        }
+        const f = fc.getContext("2d");
+        if (f) {
+          drawMirror(
+            f,
+            video,
+            pose.status === "live" ? frame : null,
+            finaleState,
+            now / 1000,
+            game.outfit,
+          );
+        }
+      } else if (game.phase !== "finale") finaleState.body = null;
     };
     raf = requestAnimationFrame(loop);
 
@@ -347,7 +372,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
       <div className="absolute z-10 overflow-hidden" style={box(layout.side)}>
         {ui.phase === "play" || ui.phase === "countdown" ? (
           <MeterCard ui={ui} landscape={layout.landscape} step={STEPS[station][1]} />
-        ) : ui.phase === "result" ? (
+        ) : ui.phase === "result" || ui.phase === "finale" ? (
           <Ranking ui={ui} highlight={ui.lastAt} compact={!layout.landscape} />
         ) : (
           <AttractSide station={station} ui={ui} compact={!layout.landscape} />
@@ -362,7 +387,10 @@ export function FashionApp({ station }: { station: FashionStation }) {
             <QueueChip key={`${q.label}-${i}`} q={q} />
           ))}
         </div>
-        {ui.phase === "play" || ui.phase === "countdown" || ui.phase === "result" ? (
+        {ui.phase === "play" ||
+        ui.phase === "countdown" ||
+        ui.phase === "finale" ||
+        ui.phase === "result" ? (
           <div className="flex shrink-0 items-center gap-3">
             <div className="text-right">
               <p className="text-xs text-[var(--f-muted)]">점수</p>
@@ -456,6 +484,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             <p className="mt-1 text-lg text-[var(--f-muted)]">계속하려면 손을 내리세요</p>
           </div>
         )}
+        <FinaleOverlay ui={ui} canvasRef={finaleRef} />
         {ui.phase === "result" && (
           <ResultOverlay
             ui={ui}
@@ -495,13 +524,17 @@ export function FashionApp({ station }: { station: FashionStation }) {
 
 /* ───────── 거울 ───────── */
 
-/** 카메라 영상을 거울처럼(좌우 반전) 세로로 잘라 사람을 따라가며 그린다. 손에는 빛 고리. */
+type MirrorState = { cx: number; body: Body | null };
+
+/** 카메라 영상을 거울처럼(좌우 반전) 세로로 잘라 사람을 따라가며 그린다. 손에는 빛 고리.
+ * outfit을 주면 손 고리 대신 그 옷을 몸에 입혀 그린다(피팅 피날레). */
 function drawMirror(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement | null,
   frame: PoseFrame | null,
-  st: { cx: number },
+  st: MirrorState,
   t: number,
+  outfit?: Garment[],
 ): void {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
@@ -549,6 +582,34 @@ function drawMirror(
     x: ((p.x * vw - msx) / cw) * w,
     y: ((p.y * vh - sy) / ch) * h,
   });
+  if (outfit) {
+    const ls = sk[1];
+    const rs = sk[2];
+    if (!ls || !rs || ls.v < 0.3 || rs.v < 0.3) return;
+    const A = P(ls);
+    const B = P(rs);
+    const pt = (p: { x: number; y: number }): Pt => [p.x, p.y];
+    // 골반이 화면 밖이면 어깨 폭으로 어림한다(카메라에 가까이 선 아이)
+    const span = Math.hypot(B.x - A.x, B.y - A.y);
+    const hip = (s: { x: number; y: number }, raw: (typeof sk)[number]): Pt =>
+      raw && raw.v >= 0.3
+        ? pt(P(raw))
+        : [s.x + (B.x - A.x) * 0.1 * (s === A ? 1 : -1), s.y + span * 1.5];
+    const next: Body = { ls: pt(A), rs: pt(B), lh: hip(A, sk[7]), rh: hip(B, sk[8]) };
+    // 떨림을 줄이려고 조금씩 따라간다
+    const prev = st.body;
+    const lerp = (p: Pt, q: Pt): Pt => [p[0] + (q[0] - p[0]) * 0.35, p[1] + (q[1] - p[1]) * 0.35];
+    st.body = prev
+      ? {
+          ls: lerp(prev.ls, next.ls),
+          rs: lerp(prev.rs, next.rs),
+          lh: lerp(prev.lh, next.lh),
+          rh: lerp(prev.rh, next.rh),
+        }
+      : next;
+    for (const g of outfit) drawWorn(ctx, g, st.body, t);
+    return;
+  }
   // 팔 선
   ctx.lineCap = "round";
   ctx.lineWidth = Math.max(3, w * 0.012);
@@ -581,6 +642,56 @@ function drawMirror(
     ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
     ctx.stroke();
   });
+}
+
+/** 몸에 입힌 옷 한 벌: 원단 그라디언트 + 지나가는 광택 + 테두리 반짝이. */
+function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: number): void {
+  const f = fitGarment(g, body);
+  ctx.save();
+  ctx.translate(f.cx, f.y);
+  ctx.rotate(f.angle);
+  const path = new Path2D();
+  g.pts.forEach(([x, y], i) => {
+    const px = (x - 0.5) * f.w;
+    const py = y * f.h;
+    if (i) path.lineTo(px, py);
+    else path.moveTo(px, py);
+  });
+  path.closePath();
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = f.w * 0.06;
+  const fill = ctx.createLinearGradient(-f.w / 2, 0, f.w / 2, f.h);
+  fill.addColorStop(0, g.color);
+  fill.addColorStop(1, g.shade);
+  ctx.globalAlpha = 0.94;
+  ctx.fillStyle = fill;
+  ctx.fill(path);
+  ctx.shadowBlur = 0;
+  // 비단 광택이 사선으로 지나간다
+  ctx.save();
+  ctx.clip(path);
+  const k = ((t * 0.45) % 1.6) - 0.3;
+  const sx = -f.w / 2 + k * f.w * 1.4;
+  const shine = ctx.createLinearGradient(sx - f.w * 0.2, 0, sx + f.w * 0.2, f.h * 0.4);
+  shine.addColorStop(0, "rgba(255,255,255,0)");
+  shine.addColorStop(0.5, "rgba(255,255,255,0.45)");
+  shine.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = shine;
+  ctx.fillRect(-f.w / 2, 0, f.w, f.h);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(2, f.w * 0.015);
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.stroke(path);
+  // 테두리를 따라 반짝이
+  ctx.fillStyle = "#fff4d6";
+  g.pts.forEach(([x, y], i) => {
+    const tw = (Math.sin(t * 5 + i * 1.7) + 1) / 2;
+    if (tw < 0.6) return;
+    drawStar(ctx, (x - 0.5) * f.w, y * f.h, f.w * 0.03 * tw);
+  });
+  ctx.restore();
 }
 
 /* ───────── 조각들 ───────── */
@@ -956,6 +1067,60 @@ function AttractOverlay({
             시작하기
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** 피팅 피날레: 사진 틀 속 내 모습에 완성한 옷 → 3·2·1 → 찰칵. 사진은 화면에만, 저장하지 않는다. */
+function FinaleOverlay({
+  ui,
+  canvasRef,
+}: {
+  ui: FashionUi;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+}) {
+  const f = ui.finale;
+  // 캔버스는 늘 붙여 두고 숨긴다(그리기 고리가 ref를 계속 잡도록)
+  return (
+    <div
+      className={`absolute inset-0 flex items-center justify-center gap-[3%] overflow-hidden rounded-[2rem] p-[2.5%] ${f ? "" : "invisible"}`}
+      style={{
+        background:
+          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(255,236,170,0.3), transparent 70%), rgba(12,10,20,0.94)",
+      }}
+    >
+      <div className="flex w-[24%] flex-col items-end gap-3 text-right">
+        <p className="text-sm tracking-[0.35em] text-[var(--f-muted)]">FITTING FINALE</p>
+        <p className="f-serif f-pearl text-5xl leading-tight">
+          {f?.shot ? `${GRADE_NAMES[ui.grade]} 탄생!` : "런웨이 데뷔!"}
+        </p>
+        <p className="f-serif text-xl text-[var(--f-muted)]">
+          {f?.shot ? GRADE_LINES[ui.grade] : "내가 만든 옷을 입어 봐요"}
+        </p>
+      </div>
+      <div className="relative h-full">
+        <div className="h-full rounded-[1.4rem] bg-[#fffaf0] p-[0.9rem] pb-[3.6rem] shadow-[0_0_4rem_rgba(255,224,138,0.45)]">
+          <canvas ref={canvasRef} className="aspect-[3/4] h-full rounded-[0.8rem] bg-[#1b1526]" />
+          <p className="f-serif absolute inset-x-0 bottom-3 text-center text-2xl text-[#1b1526]">
+            WEAVE ON · {f?.outfit.join(" + ")}
+          </p>
+        </div>
+        {f && f.count > 0 && (
+          <p
+            key={f.count}
+            className="f-serif f-pearl animate-pop absolute inset-0 flex items-center justify-center text-[11rem] leading-none drop-shadow-[0_0_2rem_rgba(0,0,0,0.8)]"
+          >
+            {f.count}
+          </p>
+        )}
+        {f?.shot && <div className="animate-flash absolute inset-0 rounded-[1.4rem] bg-white" />}
+      </div>
+      <div className="flex w-[24%] flex-col gap-3">
+        <p className="f-serif rounded-full bg-black/55 px-5 py-2.5 text-center text-xl">
+          {f?.shot ? "찰칵! 멋져요" : f && f.count > 0 ? "그대로 멈춰요!" : "멋진 포즈를 잡아요"}
+        </p>
+        <p className="text-center text-sm text-[var(--f-muted)]">사진은 저장되지 않아요</p>
       </div>
     </div>
   );

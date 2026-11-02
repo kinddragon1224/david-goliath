@@ -26,6 +26,12 @@
   --animate-pop: pop 0.38s cubic-bezier(0.2, 1.6, 0.4, 1) both;
   --animate-bob: bob 0.909s ease-in-out infinite;
   --animate-throb: throb 1.2s ease-in-out infinite;
+  --animate-flash: flash 0.7s ease-out both;
+}
+
+@keyframes flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes pop {

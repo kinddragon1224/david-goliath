@@ -1,7 +1,44 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reachHands } from "../game/reach.ts";
-import { SKIRT, inside, place, resample, toWorld } from "./garments.ts";
+import {
+  DRESS,
+  JACKET,
+  PANTS,
+  SHIRT,
+  SKIRT,
+  fitGarment,
+  inside,
+  pickOutfit,
+  place,
+  resample,
+  toWorld,
+} from "./garments.ts";
+
+test("피날레 옷: 마지막 상의 + 마지막 하의, 원피스는 혼자, 없으면 기본 옷", () => {
+  assert.deepEqual(pickOutfit(["티셔츠", "치마", "바지", "재킷"]), [PANTS, JACKET]);
+  assert.deepEqual(pickOutfit(["바지", "원피스"]), [DRESS]);
+  assert.deepEqual(pickOutfit(["치마"]), [SKIRT]);
+  assert.deepEqual(pickOutfit([]), [SHIRT]);
+  assert.deepEqual(pickOutfit(["도입"], JACKET), [JACKET]);
+});
+
+test("옷을 몸에 맞추면 상의는 어깨에, 하의는 골반에 걸리고 몸이 기울면 같이 기운다", () => {
+  const b = { ls: [400, 300], rs: [600, 300], lh: [430, 600], rh: [570, 600] } as const;
+  const shirt = fitGarment(SHIRT, { ls: [...b.ls], rs: [...b.rs], lh: [...b.lh], rh: [...b.rh] });
+  assert.equal(shirt.cx, 500);
+  assert.ok(shirt.y < 300 && shirt.y + shirt.h > 600, `${shirt.y} ${shirt.h}`);
+  assert.ok(shirt.w > 200);
+  const pants = fitGarment(PANTS, { ls: [...b.ls], rs: [...b.rs], lh: [...b.lh], rh: [...b.rh] });
+  assert.ok(pants.y < 600 && pants.y > 500);
+  const tilt = fitGarment(SHIRT, {
+    ls: [400, 300],
+    rs: [600, 340],
+    lh: [430, 600],
+    rh: [570, 640],
+  });
+  assert.ok(tilt.angle > 0.1);
+});
 
 const body = (lw: [number, number], rw: [number, number]) => {
   const img = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, v: 0 }));
