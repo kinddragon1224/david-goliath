@@ -21,7 +21,7 @@ import {
   type Mode,
   type QueueItem,
 } from "./core";
-import { fitGarment, type Body, type Garment, type Pt } from "./garments";
+import { BRANDS, fitGarment, garmentByName, type Body, type Garment, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
 import { IronMode } from "./modes/iron";
@@ -1082,9 +1082,14 @@ function AttractOverlay({
         ))}
       </div>
       <div className="f-card pointer-events-auto relative px-8 py-3 text-center">
-        <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
-          WEAVE ON · AX 패션체험 {info.no}
-        </p>
+        <div className="flex items-center justify-center gap-3">
+          <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
+          <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
+            ×{" "}
+            <span className="f-serif text-base tracking-[0.2em] text-[var(--f-ink)]">바르지음</span>{" "}
+            · AX 패션체험 {info.no}
+          </p>
+        </div>
         <h1 className="f-serif f-pearl mt-0.5 text-5xl leading-tight">{info.title}</h1>
         <p className="f-serif mt-1 text-xl text-[var(--f-muted)]">{info.line}</p>
       </div>
@@ -1092,6 +1097,23 @@ function AttractOverlay({
         <p className="f-serif f-pearl text-center text-5xl leading-tight">
           {teasers[ti % teasers.length]}
         </p>
+        {ti % teasers.length === 2 && (
+          // 6팀 룩북 사진을 부채처럼
+          <div className="mt-3 flex justify-center gap-2">
+            {BRANDS.map((g, i) => (
+              <figure key={g.name} className="w-[6.5rem]" style={{ rotate: `${(i - 2.5) * 3}deg` }}>
+                <img
+                  src={`/brand/${g.photo}.webp`}
+                  alt=""
+                  className="aspect-[3/4] w-full rounded-xl border-[0.2rem] border-[var(--f-frame)] object-cover shadow-lg"
+                />
+                <figcaption className="mt-1 text-center text-xs whitespace-nowrap text-[var(--f-muted)]">
+                  {g.brand}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
       </div>
       <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
@@ -1185,12 +1207,29 @@ function FinaleOverlay({
         <p className="f-serif text-xl text-[var(--f-muted)]">
           {f?.shot ? GRADE_LINES[ui.grade] : "내가 만든 옷을 입어 봐요"}
         </p>
+        {/* 입혀 준 옷의 진짜 룩북 사진 */}
+        {f?.outfit.map((name) => {
+          const g = garmentByName(name);
+          return g?.photo ? (
+            <div key={name} className="mt-2 w-[70%] rounded-2xl bg-[#fffaf0] p-2 pb-1 shadow-lg">
+              <img
+                src={`/brand/${g.photo}.webp`}
+                alt=""
+                className="aspect-[3/4] w-full rounded-xl object-cover"
+              />
+              <p className="f-serif mt-1 text-center text-sm text-[#1b1526]">진짜 옷 · {g.brand}</p>
+            </div>
+          ) : null;
+        })}
       </div>
       <div className="relative h-full">
         <div className="h-full rounded-[1.4rem] bg-[#fffaf0] p-[0.9rem] pb-[3.6rem] shadow-[0_0_4rem_rgba(255,224,138,0.45)]">
           <canvas ref={canvasRef} className="aspect-[3/4] h-full rounded-[0.8rem] bg-[#1b1526]" />
           <p className="f-serif absolute inset-x-0 bottom-3 text-center text-2xl text-[#1b1526]">
-            WEAVE ON · {f?.outfit.join(" + ")}
+            WEAVE ON ·{" "}
+            {f?.outfit
+              .map((n) => [garmentByName(n)?.brand, n].filter(Boolean).join(" "))
+              .join(" + ")}
           </p>
         </div>
         {f && f.count > 0 && (
@@ -1285,9 +1324,17 @@ function ResultOverlay({
 }
 
 function CollectionCard({ item }: { item: Item }) {
+  const photo = garmentByName(item.label)?.photo;
   return (
     <div className="flex w-[6.5rem] flex-col items-center rounded-2xl border border-white/20 bg-white/5 px-2 py-2">
-      {item.shape ? (
+      {photo ? (
+        // 브랜드 옷이면 룩북 실제 사진
+        <img
+          src={`/brand/${photo}.webp`}
+          alt=""
+          className="h-[7.5rem] w-full rounded-xl border-2 border-[var(--f-frame)] object-cover"
+        />
+      ) : item.shape ? (
         <GarmentIcon
           shape={item.shape}
           aspect={item.aspect}

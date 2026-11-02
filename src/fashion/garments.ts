@@ -6,6 +6,8 @@ export type Garment = {
   name: string;
   /** 위브온 중촌 청년 디자이너 브랜드(룩북 기준). */
   brand?: string;
+  /** 룩북 실제 사진(public/brand/<photo>.webp). */
+  photo?: string;
   /** 피날레에 입힐 때: 상의·하의는 한 벌로 겹쳐 입고, whole(원피스류)은 혼자. */
   kind?: "top" | "bottom" | "whole";
   /** 너비/높이 비율. */
@@ -136,6 +138,7 @@ export const JACKET: Garment = {
 export const SEOLBAEK: Garment = {
   name: "쪽빛 한복",
   brand: "설백",
+  photo: "seolbaek",
   kind: "whole",
   aspect: 0.86,
   color: "#9cc2ea",
@@ -161,6 +164,7 @@ export const SEOLBAEK: Garment = {
 export const SILUA: Garment = {
   name: "웨딩드레스",
   brand: "실루아",
+  photo: "silua",
   kind: "whole",
   aspect: 0.9,
   color: "#fbf6ee",
@@ -180,6 +184,7 @@ export const SILUA: Garment = {
 export const TAILORED: Garment = {
   name: "테일러드 재킷",
   brand: "042테일러링",
+  photo: "tailored",
   kind: "top",
   aspect: 0.95,
   color: "#efe5d3",
@@ -204,6 +209,7 @@ export const TAILORED: Garment = {
 export const LUMINO: Garment = {
   name: "시폰 원피스",
   brand: "루미노",
+  photo: "lumino",
   kind: "whole",
   aspect: 0.86,
   color: "#cfe6f7",
@@ -229,6 +235,7 @@ export const LUMINO: Garment = {
 export const RESTITCH: Garment = {
   name: "오프숄더 드레스",
   brand: "리스티치",
+  photo: "restitch",
   kind: "whole",
   aspect: 0.82,
   color: "#dfe4fb",
@@ -251,6 +258,7 @@ export const RESTITCH: Garment = {
 export const ECO: Garment = {
   name: "고딕 원피스",
   brand: "에코아카이브",
+  photo: "eco",
   kind: "whole",
   aspect: 0.86,
   color: "#3d3848",
@@ -287,6 +295,8 @@ export function fullName(g: Garment): string {
 }
 
 const ALL = [SHIRT, DRESS, PANTS, SKIRT, JACKET, SEOLBAEK, SILUA, TAILORED, LUMINO, RESTITCH, ECO];
+/** 위브온 중촌 브랜드 옷 6벌(룩북 사진이 있는 것). */
+export const BRANDS = ALL.filter((g) => g.photo);
 
 /** 피날레에 입힐 옷: 완성한 옷 중 마지막 상의(원피스 포함) + 마지막 하의. 하나도 없으면 기본 한 벌. */
 export function pickOutfit(names: string[], fallback: Garment = SHIRT): Garment[] {
@@ -402,4 +412,9 @@ export function inside(pts: Pt[], x: number, y: number): boolean {
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
   }
   return hit;
+}
+
+/** 이름으로 옷 찾기(컬렉션·피날레에서 룩북 사진을 붙일 때). */
+export function garmentByName(name: string): Garment | undefined {
+  return ALL.find((g) => g.name === name);
 }
