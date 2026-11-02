@@ -138,7 +138,7 @@ export class FashionSound {
   }
 
   /** 리듬 챌린지 음악. startAt(오디오 시계 초)부터 bars 마디. 4/4, 16분음표 단위로 미리 깔아 둔다. */
-  startMusic(bpm: number, startAt: number, bars: number): void {
+  startMusic(bpm: number, startAt: number, bars: number, style: "dance" | "lofi" = "dance"): void {
     this.stopMusic();
     const ctx = this.ctx;
     if (!ctx) return;
@@ -159,13 +159,39 @@ export class FashionSound {
       while (i < total) {
         const at = startAt + i * step;
         if (at > horizon) break;
-        if (at >= this.ctx.currentTime - 0.02) this.musicStep(i, at, step, roots, chords, bars);
+        if (at >= this.ctx.currentTime - 0.02) {
+          if (style === "lofi") this.lofiStep(i, at, step);
+          else this.musicStep(i, at, step, roots, chords, bars);
+        }
         i++;
       }
       if (i >= total) this.stopMusic();
     };
     tickFn();
     this.musicTimer = setInterval(tickFn, 25);
+  }
+
+  /** 다림질·가위질·바느질 배경: 잔잔한 로파이. 효과음을 가리지 않게 작게. */
+  private lofiStep(i: number, at: number, step: number): void {
+    const bar = Math.floor(i / 16);
+    const s = i % 16;
+    // Fmaj7 - Em7 - Dm7 - Cmaj7
+    const chords = [
+      [65, 69, 72, 76],
+      [64, 67, 71, 74],
+      [62, 65, 69, 72],
+      [60, 64, 67, 71],
+    ];
+    const ch = chords[bar % 4];
+    if (s === 0 || s === 10) this.tone(110, at, 0.2, "sine", 0.32, 50);
+    if (s === 4 || s === 12) this.hiss(at, 0.08, 0.08, 2200, 1);
+    if (s % 2 === 0) this.hiss(at, 0.02, 0.03, 9000, 2);
+    if (s === 0)
+      ch.forEach((c, k) => this.tone(NOTE(c - 12), at + k * 0.02, step * 14, "sine", 0.045));
+    if (s === 0 || s === 8) this.tone(NOTE(ch[0] - 24), at, step * 6, "triangle", 0.12);
+    // 가끔 반짝이는 멜로디
+    const mel = [76, 74, 72, 74, 79, 76][(bar * 3 + s) % 6];
+    if ((s === 6 || s === 14) && bar % 2 === 1) this.tone(NOTE(mel), at, step * 3, "sine", 0.05);
   }
 
   private musicStep(
