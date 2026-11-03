@@ -11,8 +11,8 @@ import {
 } from "@/game/kiosk";
 import {
   drawBackdrop,
-  drawGarmentPhoto,
   drawFlare,
+  garmentPhoto,
   FashionGame,
   GRADE_LINES,
   GRADE_NAMES,
@@ -664,6 +664,33 @@ function drawMirror(
   });
 }
 
+const WORN = new Map<string, HTMLCanvasElement>();
+
+/** 몸에 입힐 사진: 같이 찍힌 마네킹 목·받침을 부드럽게 지운다(아이 목 위에 나무 받침이 얹히지 않게). */
+function wornPhoto(g: Garment): CanvasImageSource | null {
+  const img = garmentPhoto(g);
+  if (!img || !g.neck) return img;
+  const done = WORN.get(g.name);
+  if (done) return done;
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const x = c.getContext("2d");
+  if (!x) return img;
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = "destination-out";
+  x.translate(c.width / 2, 0);
+  x.scale(g.neck[0] * c.width, g.neck[1] * c.height);
+  const gr = x.createRadialGradient(0, 0, 0, 0, 0, 1);
+  gr.addColorStop(0, "rgba(0,0,0,1)");
+  gr.addColorStop(0.75, "rgba(0,0,0,1)");
+  gr.addColorStop(1, "rgba(0,0,0,0)");
+  x.fillStyle = gr;
+  x.fillRect(-1, -1, 2, 2);
+  WORN.set(g.name, c);
+  return c;
+}
+
 /** 몸에 입힌 옷 한 벌: 원단 그라디언트 + 지나가는 광택 + 테두리 반짝이. */
 function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: number): void {
   const f = fitGarment(g, body);
@@ -681,7 +708,9 @@ function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: numb
   ctx.shadowColor = "rgba(0,0,0,0.35)";
   ctx.shadowBlur = f.w * 0.06;
   // 시그니처 옷은 진짜 사진을 입힌다(못 불렀으면 색 천)
-  const photo = drawGarmentPhoto(ctx, g, -f.w / 2, 0, f.w, f.h);
+  const img = wornPhoto(g);
+  if (img) ctx.drawImage(img, -f.w / 2, 0, f.w, f.h);
+  const photo = !!img;
   if (!photo) {
     const fill = ctx.createLinearGradient(-f.w / 2, 0, f.w / 2, f.h);
     fill.addColorStop(0, g.color);
@@ -1315,7 +1344,7 @@ function FinaleOverlay({
       </div>
       <div className="flex w-[24%] flex-col gap-3">
         <p className="f-serif rounded-full bg-black/55 px-5 py-2.5 text-center text-xl">
-          {f?.shot ? "찰칵! 멋져요" : f && f.count > 0 ? "그대로 멈춰요!" : "멋진 포즈를 잡아요"}
+          {f?.shot ? "찰칵! 멋져요" : f && f.count > 0 ? "그대로 멈춰요!" : "팔을 내리고 똑바로 서요"}
         </p>
         <p className="text-center text-sm text-[var(--f-muted)]">사진은 저장되지 않아요</p>
       </div>

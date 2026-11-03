@@ -8,6 +8,8 @@ export type Garment = {
   brand?: string;
   /** 룩북 실제 사진(public/brand/<photo>.webp). */
   photo?: string;
+  /** 사진에 같이 찍힌 마네킹 목·받침 자리(위 가운데 타원 반지름, 사진 폭·높이 비율). 몸에 입힐 때 지운다. */
+  neck?: [number, number];
   /** 피날레에 입힐 때: 상의·하의는 한 벌로 겹쳐 입고, whole(원피스류)은 혼자. */
   kind?: "top" | "bottom" | "whole";
   /** 너비/높이 비율. */
@@ -140,6 +142,7 @@ export const TAILORED: Garment = {
   name: "베이지 수트",
   brand: "042테일러링",
   photo: "tailored",
+  neck: [0.16, 0.05],
   kind: "whole",
   aspect: 0.392,
   color: "#d8c8b7",
@@ -199,6 +202,7 @@ export const SILUA: Garment = {
   name: "라벤더 미디 드레스",
   brand: "실루아",
   photo: "silua",
+  neck: [0.2, 0.075],
   kind: "whole",
   aspect: 0.5,
   color: "#dbcbef",
@@ -338,6 +342,7 @@ export const SEOLBAEK: Garment = {
   name: "청록 두루마기 한복",
   brand: "설백",
   photo: "seolbaek",
+  neck: [0.17, 0.12],
   kind: "whole",
   aspect: 0.386,
   color: "#35617b",
