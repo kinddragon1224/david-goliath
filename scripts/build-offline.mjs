@@ -37,7 +37,16 @@ execSync("npx vite build --config offline/vite.config.ts", {
 });
 
 // 게임이 쓰는 정적 파일만 (예전 스프라이트, 배포용 이미지는 뺀다)
-for (const f of ["mediapipe", "therumen-logo.png", "favicon.svg", ...edition.assets]) {
+// voice(안내 음성)·art(배경 그림)·brand(옷 사진)는 /voice/… 처럼 절대 경로로 불러서 꼭 같이 넣는다
+for (const f of [
+  "mediapipe",
+  "therumen-logo.png",
+  "favicon.svg",
+  "voice",
+  "art",
+  "brand",
+  ...edition.assets,
+]) {
   cpSync(join(root, "public", f), join(app, f), { recursive: true });
 }
 writeFileSync(join(app, "version.txt"), `${version}\n`);
