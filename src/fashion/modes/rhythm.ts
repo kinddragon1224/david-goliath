@@ -586,20 +586,34 @@ function drawMannequin(
     ctx.fillRect(cx - 10, sy - H * 0.05, 20, H * 0.06);
     ctx.shadowBlur = 0;
   };
-  // 시그니처 옷 사진을 입은 모델: 팔은 소매 뒤로, 사진, 머리 순
+  // 시그니처 옷 사진: 보이지 않는 모델이 입고 춤춘다(사진엔 팔·머리가 없어 막대 팔을 붙이면 어색하다).
+  // 박자에 통통 튀고, 손을 뻗은 쪽으로 기울고, 손을 머리 위로 올리면 쭉 늘어난다.
   const g = BRANDS[look % BRANDS.length];
   if (g && garmentPhoto(g)) {
-    arms();
-    head();
-    const top = sy - H * 0.035;
-    const gh = H * 0.95 - top;
+    const top = sy - H * 0.06;
+    const foot = H * 0.95;
+    const gh = foot - top;
     const gw = gh * g.aspect;
+    const on = hands.filter((h) => h.on);
+    const lean = on.length
+      ? Math.max(-1, Math.min(1, on.reduce((s, h) => s + (h.x - cx), 0) / on.length / (W * 0.3)))
+      : 0;
+    const up = on.some((h) => h.y < sy) ? 1 : 0;
+    // 발밑 스포트라이트
+    const fl = ctx.createRadialGradient(cx, foot, 0, cx, foot, gw * 0.9);
+    fl.addColorStop(0, fever ? "rgba(159,243,255,0.55)" : "rgba(216,204,255,0.45)");
+    fl.addColorStop(1, "rgba(216,204,255,0)");
+    ctx.fillStyle = fl;
+    ctx.beginPath();
+    ctx.ellipse(cx, foot, gw * 0.9, gh * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.shadowColor = glow;
     ctx.shadowBlur = 24 + pump * 30;
-    // 박자에 맞춰 살짝 흔들린다
-    ctx.translate(cx, top);
-    ctx.rotate(Math.sin(t * 4) * 0.02);
-    drawGarmentPhoto(ctx, g, -gw / 2, 0, gw, gh);
+    // 발끝을 축으로 기울고 늘어난다
+    ctx.translate(cx, foot);
+    ctx.rotate(lean * 0.09 + Math.sin(t * 4) * 0.015);
+    ctx.scale(1 - pump * 0.03, 1 + pump * 0.03 + up * 0.04);
+    drawGarmentPhoto(ctx, g, -gw / 2, -gh, gw, gh);
     ctx.restore();
     return;
   }
