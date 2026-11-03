@@ -12,7 +12,7 @@ import {
 import {
   drawBackdrop,
   drawGarmentPhoto,
-  drawStar,
+  drawFlare,
   FashionGame,
   GRADE_LINES,
   GRADE_NAMES,
@@ -711,11 +711,10 @@ function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: numb
     ctx.stroke(path);
   }
   // 테두리를 따라 반짝이
-  ctx.fillStyle = "#ffffff";
   g.pts.forEach(([x, y], i) => {
     const tw = (Math.sin(t * 5 + i * 1.7) + 1) / 2;
     if (tw < 0.6) return;
-    drawStar(ctx, (x - 0.5) * f.w, y * f.h, f.w * 0.03 * tw);
+    drawFlare(ctx, (x - 0.5) * f.w, y * f.h, f.w * 0.08 * tw, "white", (tw - 0.6) * 2.5);
   });
   ctx.restore();
 }

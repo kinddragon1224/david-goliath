@@ -1,6 +1,7 @@
 import {
   drawGarmentPhoto,
   drawHandGlow,
+  propImage,
   drawPalace,
   fabricTexture,
   TONE,
@@ -593,10 +594,42 @@ function drawNeedle(
   drawHandGlow(ctx, h, R * (1 + flash), "gold");
   ctx.save();
   ctx.translate(h.x, h.y);
+  const img = propImage("needle");
+  if (img) {
+    // 그림은 바늘 끝이 왼쪽 아래 귀퉁이. 손 위치 = 바늘 끝.
+    const w = R * 3.2;
+    const ih = (w * img.naturalHeight) / img.naturalWidth;
+    ctx.globalAlpha = h.ghost ? 0.8 : 1;
+    if (fever) {
+      ctx.shadowColor = "#ffd34d";
+      ctx.shadowBlur = 28;
+    }
+    ctx.drawImage(img, -w * 0.02, -ih * 0.97, w, ih);
+  } else drawNeedleShape(ctx, R, fever, h.ghost);
+  ctx.restore();
+  if (fever && !h.ghost) {
+    ctx.fillStyle = TONE.gold;
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < 3; i++) {
+      const a = performance.now() / 300 + (i * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.arc(h.x + Math.cos(a) * R * 0.9, h.y + Math.sin(a) * R * 0.9, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawNeedleShape(
+  ctx: CanvasRenderingContext2D,
+  R: number,
+  fever: boolean,
+  ghost: boolean | undefined,
+): void {
   ctx.rotate(-0.7);
   const s = R / 45;
   ctx.scale(s, s);
-  ctx.globalAlpha = h.ghost ? 0.8 : 1;
+  ctx.globalAlpha = ghost ? 0.8 : 1;
   const g = ctx.createLinearGradient(0, -80, 0, 10);
   g.addColorStop(0, fever ? "#ffd34d" : "#c9cfdc");
   g.addColorStop(1, "#ffffff");
@@ -614,16 +647,4 @@ function drawNeedle(
   ctx.beginPath();
   ctx.ellipse(0, -66, 2, 7, 0, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.restore();
-  if (fever && !h.ghost) {
-    ctx.fillStyle = TONE.gold;
-    ctx.globalAlpha = 0.6;
-    for (let i = 0; i < 3; i++) {
-      const a = performance.now() / 300 + (i * Math.PI * 2) / 3;
-      ctx.beginPath();
-      ctx.arc(h.x + Math.cos(a) * R * 0.9, h.y + Math.sin(a) * R * 0.9, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
 }

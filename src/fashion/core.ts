@@ -919,24 +919,20 @@ export class FashionGame implements Fx {
     for (const g of this.glitter) {
       const tw = (Math.sin(this.time * g.sp * 2 + g.ph) + 1) / 2;
       if (tw < 0.55) continue;
-      ctx.globalAlpha = (tw - 0.55) * 1.6;
-      ctx.fillStyle = "#ffffff";
-      drawStar(
+      drawFlare(
         ctx,
         g.x * W,
         ((((g.y - this.time * 0.01 * g.sp) % 1) + 1) % 1) * H,
-        g.r * (0.6 + tw),
+        g.r * (0.6 + tw) * 3,
+        "white",
+        (tw - 0.55) * 1.6,
       );
     }
-    ctx.globalAlpha = 1;
 
     for (const s of this.sparks) {
       const k = 1 - s.t / s.life;
-      ctx.globalAlpha = k;
-      ctx.fillStyle = TONE[s.tone];
-      drawStar(ctx, s.x, s.y, 4 + 10 * k);
+      drawFlare(ctx, s.x, s.y, 10 + 24 * k, s.tone, k, s.t * 4);
     }
-    ctx.globalAlpha = 1;
     for (const p of this.pops) {
       if (p.stamp) {
         // 도장: 크게 찍혔다가 살짝 줄고, 끝에 흐려진다
@@ -1183,6 +1179,101 @@ export function roundRect(
   ctx.closePath();
 }
 
+const SPRITES = new Map<string, HTMLCanvasElement | null>();
+
+/** 효과 그림을 한 번만 그려 두고 다시 찍는다(매 프레임 그라디언트를 새로 만들지 않게). */
+function sprite(
+  key: string,
+  paint: (c: CanvasRenderingContext2D, m: number) => void,
+): HTMLCanvasElement | null {
+  if (SPRITES.has(key)) return SPRITES.get(key) ?? null;
+  let cv: HTMLCanvasElement | null = null;
+  if (typeof document !== "undefined") {
+    cv = document.createElement("canvas");
+    cv.width = cv.height = 128;
+    const c = cv.getContext("2d");
+    if (c) paint(c, 64);
+    else cv = null;
+  }
+  SPRITES.set(key, cv);
+  return cv;
+}
+
+/** 빛 번짐 반짝이: 하얀 심 + 색 후광 + 가로세로 빛살. 빛을 더하는 방식으로 겹친다. */
+export function drawFlare(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  tone: Tone = "white",
+  alpha = 1,
+  rot = 0,
+): void {
+  const img = sprite(`flare-${tone}`, (c, m) => {
+    const halo = c.createRadialGradient(m, m, 0, m, m, m);
+    halo.addColorStop(0, "#ffffff");
+    halo.addColorStop(0.1, TONE[tone]);
+    halo.addColorStop(0.3, `${TONE[tone]}55`);
+    halo.addColorStop(1, `${TONE[tone]}00`);
+    c.fillStyle = halo;
+    c.fillRect(0, 0, m * 2, m * 2);
+    c.globalCompositeOperation = "lighter";
+    for (const [rx, ry] of [
+      [m * 0.05, m],
+      [m, m * 0.05],
+    ]) {
+      const g = c.createRadialGradient(m, m, 0, m, m, m);
+      g.addColorStop(0, "rgba(255,255,255,0.9)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g;
+      c.beginPath();
+      c.ellipse(m, m, rx, ry, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  });
+  if (!img || alpha <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(x, y);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(img, -r, -r, r * 2, r * 2);
+  ctx.restore();
+}
+
+/** 뭉게뭉게 김·연기 한 덩이(부드러운 덩어리 여러 개를 겹친 그림). */
+export function drawSmoke(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  alpha = 1,
+  rot = 0,
+): void {
+  const img = sprite("smoke", (c, m) => {
+    const rnd = rng(11);
+    for (let i = 0; i < 16; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = rnd() * m * 0.4;
+      const rr = m * (0.28 + rnd() * 0.32);
+      const px = m + Math.cos(a) * d;
+      const py = m + Math.sin(a) * d;
+      const g = c.createRadialGradient(px, py, 0, px, py, rr);
+      g.addColorStop(0, "rgba(255,255,255,0.26)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, m * 2, m * 2);
+    }
+  });
+  if (!img || alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(x, y);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(img, -r, -r, r * 2, r * 2);
+  ctx.restore();
+}
+
 export function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   ctx.beginPath();
   ctx.moveTo(x, y - r);
@@ -1353,6 +1444,11 @@ function loadImage(src: string): HTMLImageElement | null {
 
 function artImage(name: string): HTMLImageElement | null {
   return loadImage(`/art/${name}.webp`);
+}
+
+/** 도구 그림(public/art/prop-<name>.png, 배경 투명). 못 불렀으면 null — 그때는 코드 그림으로. */
+export function propImage(name: "iron" | "scissors" | "needle"): HTMLImageElement | null {
+  return loadImage(`/art/prop-${name}.png`);
 }
 
 /** 시그니처 옷 사진(배경 지운 것). 사진이 없는 옷이거나 아직 못 불렀으면 null. */

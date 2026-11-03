@@ -3,6 +3,7 @@ import {
   drawHandGlow,
   drawPalace,
   fabricTexture,
+  propImage,
   TONE,
   type DemoHand,
   type Fx,
@@ -617,6 +618,19 @@ function drawScissors(
   // 움직이는 쪽을 향한다
   const dir = h.speed > 30 ? Math.atan2(h.vy, h.vx) : -Math.PI / 2;
   ctx.rotate(dir + Math.PI / 2);
+  const img = propImage("scissors");
+  if (img) {
+    // 그림은 날이 위. 손 위치 = 날이 엇갈리는 축. 싹둑할 때 가로로 좁혀 날이 닫히는 것처럼.
+    const ih = R * 3;
+    const w = (ih * img.naturalWidth) / img.naturalHeight;
+    const close = snip > 0 ? Math.sin((snip / 0.18) * Math.PI) * 0.35 : 0;
+    const wob = h.ghost ? Math.sin(t * 10) * 0.08 : 0;
+    ctx.scale(1 - close + wob, 1);
+    ctx.globalAlpha = h.ghost ? 0.8 : 1;
+    ctx.drawImage(img, -w * 0.5, -ih * 0.52, w, ih);
+    ctx.restore();
+    return;
+  }
   const s = R / 62;
   ctx.scale(s, s);
   ctx.globalAlpha = h.ghost ? 0.8 : 1;

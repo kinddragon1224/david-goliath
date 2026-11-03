@@ -2,7 +2,9 @@ import {
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
+  drawSmoke,
   fabricTexture,
+  propImage,
   rng,
   TONE,
   type DemoHand,
@@ -551,14 +553,8 @@ export class IronMode implements Mode {
     }
 
     // 김
-    for (const s of this.steamPuffs) {
-      ctx.globalAlpha = (1 - s.t) * 0.45;
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 16 + s.t * 36, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    for (const s of this.steamPuffs)
+      drawSmoke(ctx, s.x, s.y, 34 + s.t * 80, (1 - s.t) * 0.95, s.vx * 0.02 + s.t * 1.5);
 
     const R = this.ironR * (this.boost > 0 ? 1.5 : 1);
     // 양손 다림질: 두 다리미를 잇는 금빛 김 줄기
@@ -775,6 +771,21 @@ function drawIron(
   ctx.save();
   ctx.translate(h.x, h.y);
   ctx.rotate(Math.max(-0.25, Math.min(0.25, h.vx / 4000)));
+  const img = propImage("iron");
+  if (img) {
+    // 손 위치 = 다리미 바닥 가운데. 왼쪽으로 밀면 코가 왼쪽을 본다.
+    const w = R * 2.8;
+    const ih = (w * img.naturalHeight) / img.naturalWidth;
+    if (h.vx < -60) ctx.scale(-1, 1);
+    ctx.globalAlpha = h.ghost ? 0.75 : 1;
+    if (boost) {
+      ctx.shadowColor = TONE.mint;
+      ctx.shadowBlur = 30;
+    }
+    ctx.drawImage(img, -w / 2, R * 0.35 - ih, w, ih);
+    ctx.restore();
+    return;
+  }
   const s = R / 90;
   ctx.scale(s, s);
   ctx.globalAlpha = h.ghost ? 0.75 : 1;
