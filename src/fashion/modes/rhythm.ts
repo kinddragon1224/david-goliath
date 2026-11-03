@@ -28,8 +28,9 @@ const APPROACH = BEAT * 2.4;
 /** 판정 폭(초) 이지·노멀·하드. 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
 const PERFECT_W = [0.14, 0.12, 0.1];
 const GOOD_W = [0.32, 0.26, 0.22];
-/** 웹캠·인식·손떨림 거르기로 손이 늦게 보이는 만큼(초). 판정 시각을 이만큼 당겨 박자에 맞춘다. */
-const LAG = 0.1;
+/** 웹캠·인식·손떨림 거르기로 손이 늦게 보이는 만큼(초). 판정 시각을 이만큼 당겨 박자에 맞춘다.
+ * core가 손을 LEAD(0.04초)만큼 앞에 그리므로 그만큼 뺐다. */
+const LAG = 0.06;
 const FEVER_AT = 10;
 
 type Note = { pad: number; at: number; state: "wait" | "perfect" | "good" | "miss"; sec: number };

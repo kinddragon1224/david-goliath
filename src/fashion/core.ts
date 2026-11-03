@@ -4,6 +4,10 @@ import { BRANDS, ECO, LAYOVER, pickOutfit, type Garment, type Pt } from "./garme
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
+/** 웹캠·인식이 늦는 만큼 손을 속도 방향으로 조금 앞에 그린다(초). 멈출 때 튀어나가지 않게 짧게. */
+const LEAD = 0.04;
+const LEAD_MAX = 0.07;
+
 /** 손 하나. 좌표는 무대(stage) 안 좌표. 가로는 늘 STAGE_W, 세로는 화면 비율에 맞춘다. */
 export type Hand = {
   id: number;
@@ -248,6 +252,15 @@ export class FashionGame implements Fx {
     ghost: true,
   }));
   private filters = [0, 1].map(() => [new OneEuro(1.2, 0.02), new OneEuro(1.2, 0.02)]);
+  /** 손마다 마지막 추론 한 장(거른 위치·속도). 추론 사이 화면 프레임은 이걸로 앞을 내다본다. */
+  private samples = [0, 1].map(() => ({
+    r: null as PoseFrame["reach"][number],
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    at: 0,
+  }));
   private pointer: { at: number } | null = null;
   private pops: Pop[] = [];
   private sparks: Spark[] = [];
@@ -505,16 +518,46 @@ export class FashionGame implements Fx {
     frame.reach.forEach((r, i) => {
       const h = this.real[i];
       if (pointerLive && i === 0) return;
+      const s = this.samples[i];
       if (!r) {
         h.on = false;
+        s.r = null;
         this.filters[i][0].reset();
         this.filters[i][1].reset();
         return;
       }
+      // 새 추론이 없는 화면 프레임: 같은 값을 다시 거르면 손이 멈칫했다 튄다. 마지막 속도로 이어 간다.
+      if (r === s.r) {
+        if (h.on) {
+          const k = Math.min(LEAD_MAX, (nowMs - s.at) / 1000 + LEAD);
+          this.moveHand(h, this.clampX(s.x + s.vx * k), this.clampY(s.y + s.vy * k));
+        }
+        return;
+      }
+      s.r = r;
       const x = this.filters[i][0].filter(r.x * this.W, nowMs);
       const y = this.filters[i][1].filter(r.y * this.H, nowMs);
-      this.moveHand(h, x, y);
+      const sdt = (nowMs - s.at) / 1000;
+      if (h.on && sdt > 0 && sdt < 0.3) {
+        s.vx = s.vx * 0.4 + ((x - s.x) / sdt) * 0.6;
+        s.vy = s.vy * 0.4 + ((y - s.y) / sdt) * 0.6;
+      } else {
+        s.vx = 0;
+        s.vy = 0;
+      }
+      s.x = x;
+      s.y = y;
+      s.at = nowMs;
+      this.moveHand(h, this.clampX(x + s.vx * LEAD), this.clampY(y + s.vy * LEAD));
     });
+  }
+
+  private clampX(x: number): number {
+    return Math.max(0, Math.min(this.W, x));
+  }
+
+  private clampY(y: number): number {
+    return Math.max(0, Math.min(this.H, y));
   }
 
   private moveHand(h: Hand, x: number, y: number): void {
