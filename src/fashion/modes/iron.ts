@@ -9,6 +9,7 @@ import {
   type Fx,
   type Hand,
   type Item,
+  type Level,
   type Meter,
   type Mode,
   type Phase,
@@ -43,6 +44,11 @@ const DONE_AT = 0.9;
 const GARMENT_POINTS = 1000;
 const GARMENT_BONUS = 500;
 const BOOST_SECONDS = 4;
+/** 노멀·하드: 옷 위에 다리미를 이만큼(초) 가만히 대고 있으면 눌음 자국. 이지는 안 눌는다. */
+const SCORCH_AFTER = [0, 1.1, 0.7];
+const SCORCH_PENALTY = [0, 300, 600];
+/** 주름이 펴지는 빠르기(하드는 주름이 깊다). */
+const PRESS = [1, 0.85, 0.62];
 
 type Cell = { x: number; y: number; w: number; a: number; len: number };
 type Trail = { x: number; y: number; t: number; r: number };
@@ -51,9 +57,18 @@ export class IronMode implements Mode {
   seconds = 30;
   hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
   tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
-  // 봇 기준(시그니처 6벌): 양손 깔끔 27~39k, 한 손 9~11k, 양손 대충 7~17k, 한 손 대충 1~5k
-  grades: [number, number, number] = [14000, 7000, 2500];
+  // 봇 기준. 이지: 양손 깔끔 27~40k, 한 손 9~11k, 양손 대충 7~17k, 한 손 대충 1~5k
+  // 노멀: 양손 36~38k, 한 손 11k, 자주 멈칫(눌음 12개) ~18k / 하드: 양손 33~35k, 한 손 10k, 멈칫(눌음 14개) ~8k
+  grades: [number, number, number][] = [
+    [14000, 7000, 2500],
+    [13000, 6500, 2200],
+    [11000, 5500, 2000],
+  ];
+  level: Level = 1;
   music = "lofi" as const;
+  private heat = [0, 0];
+  private scorches: { x: number; y: number; a: number }[] = [];
+  private scorchCount = 0;
   private W = 1400;
   private H = 860;
   private gi = 0;
@@ -98,6 +113,8 @@ export class IronMode implements Mode {
     this.pair = false;
     this.pairT = 0;
     this.rand = rng(7);
+    this.heat = [0, 0];
+    this.scorchCount = 0;
     this.ironR = Math.min(W, H) * 0.095;
     this.load();
   }
@@ -130,6 +147,7 @@ export class IronMode implements Mode {
       }
     }
     this.total = this.cells.reduce((s, c) => s + c.w, 0);
+    this.scorches = [];
     this.earned = 0;
     this.hot = null;
     this.hotT = 0;
@@ -191,11 +209,28 @@ export class IronMode implements Mode {
     }
     this.pair = pair;
     let ironing = false;
+    hands.forEach((h, hi) => {
+      // 노멀·하드: 옷 위에서 멈춰 있으면 열이 쌓여 눌는다
+      // 웹캠 손 떨림(초당 수십 px)은 '멈춤'으로 친다
+      const still = h.on && this.onCloth(h) && h.speed < this.W * 0.08;
+      this.heat[hi] = still ? this.heat[hi] + dt : Math.max(0, this.heat[hi] - dt * 3);
+      const lim = SCORCH_AFTER[this.level];
+      if (lim && this.heat[hi] >= lim) {
+        this.heat[hi] = 0;
+        this.scorchCount++;
+        this.scorches.push({ x: h.x, y: h.y, a: this.rand() * Math.PI });
+        const pen = SCORCH_PENALTY[this.level];
+        fx.score(-pen, h.x, h.y - this.ironR, `-${pen}`, "pink");
+        fx.stamp("앗, 눌었어요!", h.x, h.y - this.ironR * 1.8, "pink");
+        fx.shake(0.4);
+        fx.sfx("miss");
+      }
+    });
     for (const h of hands) {
       if (!h.on) continue;
       // 움직여야 펴진다. 가만히 대고 있으면 아주 조금만.
       const move = Math.min(1, h.speed / (this.W * 0.45));
-      const rate = (0.3 + 4.4 * move) * dt;
+      const rate = (0.3 + 4.4 * move) * dt * PRESS[this.level];
       let removed = 0;
       for (const c of this.cells) {
         if (c.w <= 0) continue;
@@ -236,10 +271,10 @@ export class IronMode implements Mode {
       if (this.steam >= 1) {
         this.steam = 0;
         this.boost = BOOST_SECONDS;
-        const h = hands.find((x) => x.on);
-        fx.score(0, h?.x ?? this.W / 2, (h?.y ?? this.H / 2) - 60, "스팀 부스트!", "mint");
         fx.sfx("perfect");
         fx.say("steam", true);
+        fx.stamp("스팀 부스트!", this.W / 2, this.H * 0.2, "mint");
+        fx.shake(0.3);
       }
     }
 
@@ -261,6 +296,8 @@ export class IronMode implements Mode {
       );
       fx.celebrate(`${fullName(g)} 완성!`, "pink");
       fx.sfx("complete");
+      fx.hitstop(0.09);
+      fx.shake(0.45);
       this.finished.push(g);
       this.fly = {
         path: this.path,
@@ -359,6 +396,24 @@ export class IronMode implements Mode {
     shine.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = shine;
     ctx.fill(this.path);
+    // 눌음 자국: 다리미 바닥 모양으로 갈색으로 탄 자리
+    for (const s of this.scorches) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.a * 0.2);
+      const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, this.ironR * 0.9);
+      sg.addColorStop(0, "rgba(70,34,12,0.85)");
+      sg.addColorStop(0.6, "rgba(120,62,20,0.55)");
+      sg.addColorStop(1, "rgba(160,90,30,0)");
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.moveTo(-this.ironR * 0.85, this.ironR * 0.3);
+      ctx.quadraticCurveTo(-this.ironR * 0.75, -this.ironR * 0.25, 0, -this.ironR * 0.45);
+      ctx.quadraticCurveTo(this.ironR * 0.75, -this.ironR * 0.5, this.ironR, this.ironR * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
     ctx.restore();
     ctx.strokeStyle = g.shade;
     ctx.lineWidth = 3;
@@ -423,13 +478,28 @@ export class IronMode implements Mode {
       ctx.stroke();
       ctx.restore();
     }
-    for (const h of hands) drawIron(ctx, h, R, t, this.boost > 0 || this.pair);
+    hands.forEach((h, hi) => {
+      // 눌기 직전: 다리미 밑이 빨갛게 달아오른다
+      const lim = SCORCH_AFTER[this.level];
+      const warm = lim && h.on ? Math.max(0, this.heat[hi] / lim - 0.35) / 0.65 : 0;
+      if (warm > 0) {
+        const wg = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, R * 1.3);
+        wg.addColorStop(0, `rgba(255,90,60,${0.55 * warm})`);
+        wg.addColorStop(1, "rgba(255,90,60,0)");
+        ctx.fillStyle = wg;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, R * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      drawIron(ctx, h, R, t, this.boost > 0 || this.pair);
+    });
   }
 
   stats(): Stat[] {
     return [
       { label: "완성한 옷", value: `${this.finished.length}벌` },
       { label: "마지막 옷", value: `${this.pct()}%` },
+      ...(SCORCH_AFTER[this.level] ? [{ label: "눌음 자국", value: `${this.scorchCount}개` }] : []),
     ];
   }
 

@@ -22,8 +22,27 @@ export const STAGE_W = 1400;
 
 export type Tone = "gold" | "pink" | "mint" | "white";
 
+/** 난이도: 0 이지, 1 노멀, 2 하드. */
+export type Level = 0 | 1 | 2;
+export const LEVEL_NAMES = ["이지", "노멀", "하드"] as const;
+export const LEVEL_LINES = ["누구나 성공!", "실수하면 감점", "판정이 빡빡해요"] as const;
+/** 대기 화면 난이도 버튼 자리(무대 0~1 좌표). 손을 올려 두면 고른다. */
+export const LEVEL_BOXES = [0.28, 0.5, 0.72].map((cx) => ({
+  x: cx - 0.095,
+  y: 0.66,
+  w: 0.19,
+  h: 0.13,
+}));
+const LEVEL_HOLD = 0.7;
+
 export interface Fx {
   score(points: number, x: number, y: number, label?: string, tone?: Tone): void;
+  /** 큰 판정 도장(퍼펙트·놓침 같은 한 마디). */
+  stamp(text: string, x: number, y: number, tone?: Tone): void;
+  /** 화면 흔들림(0~1 누적, 제곱으로 줄어든다). */
+  shake(amount: number): void;
+  /** 아주 잠깐 멈춤(타격감). 리듬에는 쓰지 않는다. */
+  hitstop(seconds: number): void;
   burst(x: number, y: number, n: number, tone?: Tone): void;
   /** 무대 전체 축하 연출: 빛줄기 + 색종이 + 큰 글자. */
   celebrate(text: string, tone?: Tone): void;
@@ -62,8 +81,10 @@ export interface Mode {
   hint: string;
   /** 카운트다운 동안 보여 줄 요령. */
   tip: string;
-  /** 등급 기준 점수 [수석 디자이너, 디자이너, 어시스턴트]. */
-  grades: [number, number, number];
+  /** 난이도별 등급 기준 점수 [수석 디자이너, 디자이너, 어시스턴트]. */
+  grades: [number, number, number][];
+  /** 지금 난이도. 판마다 reset 전에 게임이 넣어 준다. */
+  level: Level;
   /** 판 동안 깔리는 잔잔한 음악. 리듬은 자체 음악. */
   music: "lofi" | null;
   reset(W: number, H: number): void;
@@ -117,6 +138,9 @@ export type FashionUi = {
   soundBlocked: boolean;
   resultLeft: number;
   homeProgress: number;
+  level: Level;
+  /** 대기 화면에서 손이 올라가 있는 난이도 버튼과 채워진 정도. */
+  levelHover: { i: number; k: number } | null;
   /** 피팅 피날레: 3·2·1 숫자(0이면 안 셈), 찰칵 했는지, 입힌 옷 이름. */
   finale: { count: number; shot: boolean; outfit: string[] } | null;
 };
@@ -138,7 +162,15 @@ const DEMO_AFTER = 1.2;
 /** 손이 목표에서 이만큼 오래 떨어져 있으면 화살표. */
 const GUIDE_AFTER = 1.1;
 
-type Pop = { x: number; y: number; text: string; tone: Tone; t: number; big: boolean };
+type Pop = {
+  x: number;
+  y: number;
+  text: string;
+  tone: Tone;
+  t: number;
+  big: boolean;
+  stamp?: boolean;
+};
 type Confetti = {
   x: number;
   y: number;
@@ -226,6 +258,24 @@ export class FashionGame implements Fx {
   private homeArmed = false;
   private needRelease = false;
   homeProgress = 0;
+  /** 걸어온 사람은 노멀로 시작한다. */
+  level: Level = 1;
+  private levelHover: { i: number; k: number } | null = null;
+  private trauma = 0;
+  private stopT = 0;
+  private flashA = 0;
+
+  setLevel(level: Level): void {
+    if (this.level === level) return;
+    this.level = level;
+    this.rows = this.load();
+    this.sound.play("tick");
+    if (this.phase === "attract") {
+      this.mode.level = level;
+      this.mode.reset(this.W, this.H);
+    }
+    this.emit(true);
+  }
 
   /** 처음 화면으로(버튼·모션 공통). 이번 판은 기록하지 않는다. */
   goHome(): void {
@@ -265,12 +315,14 @@ export class FashionGame implements Fx {
   ) {
     // 옷 사진은 미리 불러 둔다(처음 나올 때 색 천으로 깜빡이지 않게)
     BRANDS.forEach(garmentPhoto);
+    mode.level = this.level;
     this.rows = this.load();
     this.timeLeft = mode.seconds;
   }
 
   private get key(): string {
-    return `weaveon-${this.station}-scores-v1`;
+    // 이지는 예전(난이도 생기기 전) 기록을 그대로 잇는다
+    return `weaveon-${this.station}-scores-v1${this.level ? `-l${this.level}` : ""}`;
   }
 
   private load(): ScoreRow[] {
@@ -319,6 +371,13 @@ export class FashionGame implements Fx {
     this.sound.stopMusic();
     this.phase = "attract";
     this.handsUpT = 0;
+    this.levelHover = null;
+    // 아무도 없으면 다음 사람은 노멀부터
+    if (!this.present && this.level !== 1) {
+      this.level = 1;
+      this.rows = this.load();
+    }
+    this.mode.level = this.level;
     this.mode.reset(this.W, this.H);
     this.emit(true);
   }
@@ -337,6 +396,9 @@ export class FashionGame implements Fx {
     this.points = 0;
     this.pops = [];
     this.handsUpT = 0;
+    this.trauma = 0;
+    this.stopT = 0;
+    this.mode.level = this.level;
     this.mode.reset(this.W, this.H);
     this.timeLeft = this.mode.seconds;
     this.lastSecond = 99;
@@ -373,7 +435,7 @@ export class FashionGame implements Fx {
     }
     const today = this.today();
     this.rank = row.s > 0 ? today.findIndex((r) => r.at === row.at) + 1 : 0;
-    const g = this.mode.grades;
+    const g = this.mode.grades[this.level];
     this.grade = this.points >= g[0] ? 0 : this.points >= g[1] ? 1 : this.points >= g[2] ? 2 : 3;
     // 거울 앞에 사람이 있으면 완성한 옷을 입혀 보는 피날레, 없으면 바로 결과
     if (this.present && this.camera === "live") this.goFinale();
@@ -472,7 +534,7 @@ export class FashionGame implements Fx {
   /* Fx */
   score(points: number, x: number, y: number, label?: string, tone: Tone = "gold"): void {
     if (this.phase !== "play") return;
-    this.points += points;
+    this.points = Math.max(0, this.points + points);
     if (label)
       this.pops.push({
         x,
@@ -482,6 +544,23 @@ export class FashionGame implements Fx {
         t: 0,
         big: points >= 400 || (label?.includes("!") ?? false),
       });
+  }
+
+  stamp(text: string, x: number, y: number, tone: Tone = "gold"): void {
+    if (this.phase !== "play") return;
+    // 도장은 한 번에 하나만(겹치면 읽히지 않는다)
+    this.pops = this.pops.filter((p) => !p.stamp);
+    this.pops.push({ x, y, text, tone, t: 0, big: true, stamp: true });
+  }
+
+  shake(amount: number): void {
+    if (this.phase === "play") this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  hitstop(seconds: number): void {
+    if (this.phase !== "play") return;
+    this.stopT = Math.max(this.stopT, seconds);
+    this.flashA = Math.max(this.flashA, 0.18);
   }
 
   burst(x: number, y: number, n: number, tone: Tone = "gold"): void {
@@ -591,6 +670,26 @@ export class FashionGame implements Fx {
       else this.handsUpT = Math.max(0, this.handsUpT - dt * 2);
       if (this.handsUpT >= HANDS_UP_HOLD) this.goCountdown();
       else this.mode.update(dt, this.time, this.hands, this);
+      // 난이도 버튼 위에 사람 손을 잠깐 올려 두면 고른다
+      const over = LEVEL_BOXES.findIndex((b) =>
+        this.real.some(
+          (h) =>
+            h.on &&
+            h.x >= b.x * this.W &&
+            h.x <= (b.x + b.w) * this.W &&
+            h.y >= b.y * this.H &&
+            h.y <= (b.y + b.h) * this.H,
+        ),
+      );
+      if (over < 0 || over === this.level) this.levelHover = null;
+      else {
+        const k = (this.levelHover?.i === over ? this.levelHover.k : 0) + dt / LEVEL_HOLD;
+        this.levelHover = { i: over, k: Math.min(1, k) };
+        if (k >= 1) {
+          this.levelHover = null;
+          this.setLevel(over as Level);
+        }
+      }
       // 아무도 없으면 40초마다 MC가 지나가는 사람을 부른다
       if (!this.present && this.time - this.helloAt > 40) {
         this.helloAt = this.time;
@@ -610,7 +709,9 @@ export class FashionGame implements Fx {
       if (sec <= 5 && sec < this.lastSecond && sec > 0) this.sound.play("tick");
       if (sec === 10 && this.lastSecond > 10 && this.mode.seconds > 15) this.sound.say("ten");
       this.lastSecond = sec;
-      this.mode.update(dt, this.time, this.hands, this);
+      // 히트스톱 동안은 옷과 판정이 멈춘다(시계는 흐른다)
+      if (this.stopT > 0) this.stopT -= dt;
+      else this.mode.update(dt, this.time, this.hands, this);
       this.absentT = this.present || this.pointer ? 0 : this.absentT + dt;
       this.noHandT = anyReal ? 0 : this.noHandT + dt;
       // 목표에서 오래 떨어져 있나
@@ -651,8 +752,10 @@ export class FashionGame implements Fx {
       else if (this.resultT <= 0) this.goAttract();
     }
 
+    this.trauma = Math.max(0, this.trauma - dt * 1.8);
+    this.flashA = Math.max(0, this.flashA - dt * 2.5);
     for (const p of this.pops) p.t += dt;
-    this.pops = this.pops.filter((p) => p.t < 1.1);
+    this.pops = this.pops.filter((p) => p.t < (p.stamp ? 0.75 : 1.1));
     for (const s of this.sparks) {
       s.t += dt;
       s.x += s.vx * dt;
@@ -713,6 +816,12 @@ export class FashionGame implements Fx {
     ctx.save();
     roundRect(ctx, 0, 0, W, H, 36);
     ctx.clip();
+    // 흔들림: trauma² 만큼, 부드러운 잡음으로(Eiserloh 'Juicing Your Cameras')
+    const sh = this.trauma * this.trauma * 22;
+    if (sh > 0.3) {
+      ctx.translate(Math.sin(this.time * 61) * sh, Math.cos(this.time * 47 + 1.3) * sh);
+      ctx.rotate(Math.sin(this.time * 37) * sh * 0.0015);
+    }
     this.mode.draw(ctx, this.time, this.hands, this.phase);
 
     // 시범 손 이름표
@@ -764,6 +873,32 @@ export class FashionGame implements Fx {
     }
     ctx.globalAlpha = 1;
     for (const p of this.pops) {
+      if (p.stamp) {
+        // 도장: 크게 찍혔다가 살짝 줄고, 끝에 흐려진다
+        const k = p.t / 0.75;
+        const s =
+          k < 0.12
+            ? 1.9 - (k / 0.12) * 0.9
+            : 1 + Math.sin(Math.min(1, (k - 0.12) * 6) * Math.PI) * 0.06;
+        ctx.save();
+        ctx.globalAlpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+        ctx.translate(p.x, p.y - 30 * k);
+        ctx.rotate(-0.06);
+        ctx.scale(s, s);
+        ctx.font = `700 76px "Gowun Batang", serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = "rgba(10,12,20,0.92)";
+        ctx.strokeText(p.text, 0, 0);
+        ctx.shadowColor = TONE[p.tone];
+        ctx.shadowBlur = 28;
+        ctx.fillStyle = TONE[p.tone];
+        ctx.fillText(p.text, 0, 0);
+        ctx.restore();
+        continue;
+      }
       const k = p.t / 1.1;
       ctx.globalAlpha = 1 - k * k;
       ctx.font = `700 ${p.big ? 56 : 42}px "Gowun Batang", serif`;
@@ -833,6 +968,11 @@ export class FashionGame implements Fx {
       ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
       ctx.restore();
     }
+    // 히트스톱 섬광
+    if (this.flashA > 0.01) {
+      ctx.fillStyle = `rgba(230,250,255,${this.flashA})`;
+      ctx.fillRect(-40, -40, W + 80, H + 80);
+    }
     ctx.restore();
 
     // 피버: 무대 테두리가 금빛으로 맥박
@@ -890,6 +1030,8 @@ export class FashionGame implements Fx {
       soundBlocked: !!this.sound.ctx && !this.sound.running,
       resultLeft: Math.max(0, Math.ceil(this.resultT)),
       homeProgress: this.homeProgress,
+      level: this.level,
+      levelHover: this.levelHover,
       finale:
         this.phase === "finale"
           ? {

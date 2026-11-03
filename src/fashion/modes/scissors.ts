@@ -7,6 +7,7 @@ import {
   type Fx,
   type Hand,
   type Item,
+  type Level,
   type Meter,
   type Mode,
   type Phase,
@@ -36,14 +37,32 @@ import {
 const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LAYOVER, SILUA];
 const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
 const PIECE_BONUS = 600;
+/** 선 허용 폭(화면 짧은 쪽 비율). 하드는 옷마다 조금씩 더 좁아진다. */
+const TOL = [0.085, 0.066, 0.054];
+/** 노멀·하드: 가위 자리 가까이서 선을 벗어나면 원단에 흠집 + 감점. */
+const NICK_PENALTY = [0, 100, 200];
+const NICK_GAP = 0.45;
+/** 흠집 내면 가위가 잠깐 걸려 못 자른다(대충 빨리 휘두르는 게 손해가 되게). */
+const JAM = [0, 0.35, 0.5];
 
 export class ScissorsMode implements Mode {
   seconds = 40;
   hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
   tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
-  // 봇 기준(시그니처 6벌, 다시 재도 그대로): 양손 깔끔 20~34k, 한 손 12~21k, 대충 10~15k
-  grades: [number, number, number] = [16000, 8000, 3500];
+  // 봇 기준. 이지: 양손 깔끔 20~34k, 한 손 12~21k, 대충 10~15k
+  // 노멀: 양손 깔끔 30k, 손 떨림 25k, 한 손 19k, 대충 휘두르기 22k / 하드: 28k, 15k, 17k, 6k
+  grades: [number, number, number][] = [
+    [16000, 8000, 3500],
+    [15000, 7500, 3000],
+    [13000, 6500, 2500],
+  ];
+  level: Level = 1;
   music = "lofi" as const;
+  private nicks: { x: number; y: number; a: number }[] = [];
+  private nickT = 0;
+  private nickCount = 0;
+  private cutAt = [-9, -9];
+  private jamT = 0;
   private W = 1400;
   private H = 860;
   private gi = 0;
@@ -85,7 +104,8 @@ export class ScissorsMode implements Mode {
     this.fall = null;
     this.pair = false;
     this.pairT = 0;
-    this.tol = Math.min(W, H) * 0.085;
+    this.nickCount = 0;
+    this.tol = Math.min(W, H) * TOL[this.level];
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
     this.load();
@@ -93,6 +113,10 @@ export class ScissorsMode implements Mode {
 
   private load(): void {
     this.garment = ORDER[this.gi % ORDER.length];
+    this.nicks = [];
+    // 하드: 옷마다 4%씩 좁아진다(최대 5벌째까지)
+    if (this.level === 2)
+      this.tol = Math.min(this.W, this.H) * TOL[2] * (1 - Math.min(4, this.gi) * 0.04);
     const p = place(this.garment, this.W / 2, this.H * 0.5, this.W * 0.5, this.H * 0.7);
     this.box = p;
     this.pts = toWorld(this.garment, p);
@@ -126,26 +150,52 @@ export class ScissorsMode implements Mode {
     // 두 가위 자리를 따로 민다: 한 손이면 한쪽씩, 두 손이면 양쪽에서 동시에
     const best = [this.cut, this.back];
     const by = [-1, -1];
+    // 가위 자리 근처 손이 선에서 얼마나 떨어졌나(흠집 판정)
+    const stray: { h: Hand; d: number }[] = [];
     hands.forEach((h, hi) => {
       if (!h.on) return;
+      let near = false;
+      let minD = Infinity;
       for (const side of [0, 1] as const) {
         // 지금 자를 곳 근처에 손이 있어야 앞으로 나간다
         const [cx, cy] = this.path[this.front(side)];
         if (Math.hypot(cx - h.x, cy - h.y) > this.tol * 1.6) continue;
+        near = true;
+        minD = Math.min(minD, Math.hypot(cx - h.x, cy - h.y));
         const done = side === 0 ? this.cut : this.back;
         const other = side === 0 ? this.back : this.cut;
         for (let k = 1; k <= look && done + k + other <= n; k++) {
           const i = side === 0 ? this.cut + k : n - this.back - k;
           const [x, y] = this.path[((i % n) + n) % n];
+          minD = Math.min(minD, Math.hypot(x - h.x, y - h.y));
           if (Math.hypot(x - h.x, y - h.y) <= this.tol && done + k > best[side]) {
             best[side] = done + k;
             by[side] = hi;
           }
         }
       }
+      // 막 자르던 손이 선을 벗어날 때만(멀리서 다가오는 손은 봐준다)
+      if (near && minD > this.tol * 1.1 && h.speed > this.W * 0.1 && t - this.cutAt[hi] < 0.5)
+        stray.push({ h, d: minD });
     });
+    // 노멀·하드: 선을 벗어나 가위질하면 흠집
+    this.nickT = Math.max(0, this.nickT - dt);
+    if (NICK_PENALTY[this.level] && stray.length && this.nickT <= 0) {
+      const { h } = stray[0];
+      const pen = NICK_PENALTY[this.level];
+      this.nickT = NICK_GAP;
+      this.jamT = JAM[this.level];
+      this.nickCount++;
+      this.pieceOff += 0.4;
+      this.nicks.push({ x: h.x, y: h.y, a: Math.atan2(h.vy, h.vx) });
+      fx.score(-pen, h.x, h.y - this.tol, `흠집 -${pen}`, "pink");
+      fx.stamp("삐뚤!", h.x, h.y - this.tol * 2, "pink");
+      fx.shake(0.3);
+      fx.sfx("miss");
+    }
     if (best[0] + best[1] > n) best[1] = n - best[0];
-    const adv = best[0] - this.cut + Math.max(0, best[1] - this.back);
+    this.jamT = Math.max(0, this.jamT - dt);
+    const adv = this.jamT > 0 ? 0 : best[0] - this.cut + Math.max(0, best[1] - this.back);
     // 두 손이 양쪽을 동시에 자르면 '양손 가위'(점수 2배). 잠깐 멈춰도 0.6초는 이어진다.
     const both = by[0] >= 0 && by[1] >= 0 && by[0] !== by[1];
     this.pairT = both ? 0.6 : Math.max(0, this.pairT - dt);
@@ -160,6 +210,7 @@ export class ScissorsMode implements Mode {
       this.cut = best[0];
       this.back = Math.max(this.back, best[1]);
       this.activeHands = by.filter((i) => i >= 0);
+      for (const i of this.activeHands) this.cutAt[i] = t;
       this.onLine += dt;
       this.pieceOn += dt;
       const h = hands[this.activeHands[0]];
@@ -186,6 +237,8 @@ export class ScissorsMode implements Mode {
       );
       fx.celebrate(`${fullName(this.garment)} 완성!`, "mint");
       fx.sfx("complete");
+      fx.hitstop(0.09);
+      fx.shake(0.45);
       if (acc >= 80) fx.say("clean-cut", true);
       this.fall = {
         path: this.outline,
@@ -289,6 +342,26 @@ export class ScissorsMode implements Mode {
       line(from, to);
     }
 
+    // 흠집: 선 밖으로 삐져나간 가위 자국
+    for (const k of this.nicks) {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.translate(k.x, k.y);
+      ctx.rotate(k.a);
+      ctx.strokeStyle = "#141020";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(-26, -4);
+      ctx.lineTo(-8, 5);
+      ctx.lineTo(8, -5);
+      ctx.lineTo(26, 4);
+      ctx.stroke();
+      ctx.strokeStyle = "#ff6f8a";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // 지금 자를 곳 두 군데: 고리 + 화살표(서로 반대 방향)
     const pulse = 1 + Math.sin(t * 6) * 0.12;
     const m = Math.ceil(this.tol / this.step);
@@ -361,6 +434,7 @@ export class ScissorsMode implements Mode {
       { label: "완성한 옷본", value: `${this.finished.length}개` },
       { label: "선 따라가기", value: `${Math.min(100, acc)}%` },
       { label: "마지막 옷본", value: `${this.pct()}%` },
+      ...(NICK_PENALTY[this.level] ? [{ label: "흠집", value: `${this.nickCount}개` }] : []),
     ];
   }
 

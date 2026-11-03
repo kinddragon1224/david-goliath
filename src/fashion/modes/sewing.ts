@@ -8,6 +8,7 @@ import {
   type Fx,
   type Hand,
   type Item,
+  type Level,
   type Meter,
   type Mode,
   type Phase,
@@ -114,16 +115,40 @@ const THREADS = ["#e8505b", "#2f6fb5", "#e0a91f", "#2e8b57"];
 const SEAM_BONUS = 400;
 const COMBO_GAP = 1.6;
 const FEVER_AT = 5;
+/** 노멀·하드: 구멍마다 줄어드는 타이밍 원(초). 이지는 원 없음. */
+const RING = [0, 1.1, 0.8];
+/** 원이 이만큼(닫힘=1) 지나도록 못 찍으면 놓침. */
+const MISS_AT = [0, 1.7, 1.4];
+const MISS_PENALTY = [0, 100, 160];
+/** 바늘이 구멍에 들어간 순간 원 크기로 판정: 이보다 이르면 '빨라요'(안 꿰매지고, 빼고 다시 찔러야),
+ * PERFECT_TO 넘으면 '늦었어요'. 구멍 옆에서 기다렸다가 원이 닫힐 때 콕 찔러야 퍼펙트. */
+const OPEN_AT = [0, 0.6, 0.72];
+const PERFECT_TO = 1.12;
+/** 노멀은 처음 오는 사람 기본값이라 '빨라요'에 점수는 안 깎는다(콤보만 끊김). */
+const EARLY_PENALTY = [0, 0, 60];
+const TOL = [0.085, 0.075, 0.062];
 
-type Hole = { x: number; y: number; done: boolean; gold: boolean };
+type Hole = { x: number; y: number; done: boolean; gold: boolean; miss?: boolean };
 
 export class SewingMode implements Mode {
   seconds = 30;
   hint = "바늘 손으로 반짝이는 구멍을 콕! 차례대로 꿰매요";
   tip = "번호 순서대로 콕콕! 빨리 이어 찍으면 콤보";
-  // 봇 기준(시그니처 6벌 솔기): 깔끔 62~92k, 대충 8~25k
-  grades: [number, number, number] = [45000, 26000, 9000];
+  // 봇 기준. 이지: 깔끔 62~92k, 대충 8~25k
+  // 노멀: 기다렸다 콕 9~15k, 그냥 대고 있기 4.5~5k / 하드: 기다렸다 콕 20~23k, 손 떨림 9~10k, 마구 찌르기 0~2.5k
+  grades: [number, number, number][] = [
+    [45000, 26000, 9000],
+    [12000, 7000, 3000],
+    [18000, 9000, 2500],
+  ];
+  level: Level = 1;
   music = "lofi" as const;
+  private openAt = 0;
+  private perfects = 0;
+  private misses = 0;
+  private earlies = 0;
+  private earlyAt = -9;
+  private wasIn = [false, false];
   private W = 1400;
   private H = 860;
   private si = 0;
@@ -157,7 +182,13 @@ export class SewingMode implements Mode {
     this.stitches = 0;
     this.sewn = [];
     this.lastHit = -10;
-    this.tol = Math.min(W, H) * 0.085;
+    this.perfects = 0;
+    this.misses = 0;
+    this.earlies = 0;
+    this.tol = Math.min(W, H) * TOL[this.level];
+    this.tip = RING[this.level]
+      ? "구멍 옆에서 기다렸다가, 원이 하얗게 닫힐 때 콕!"
+      : "번호 순서대로 콕콕! 빨리 이어 찍으면 콤보";
     this.demoPos = null;
     this.load();
   }
@@ -189,27 +220,77 @@ export class SewingMode implements Mode {
       this.holes.push({ x: x + nx * off * sign, y: y + ny * off * sign, done: false, gold: false });
     }
     this.next = 0;
+    // 다음 update에서 그때 시각으로 연다(카운트다운 동안 원이 닫히지 않게)
+    this.openAt = -1;
+  }
+
+  /** 타이밍 원 진행(0 열림 → 1 닫힘). 이지는 늘 1. */
+  private ringK(t: number): number {
+    const r = RING[this.level];
+    return r ? (t - this.openAt) / r : 1;
   }
 
   update(dt: number, t: number, hands: Hand[], fx: Fx): void {
     this.time = t;
     this.flash = Math.max(0, this.flash - dt);
-    if (t - this.lastHit > COMBO_GAP && this.combo > 0) this.combo = 0;
+    if (this.openAt < 0) this.openAt = t;
+    const timed = RING[this.level] > 0;
+    // 이지는 빨리 이어 찍어야 콤보, 노멀·하드는 놓치지 않으면 콤보
+    if (!timed && t - this.lastHit > COMBO_GAP && this.combo > 0) this.combo = 0;
     const hole = this.holes[this.next];
     if (!hole) return;
+    const k = this.ringK(t);
+    if (timed && k > MISS_AT[this.level]) {
+      // 놓침: 땀이 빠지고 콤보가 끊긴다
+      hole.done = true;
+      hole.miss = true;
+      this.combo = 0;
+      this.misses++;
+      const pen = MISS_PENALTY[this.level];
+      fx.score(-pen, hole.x, hole.y - this.tol * 0.9, `-${pen}`, "pink");
+      fx.stamp("놓침", hole.x, hole.y - this.tol * 1.6, "pink");
+      fx.shake(0.35);
+      fx.sfx("miss");
+      this.next++;
+      this.openAt = t;
+    }
     hands.forEach((h, hi) => {
-      if (!h.on || hole.done) return;
-      if (Math.hypot(h.x - hole.x, h.y - hole.y) > this.tol) return;
+      const inHole = h.on && Math.hypot(h.x - hole.x, h.y - hole.y) <= this.tol;
+      const entered = inHole && !this.wasIn[hi];
+      this.wasIn[hi] = inHole;
+      if (!inHole || hole.done) return;
+      // 노멀·하드는 찔러 들어오는 순간에 판정. 노멀만, 대고 기다리면 원이 하얘질 때 '좋아요'(아이들이 막히지 않게)
+      let held = false;
+      if (timed && !entered) {
+        if (this.level !== 1 || k < OPEN_AT[1]) return;
+        held = true;
+      }
+      if (timed && k < OPEN_AT[this.level]) {
+        // 구멍 가장자리에서 손이 떨려 들락날락해도 한 번만
+        if (t - this.earlyAt < 0.5) return;
+        this.earlyAt = t;
+        const pen = EARLY_PENALTY[this.level];
+        this.combo = 0;
+        this.earlies++;
+        if (pen) fx.score(-pen, hole.x, hole.y - this.tol * 0.9, `-${pen}`, "pink");
+        fx.stamp("빨라요!", hole.x, hole.y - this.tol * 1.7, "pink");
+        fx.shake(0.18);
+        fx.sfx("miss");
+        return;
+      }
+      const perfect = timed && !held && k <= PERFECT_TO;
       hole.done = true;
       this.needleHand = hi;
-      const quick = t - this.lastHit <= COMBO_GAP;
+      const quick = timed || t - this.lastHit <= COMBO_GAP;
       this.combo = quick ? this.combo + 1 : 1;
       this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.lastHit = t;
       this.stitches++;
       this.flash = 0.25;
       hole.gold = this.fever();
-      let pts = 100 + Math.min(10, this.combo - 1) * 20;
+      let pts = timed
+        ? (perfect ? 160 : 70) + Math.min(10, this.combo - 1) * (perfect ? 25 : 10)
+        : 100 + Math.min(10, this.combo - 1) * 20;
       if (this.fever()) pts *= 2;
       const label =
         this.combo === FEVER_AT
@@ -218,22 +299,43 @@ export class SewingMode implements Mode {
             ? `${this.combo}콤보 +${pts}`
             : `+${pts}`;
       fx.score(pts, hole.x, hole.y - this.tol * 0.9, label, this.fever() ? "gold" : "white");
-      fx.burst(hole.x, hole.y, this.fever() ? 14 : 8, "gold");
-      fx.sfx(this.combo === FEVER_AT ? "perfect" : "stitch");
-      if (this.combo === FEVER_AT) fx.say("gold-fever", true);
+      fx.burst(hole.x, hole.y, this.fever() || perfect ? 14 : 8, "gold");
+      if (timed) {
+        if (perfect) this.perfects++;
+        fx.stamp(
+          perfect ? "퍼펙트!" : held ? "좋아요" : "늦었어요",
+          hole.x,
+          hole.y - this.tol * 1.7,
+          perfect ? "gold" : "white",
+        );
+        if (perfect) {
+          fx.hitstop(0.05);
+          fx.shake(0.15);
+        }
+      }
+      fx.sfx(
+        this.combo === FEVER_AT ? "perfect" : timed ? (perfect ? "perfect" : "good") : "stitch",
+      );
+      if (this.combo === FEVER_AT) {
+        fx.say("gold-fever", true);
+        fx.shake(0.4);
+      }
       this.next++;
+      this.openAt = t;
     });
     if (this.next >= this.holes.length) {
       fx.score(SEAM_BONUS, this.W / 2, this.H * 0.4, `보너스 +${SEAM_BONUS}`, "pink");
       fx.celebrate(`${fullName(this.seam().garment)} 완성!`, "pink");
       fx.sfx("complete");
+      fx.hitstop(0.09);
+      fx.shake(0.45);
       this.sewn.push(this.seam());
       this.si++;
       this.load();
     }
     this.hint = this.fever()
       ? `황금실 피버! 점수 2배 · ${this.next}/${HOLES}`
-      : `${this.seam().name} ${this.next}/${HOLES}${this.combo >= 2 ? ` · ${this.combo}콤보!` : " · 반짝이는 구멍을 콕!"}`;
+      : `${this.seam().name} ${this.next}/${HOLES}${this.combo >= 2 ? ` · ${this.combo}콤보!` : timed ? " · 원이 하얘지면 콕!" : " · 반짝이는 구멍을 콕!"}`;
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
@@ -277,8 +379,13 @@ export class SewingMode implements Mode {
       const a = this.holes[i - 1];
       const b = this.holes[i];
       if (!b.done) break;
-      ctx.strokeStyle = b.gold ? "#ffd34d" : THREADS[this.si % THREADS.length];
-      ctx.lineWidth = 10;
+      ctx.strokeStyle = b.miss
+        ? "rgba(255,90,110,0.55)"
+        : b.gold
+          ? "#ffd34d"
+          : THREADS[this.si % THREADS.length];
+      ctx.lineWidth = b.miss ? 5 : 10;
+      ctx.setLineDash(b.miss ? [6, 10] : []);
       if (b.gold) {
         ctx.shadowColor = "#ffd34d";
         ctx.shadowBlur = 16;
@@ -288,9 +395,12 @@ export class SewingMode implements Mode {
       ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - 10, b.x, b.y);
       ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      if (!b.miss) {
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
 
     // 구멍: 다음 구멍은 크게, 그다음 둘은 번호만 작게
@@ -308,9 +418,11 @@ export class SewingMode implements Mode {
         ctx.fill();
       }
       ctx.fillStyle = h.done
-        ? h.gold
-          ? "#ffd34d"
-          : "#ff6fa8"
+        ? h.miss
+          ? "#5a2633"
+          : h.gold
+            ? "#ffd34d"
+            : "#ff6fa8"
         : isNext
           ? "#ffffff"
           : "rgba(255,255,255,0.7)";
@@ -337,6 +449,32 @@ export class SewingMode implements Mode {
         }
       }
     });
+
+    // 타이밍 원: 크게 열렸다가 구멍 크기로 닫힌다. 하얘지면 콕, 닫힌 뒤엔 분홍으로 더 줄며 '늦었어요'
+    const cur = this.holes[this.next];
+    if (cur && RING[this.level] && _phase === "play") {
+      const k = this.ringK(t);
+      const ready = k >= OPEN_AT[this.level];
+      const late = k > PERFECT_TO;
+      const r = this.tol * (k <= 1 ? 1 + (1 - k) * 2.2 : Math.max(0.3, 1 - (k - 1) * 1.2));
+      ctx.save();
+      ctx.lineWidth = ready && !late ? 9 : 6;
+      ctx.strokeStyle = late ? "#ff6f8a" : ready ? "#ffffff" : "rgba(159,243,255,0.9)";
+      ctx.shadowColor = late ? "#ff6f8a" : TONE.gold;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(cur.x, cur.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      // 닫힐 자리(구멍 테두리)
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 8]);
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.beginPath();
+      ctx.arc(cur.x, cur.y, this.tol, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // 바늘에 꿰인 실: 마지막 구멍에서 손까지
     const last = this.holes[this.next - 1];
@@ -369,6 +507,12 @@ export class SewingMode implements Mode {
       { label: "바늘땀", value: `${this.stitches}땀` },
       { label: "최고 콤보", value: `${this.maxCombo}` },
       { label: "완성한 솔기", value: `${this.sewn.length}줄` },
+      ...(RING[this.level]
+        ? [
+            { label: "퍼펙트", value: `${this.perfects}` },
+            { label: "놓침·빨라요", value: `${this.misses + this.earlies}` },
+          ]
+        : []),
     ];
   }
 
@@ -414,10 +558,14 @@ export class SewingMode implements Mode {
   demo(t: number): DemoHand[] {
     const h = this.holes[this.next] ?? this.holes[0];
     const from = this.demoPos ?? { x: this.W / 2, y: this.H / 2 };
-    const k = 0.09;
+    // 노멀·하드 시범: 구멍 위에서 기다렸다가 원이 하얘지면 콕
+    const timed = RING[this.level] > 0;
+    const wait = timed && this.openAt >= 0 && this.ringK(t) < 0.8;
+    const gy = wait ? h.y - this.tol * 1.7 : h.y;
+    const k = timed && !wait ? 0.35 : 0.09;
     this.demoPos = {
       x: from.x + (h.x - from.x) * k,
-      y: from.y + (h.y - from.y) * k + Math.sin(t * 3) * 1.5,
+      y: from.y + (gy - from.y) * k + Math.sin(t * 3) * 1.5,
     };
     return [this.demoPos];
   }

@@ -5,6 +5,7 @@ import {
   type DemoHand,
   type Fx,
   type Hand,
+  type Level,
   type Item,
   type Meter,
   type Mode,
@@ -24,8 +25,9 @@ const BARS = 18;
 const BEAT = 60 / BPM;
 /** 고리가 보이기 시작해 박자에 닿기까지(초). */
 const APPROACH = BEAT * 2.4;
-const PERFECT = 0.14;
-const GOOD = 0.32;
+/** 판정 폭(초) 이지·노멀·하드. 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
+const PERFECT_W = [0.14, 0.11, 0.085];
+const GOOD_W = [0.32, 0.24, 0.19];
 const FEVER_AT = 10;
 
 type Note = { pad: number; at: number; state: "wait" | "perfect" | "good" | "miss"; sec: number };
@@ -38,8 +40,9 @@ const SECTIONS = [
   { name: "피날레", from: 13, to: BARS - 1 },
 ];
 
-/** 박 번호(0부터)별 패드. 첫 마디는 쉰다. */
-export function chart(): { beat: number; pad: number }[] {
+/** 박 번호(0부터)별 패드. 첫 마디는 쉰다. 노멀은 피날레, 하드는 1절·후렴에도 엇박(반 박) 음표가 끼어든다.
+ * 엇박은 같은 줄 반대쪽 패드(pad ^ 1)라 다른 손이 받는다. */
+export function chart(level: Level = 0): { beat: number; pad: number }[] {
   const out: { beat: number; pad: number }[] = [];
   for (let bar = 1; bar < BARS - 1; bar++) {
     const b = bar * 4;
@@ -48,6 +51,7 @@ export function chart(): { beat: number; pad: number }[] {
     } else if (bar <= 8) {
       const seq = bar % 2 ? [0, 1, 2, 3] : [2, 3, 0, 1];
       seq.forEach((pad, i) => out.push({ beat: b + i, pad }));
+      if (level === 2) out.push({ beat: b + 1.5, pad: seq[1] ^ 1 });
     } else if (bar <= 12) {
       out.push(
         { beat: b, pad: 0 },
@@ -55,14 +59,16 @@ export function chart(): { beat: number; pad: number }[] {
         { beat: b + 2, pad: bar % 2 ? 2 : 3 },
         { beat: b + 3, pad: bar % 2 ? 3 : 2 },
       );
+      if (level === 2) out.push({ beat: b + 1, pad: bar % 2 ? 3 : 2 });
     } else {
       const seq = bar % 2 ? [0, 3, 1, 2] : [1, 2, 0, 3];
       seq.forEach((pad, i) => out.push({ beat: b + i, pad }));
+      if (level >= 1) out.push({ beat: b + 1.5, pad: seq[1] ^ 1 });
     }
   }
   // 마지막 박: 만세
   out.push({ beat: (BARS - 1) * 4, pad: 0 }, { beat: (BARS - 1) * 4, pad: 1 });
-  return out;
+  return out.sort((a, b) => a.beat - b.beat);
 }
 
 function sectionOf(beat: number): number {
@@ -77,7 +83,13 @@ export class RhythmMode implements Mode {
   seconds = Math.ceil(BARS * 4 * BEAT + 1.5);
   hint = "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요";
   tip = "원 안에 3·2·1 다음 '지금!'이 뜨면 손을 대요";
-  grades: [number, number, number] = [24000, 12000, 5000];
+  // 음표 수: 이지 58, 노멀 62(판정 폭 좁음), 하드 70(더 좁고 미리 대기 안 됨). 리듬은 소리 시계라 봇으로 못 재서 음표 수로 맞춤.
+  grades: [number, number, number][] = [
+    [24000, 12000, 5000],
+    [24000, 12000, 5000],
+    [26000, 13000, 5000],
+  ];
+  level: Level = 1;
   music = null;
   private W = 1400;
   private H = 860;
@@ -128,7 +140,7 @@ export class RhythmMode implements Mode {
     fx.sound.unlock();
     this.t0 = fx.sound.now() + 0.25;
     fx.sound.startMusic(BPM, this.t0, BARS);
-    this.notes = chart().map((c) => ({
+    this.notes = chart(this.level).map((c) => ({
       pad: c.pad,
       at: this.t0 + c.beat * BEAT,
       state: "wait",
@@ -154,6 +166,8 @@ export class RhythmMode implements Mode {
     this.flash = Math.max(0, this.flash - dt);
     this.now = this.started ? fx.sound.now() : t;
     const now = this.now;
+    const PERFECT = PERFECT_W[this.level];
+    const GOOD = GOOD_W[this.level];
     // 대기 화면: 시범용 박자를 계속 만든다
     if (!this.started && !this.notes.some((n) => n.at > now)) {
       const seq = [0, 1, 2, 3, 1, 0, 3, 2];
@@ -171,8 +185,8 @@ export class RhythmMode implements Mode {
         );
         if (!n) return;
         const d = now - n.at;
-        // 미리 대고 있으면 박자가 맞을 때 친 것으로
-        if (!entered && d < -PERFECT) return;
+        // 미리 대고 있으면 박자가 맞을 때 친 것으로(하드는 박자에 맞춰 새로 들어와야)
+        if (!entered && (this.level === 2 || d < -PERFECT)) return;
         this.hit(n, Math.abs(d) <= PERFECT ? "perfect" : "good", fx);
       });
     });
@@ -183,6 +197,7 @@ export class RhythmMode implements Mode {
         this.miss++;
         this.combo = 0;
         this.judge.push({ pad: n.pad, text: "놓침", tone: "white", t: 0 });
+        if (this.level) fx.shake(0.22);
       }
     }
     // 금빛 고리(두 손 만세)가 다가오면 MC가 미리 "만세!"
@@ -229,6 +244,7 @@ export class RhythmMode implements Mode {
     if (kind === "perfect") {
       this.perfect++;
       this.flash = 0.15;
+      fx.shake(0.12);
     } else this.good++;
     fx.score(pts, p.x, p.y - this.R * 1.25);
     fx.burst(p.x, p.y, kind === "perfect" ? 14 : 6, PAD_TONE[n.pad]);
@@ -247,6 +263,7 @@ export class RhythmMode implements Mode {
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     const now = this.now || t;
+    const GOOD = GOOD_W[this.level];
     const beatPhase = this.started ? ((((now - this.t0) / BEAT) % 1) + 1) % 1 : (t / 0.8) % 1;
     const pump = Math.pow(1 - beatPhase, 3);
     const fever = this.fever();
