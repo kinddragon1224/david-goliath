@@ -121,7 +121,8 @@ export class SewingMode implements Mode {
   seconds = 30;
   hint = "바늘 손으로 반짝이는 구멍을 콕! 차례대로 꿰매요";
   tip = "번호 순서대로 콕콕! 빨리 이어 찍으면 콤보";
-  grades: [number, number, number] = [40000, 20000, 8000];
+  // 봇 기준(시그니처 6벌 솔기): 깔끔 62~92k, 대충 8~25k
+  grades: [number, number, number] = [45000, 26000, 9000];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;

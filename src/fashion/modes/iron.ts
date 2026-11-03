@@ -51,7 +51,8 @@ export class IronMode implements Mode {
   seconds = 30;
   hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
   tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
-  grades: [number, number, number] = [10000, 5000, 2000];
+  // 봇 기준(시그니처 6벌): 양손 깔끔 27~39k, 한 손 9~11k, 양손 대충 7~17k, 한 손 대충 1~5k
+  grades: [number, number, number] = [14000, 7000, 2500];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;
@@ -468,7 +469,8 @@ export class IronMode implements Mode {
   demo(t: number): DemoHand[] {
     const b = this.box;
     const k = (t * 0.22) % 1;
-    const y = b.y + b.h * (0.15 + 0.7 * (k < 0.5 ? k * 2 : 2 - k * 2));
+    // 긴 옷(수트·두루마기)도 위아래 끝까지 펴지게 거의 전체 높이를 오간다
+    const y = b.y + b.h * (0.06 + 0.88 * (k < 0.5 ? k * 2 : 2 - k * 2));
     // 시범도 두 손으로: 왼쪽 반, 오른쪽 반을 나눠 다린다
     const s = Math.sin(t * 2.6) * 0.16;
     return [

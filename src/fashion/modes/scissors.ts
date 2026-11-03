@@ -41,6 +41,7 @@ export class ScissorsMode implements Mode {
   seconds = 40;
   hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
   tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
+  // 봇 기준(시그니처 6벌, 다시 재도 그대로): 양손 깔끔 20~34k, 한 손 12~21k, 대충 10~15k
   grades: [number, number, number] = [16000, 8000, 3500];
   music = "lofi" as const;
   private W = 1400;
