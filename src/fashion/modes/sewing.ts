@@ -116,17 +116,17 @@ const SEAM_BONUS = 400;
 const COMBO_GAP = 1.6;
 const FEVER_AT = 5;
 /** 노멀·하드: 구멍마다 줄어드는 타이밍 원(초). 이지는 원 없음. */
-const RING = [0, 1.1, 0.8];
+const RING = [0, 1.2, 1.0];
 /** 원이 이만큼(닫힘=1) 지나도록 못 찍으면 놓침. */
-const MISS_AT = [0, 1.7, 1.4];
-const MISS_PENALTY = [0, 100, 160];
+const MISS_AT = [0, 2.2, 1.9];
+const MISS_PENALTY = [0, 60, 100];
 /** 바늘이 구멍에 들어간 순간 원 크기로 판정: 이보다 이르면 '빨라요'(안 꿰매지고, 빼고 다시 찔러야),
  * PERFECT_TO 넘으면 '늦었어요'. 구멍 옆에서 기다렸다가 원이 닫힐 때 콕 찔러야 퍼펙트. */
-const OPEN_AT = [0, 0.6, 0.72];
-const PERFECT_TO = 1.12;
-/** 노멀은 처음 오는 사람 기본값이라 '빨라요'에 점수는 안 깎는다(콤보만 끊김). */
-const EARLY_PENALTY = [0, 0, 60];
-const TOL = [0.085, 0.075, 0.062];
+const OPEN_AT = [0, 0.5, 0.62];
+const PERFECT_TO = 1.15;
+/** 사람 손(웹캠 지연)엔 하드도 빡빡해서 '빨라요'는 콤보만 끊는다. */
+const EARLY_PENALTY = [0, 0, 0];
+const TOL = [0.085, 0.08, 0.072];
 
 type Hole = { x: number; y: number; done: boolean; gold: boolean; miss?: boolean };
 
@@ -135,11 +135,11 @@ export class SewingMode implements Mode {
   hint = "바늘 손으로 반짝이는 구멍을 콕! 차례대로 꿰매요";
   tip = "번호 순서대로 콕콕! 빨리 이어 찍으면 콤보";
   // 봇 기준. 이지: 깔끔 62~92k, 대충 8~25k
-  // 노멀: 기다렸다 콕 9~15k, 그냥 대고 있기 4.5~5k / 하드: 기다렸다 콕 20~23k, 손 떨림 9~10k, 마구 찌르기 0~2.5k
+  // 노멀: 기다렸다 콕 13k, 느린 손 11k, 그냥 대고 있기 4.7k / 하드: 기다렸다 콕 15.5k, 느린 손 6.4~7.4k, 대고 있기 4.7k
   grades: [number, number, number][] = [
     [45000, 26000, 9000],
     [12000, 7000, 3000],
-    [18000, 9000, 2500],
+    [14000, 7000, 3000],
   ];
   level: Level = 1;
   music = "lofi" as const;
@@ -259,10 +259,10 @@ export class SewingMode implements Mode {
       const entered = inHole && !this.wasIn[hi];
       this.wasIn[hi] = inHole;
       if (!inHole || hole.done) return;
-      // 노멀·하드는 찔러 들어오는 순간에 판정. 노멀만, 대고 기다리면 원이 하얘질 때 '좋아요'(아이들이 막히지 않게)
+      // 노멀·하드는 찔러 들어오는 순간에 판정. 대고 기다리면 원이 하얘질 때 '좋아요'(막히지 않게, 퍼펙트는 콕만)
       let held = false;
       if (timed && !entered) {
-        if (this.level !== 1 || k < OPEN_AT[1]) return;
+        if (k < OPEN_AT[this.level]) return;
         held = true;
       }
       if (timed && k < OPEN_AT[this.level]) {
