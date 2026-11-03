@@ -191,7 +191,7 @@ export class SewingMode implements Mode {
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     const s = this.seam();
     // 쪽빛 왕궁 방
-    drawPalace(ctx, this.W, this.H, t, ["#1d2f5e", "#0e1630"], "sewing");
+    drawPalace(ctx, this.W, this.H, t, ["#0f1a2a", "#05080e"], "sewing");
     // 바탕 옷: 브랜드 옷 색 그대로 + 천 결
     const p = this.box;
     const path = pathOf(toWorld(s.garment, p));
@@ -252,8 +252,8 @@ export class SewingMode implements Mode {
       if (isNext) {
         const pulse = 1 + Math.sin(t * 7) * 0.15;
         const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, this.tol * pulse);
-        g.addColorStop(0, "rgba(255,224,138,0.8)");
-        g.addColorStop(1, "rgba(255,224,138,0)");
+        g.addColorStop(0, "rgba(159,243,255,0.8)");
+        g.addColorStop(1, "rgba(159,243,255,0)");
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(h.x, h.y, this.tol * pulse, 0, Math.PI * 2);
@@ -264,7 +264,7 @@ export class SewingMode implements Mode {
           ? "#ffd34d"
           : "#ff6fa8"
         : isNext
-          ? "#fff4d6"
+          ? "#ffffff"
           : "rgba(40,30,60,0.55)";
       ctx.strokeStyle = "#2a2238";
       ctx.lineWidth = 4;
@@ -283,7 +283,7 @@ export class SewingMode implements Mode {
           ctx.lineWidth = 6;
           ctx.strokeStyle = "rgba(20,14,30,0.7)";
           ctx.strokeText(String(i + 1), h.x, h.y - 30);
-          ctx.fillStyle = "#fff4d6";
+          ctx.fillStyle = "#ffffff";
           ctx.fillText(String(i + 1), h.x, h.y - 30);
         }
       }
@@ -303,7 +303,7 @@ export class SewingMode implements Mode {
     // 다음 구멍까지 옅은 안내선
     const nxt = this.holes[this.next];
     if (nxt && nh && Math.hypot(nh.x - nxt.x, nh.y - nxt.y) > this.tol * 1.8) {
-      ctx.strokeStyle = "rgba(255,224,138,0.45)";
+      ctx.strokeStyle = "rgba(159,243,255,0.45)";
       ctx.lineWidth = 4;
       ctx.setLineDash([4, 16]);
       ctx.beginPath();

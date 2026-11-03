@@ -468,7 +468,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
                   cy="50"
                   r="44"
                   fill="none"
-                  stroke="#ffe08a"
+                  stroke="#9ff3ff"
                   strokeWidth="7"
                   strokeLinecap="round"
                   strokeDasharray={276.5}
@@ -685,7 +685,7 @@ function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: numb
   ctx.strokeStyle = "rgba(255,255,255,0.85)";
   ctx.stroke(path);
   // 테두리를 따라 반짝이
-  ctx.fillStyle = "#fff4d6";
+  ctx.fillStyle = "#ffffff";
   g.pts.forEach(([x, y], i) => {
     const tw = (Math.sin(t * 5 + i * 1.7) + 1) / 2;
     if (tw < 0.6) return;
@@ -759,7 +759,7 @@ function QueueChip({ q }: { q: QueueItem }) {
     <div
       className={`relative flex shrink-0 items-center gap-2 rounded-2xl border px-2.5 py-1.5 transition-all ${
         now
-          ? "border-[var(--f-gold)] bg-white/12 shadow-[0_0_1.2rem_rgba(255,224,138,0.35)]"
+          ? "border-[var(--f-gold)] bg-white/12 shadow-[0_0_1.2rem_rgba(159,243,255,0.35)]"
           : q.state === "done"
             ? "border-[var(--f-mint)]/60 bg-white/5"
             : "border-white/15 bg-white/[0.03] opacity-60"
@@ -853,7 +853,7 @@ function HandsUpRing({ value }: { value: number }) {
             cy="50"
             r={r}
             fill="none"
-            stroke="#ffe08a"
+            stroke="#9ff3ff"
             strokeWidth="7"
             strokeLinecap="round"
             strokeDasharray={c}
@@ -894,7 +894,7 @@ function MeterCard({
             <p className={`f-serif text-2xl ${m.hot ? "f-pearl" : ""}`}>{m.label}</p>
           </div>
           <div
-            className={`mt-2 h-4 overflow-hidden rounded-full bg-white/10 ${m.hot ? "shadow-[0_0_1rem_rgba(255,224,138,0.6)]" : ""}`}
+            className={`mt-2 h-4 overflow-hidden rounded-full bg-white/10 ${m.hot ? "shadow-[0_0_1rem_rgba(159,243,255,0.6)]" : ""}`}
           >
             <div
               className={`h-full rounded-full transition-[width] duration-150 ${m.hot ? "animate-pulse bg-[var(--f-gold)]" : "bg-gradient-to-r from-[var(--f-pink)] via-[var(--f-lilac)] to-[var(--f-mint)]"}`}
@@ -1092,6 +1092,10 @@ function AttractOverlay({
         </div>
         <h1 className="f-serif f-pearl mt-0.5 text-5xl leading-tight">{info.title}</h1>
         <p className="f-serif mt-1 text-xl text-[var(--f-muted)]">{info.line}</p>
+        {/* 포스터 문구 그대로 */}
+        <p className="mt-1.5 text-sm tracking-[0.2em] text-[var(--f-gold)]">
+          창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
+        </p>
       </div>
       <div key={ti} className="f-card animate-pop relative px-8 py-3">
         <p className="f-serif f-pearl text-center text-5xl leading-tight">
@@ -1118,7 +1122,7 @@ function AttractOverlay({
       <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
           <HandsUpFigure />
-          <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#241638]/90 px-5 py-2.5 text-center text-2xl">
+          <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#0a0d14]/90 px-5 py-2.5 text-center text-2xl">
             {!ready
               ? "카메라를 준비하고 있어요"
               : ui.present
@@ -1149,7 +1153,7 @@ const TEASER: Record<FashionStation, string> = {
 
 /** 대기 화면: 양손을 번쩍 들었다 내리는 사람(따라 하면 시작). */
 function HandsUpFigure() {
-  const arm = "#fff1b8";
+  const arm = "#e6f6ff";
   return (
     <svg viewBox="0 0 60 80" className="h-24 w-18 shrink-0" aria-hidden="true">
       <circle cx="30" cy="14" r="9" fill={arm} />
@@ -1196,7 +1200,7 @@ function FinaleOverlay({
       className={`absolute inset-0 flex items-center justify-center gap-[3%] overflow-hidden rounded-[2rem] p-[2.5%] ${f ? "" : "invisible"}`}
       style={{
         background:
-          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(255,236,170,0.3), transparent 70%), linear-gradient(rgba(12,10,20,0.72), rgba(12,10,20,0.82)), url(/art/rhythm.webp) center/cover, #0c0a14",
+          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(200,245,255,0.3), transparent 70%), linear-gradient(rgba(5,7,11,0.72), rgba(5,7,11,0.82)), url(/art/rhythm.webp) center/cover, #0c0a14",
       }}
     >
       <div className="flex w-[24%] flex-col items-end gap-3 text-right">
@@ -1223,7 +1227,7 @@ function FinaleOverlay({
         })}
       </div>
       <div className="relative h-full">
-        <div className="h-full rounded-[1.4rem] bg-[#fffaf0] p-[0.9rem] pb-[3.6rem] shadow-[0_0_4rem_rgba(255,224,138,0.45)]">
+        <div className="h-full rounded-[1.4rem] bg-[#fffaf0] p-[0.9rem] pb-[3.6rem] shadow-[0_0_4rem_rgba(159,243,255,0.45)]">
           <canvas ref={canvasRef} className="aspect-[3/4] h-full rounded-[0.8rem] bg-[#1b1526]" />
           <p className="f-serif absolute inset-x-0 bottom-3 text-center text-2xl text-[#1b1526]">
             WEAVE ON ·{" "}
@@ -1357,7 +1361,7 @@ function CollectionCard({ item }: { item: Item }) {
 }
 
 function GradeBadge({ grade }: { grade: number }) {
-  const ring = ["#ffe08a", "#d8ccff", "#c4f4ea", "#ffd6ea"][grade];
+  const ring = ["#9ff3ff", "#d8ccff", "#c4f4ea", "#ffd6ea"][grade];
   const stars = 3 - Math.min(3, grade);
   return (
     <div
@@ -1452,7 +1456,7 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           strokeDasharray="5 5"
           fill="none"
         />
-        <circle cx="8" cy="38" r="4" fill="#ffe08a" />
+        <circle cx="8" cy="38" r="4" fill="#9ff3ff" />
       </>
     ),
     needle: (
@@ -1468,15 +1472,15 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           strokeWidth="2"
           fill="none"
         />
-        <circle cx="12" cy="20" r="3" fill="#ffe08a" />
-        <circle cx="22" cy="40" r="3" fill="#ffe08a" />
+        <circle cx="12" cy="20" r="3" fill="#9ff3ff" />
+        <circle cx="22" cy="40" r="3" fill="#9ff3ff" />
       </>
     ),
     combo: (
       <>
         <path
           d="M6 30 Q14 18 20 30 Q26 42 32 30 Q38 18 44 30"
-          stroke="#ffe08a"
+          stroke="#9ff3ff"
           strokeWidth="4"
           fill="none"
           strokeLinecap="round"
@@ -1499,7 +1503,7 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           opacity="0.6"
         />
         <circle cx="24" cy="24" r="10" stroke="currentColor" strokeWidth="3.5" fill="none" />
-        <circle cx="24" cy="24" r="4" fill="#ffe08a" />
+        <circle cx="24" cy="24" r="4" fill="#9ff3ff" />
       </>
     ),
     music: (

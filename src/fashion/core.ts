@@ -157,8 +157,8 @@ const CONFETTI_COLORS = [
   "#ffd6ea",
   "#d8ccff",
   "#c4f4ea",
-  "#fff4d6",
-  "#ffe08a",
+  "#ffffff",
+  "#9ff3ff",
   "#ff9fcb",
   "#ffffff",
 ];
@@ -166,7 +166,7 @@ const CONFETTI_COLORS = [
 type Spark = { x: number; y: number; vx: number; vy: number; t: number; life: number; tone: Tone };
 
 export const TONE: Record<Tone, string> = {
-  gold: "#ffe08a",
+  gold: "#9ff3ff",
   pink: "#ffb8dc",
   mint: "#a8f0e0",
   white: "#ffffff",
@@ -790,8 +790,8 @@ export class FashionGame implements Fx {
       for (let i = 0; i < 14; i++) {
         ctx.rotate((Math.PI * 2) / 14);
         const g = ctx.createLinearGradient(0, 0, Math.max(W, H) * 0.8, 0);
-        g.addColorStop(0, `rgba(255,236,170,${0.35 * fade})`);
-        g.addColorStop(1, "rgba(255,236,170,0)");
+        g.addColorStop(0, `rgba(200,245,255,${0.35 * fade})`);
+        g.addColorStop(1, "rgba(200,245,255,0)");
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.moveTo(0, 0);
@@ -840,8 +840,8 @@ export class FashionGame implements Fx {
       ctx.save();
       roundRect(ctx, 4, 4, W - 8, H - 8, 34);
       ctx.lineWidth = 10 + pulse * 8;
-      ctx.strokeStyle = `rgba(255,224,138,${0.5 + pulse * 0.4})`;
-      ctx.shadowColor = "#ffe08a";
+      ctx.strokeStyle = `rgba(159,243,255,${0.5 + pulse * 0.4})`;
+      ctx.shadowColor = "#9ff3ff";
       ctx.shadowBlur = 40;
       ctx.stroke();
       ctx.restore();
@@ -905,17 +905,17 @@ export class FashionGame implements Fx {
 
 /* ───────── 공통 그림 ───────── */
 
-/** 왕실 배경(화면 전체): 자줏빛 벨벳 위에 금빛 번짐과 비단 리본. */
+/** 화면 전체 배경(포스터 톤): 검정 위에 얼음빛 번짐과 은빛 실크 리본. */
 export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#2a1744");
-  g.addColorStop(1, "#120a20");
+  g.addColorStop(0, "#10141d");
+  g.addColorStop(1, "#040509");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   const glows: [number, number, string][] = [
-    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255,214,120,0.16)"],
-    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(255,170,210,0.14)"],
-    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(255,226,150,0.14)"],
+    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(159,243,255,0.16)"],
+    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(220,228,240,0.10)"],
+    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(200,245,255,0.14)"],
   ];
   for (const [x, y, c] of glows) {
     const r = Math.max(W, H) * 0.55;
@@ -932,11 +932,11 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number
     const amp = H * (0.12 + i * 0.03);
     const thick = H * (0.05 + i * 0.015);
     const g2 = ctx.createLinearGradient(0, 0, W, 0);
-    g2.addColorStop(0, "rgba(255,226,150,0)");
-    g2.addColorStop(0.3, "rgba(255,226,150,0.10)");
-    g2.addColorStop(0.55, "rgba(255,200,220,0.12)");
-    g2.addColorStop(0.8, "rgba(255,240,200,0.10)");
-    g2.addColorStop(1, "rgba(255,240,200,0)");
+    g2.addColorStop(0, "rgba(200,245,255,0)");
+    g2.addColorStop(0.3, "rgba(200,245,255,0.10)");
+    g2.addColorStop(0.55, "rgba(230,236,245,0.12)");
+    g2.addColorStop(0.8, "rgba(200,245,255,0.10)");
+    g2.addColorStop(1, "rgba(200,245,255,0)");
     ctx.fillStyle = g2;
     ctx.beginPath();
     const N = 24;
@@ -998,7 +998,7 @@ export function pearl(
   g.addColorStop(0, "#ffd6ea");
   g.addColorStop(0.3 + s, "#d8ccff");
   g.addColorStop(0.65 - s, "#c4f4ea");
-  g.addColorStop(1, "#fff4d6");
+  g.addColorStop(1, "#ffffff");
   return g;
 }
 
@@ -1011,7 +1011,7 @@ export function drawHandGlow(
 ): void {
   if (!h.on) return;
   const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
-  g.addColorStop(0, h.ghost ? "rgba(255,224,138,0.3)" : "rgba(255,255,255,0.35)");
+  g.addColorStop(0, h.ghost ? "rgba(159,243,255,0.3)" : "rgba(255,255,255,0.35)");
   g.addColorStop(0.6, TONE[tone] + "33");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
@@ -1170,7 +1170,7 @@ export function drawPalace(
   W: number,
   H: number,
   t: number,
-  wall: [string, string] = ["#3b2160", "#1d1033"],
+  wall: [string, string] = ["#141a26", "#06080d"],
   art?: string,
 ): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -1183,8 +1183,8 @@ export function drawPalace(
     // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
     ctx.save();
     const s = Math.min(W, H) * 0.09;
-    ctx.strokeStyle = "rgba(255,214,140,0.10)";
-    ctx.fillStyle = "rgba(255,214,140,0.10)";
+    ctx.strokeStyle = "rgba(200,235,255,0.10)";
+    ctx.fillStyle = "rgba(200,235,255,0.10)";
     ctx.lineWidth = 2;
     for (let y = -s; y < H + s; y += s) {
       for (let x = -s; x < W + s; x += s) {
@@ -1222,10 +1222,10 @@ export function drawPalace(
       ctx.fillStyle = wg;
       ctx.fill();
       ctx.lineWidth = 7;
-      ctx.strokeStyle = "#c99a3b";
+      ctx.strokeStyle = "#8ea0b4";
       ctx.stroke();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = "#fff1b8";
+      ctx.strokeStyle = "#e6f6ff";
       ctx.stroke();
       ctx.restore();
     }
@@ -1233,14 +1233,14 @@ export function drawPalace(
   // 샹들리에 빛(위에서 내려와 흔들리는 금빛)
   for (const fx of [0.25, 0.5, 0.75]) {
     const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.85);
-    lg.addColorStop(0, `rgba(255,226,150,${0.22 + Math.sin(t * 1.5 + fx * 9) * 0.04})`);
-    lg.addColorStop(1, "rgba(255,226,150,0)");
+    lg.addColorStop(0, `rgba(200,245,255,${0.22 + Math.sin(t * 1.5 + fx * 9) * 0.04})`);
+    lg.addColorStop(1, "rgba(200,245,255,0)");
     ctx.fillStyle = lg;
     ctx.fillRect(0, 0, W, H);
   }
   // 반짝이 가루
   ctx.save();
-  ctx.fillStyle = "#fff1b8";
+  ctx.fillStyle = "#e6f6ff";
   for (let i = 0; i < 26; i++) {
     const k = (Math.sin(t * 2.2 + i * 1.9) + 1) / 2;
     const x = ((i * 0.381) % 1) * W;

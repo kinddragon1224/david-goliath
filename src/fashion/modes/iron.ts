@@ -505,8 +505,8 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.save();
   ctx.lineWidth = 10;
   const chrome = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  chrome.addColorStop(0, "#fff1b8");
-  chrome.addColorStop(0.5, "#c99a3b");
+  chrome.addColorStop(0, "#e6f6ff");
+  chrome.addColorStop(0.5, "#8ea0b4");
   chrome.addColorStop(1, "#f2d38a");
   ctx.strokeStyle = chrome;
   ctx.beginPath();
@@ -563,7 +563,7 @@ function drawBoutique(
     );
     ctx.closePath();
     ctx.fillStyle = gm.color;
-    ctx.shadowColor = "#ffe08a";
+    ctx.shadowColor = "#9ff3ff";
     ctx.shadowBlur = 16;
     ctx.fill();
     ctx.restore();

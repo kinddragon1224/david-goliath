@@ -275,7 +275,7 @@ export class ScissorsMode implements Mode {
       const at = side === 0 ? this.cut : end;
       const [cx, cy] = this.path[((at % n) + n) % n];
       const nx = this.path[(((side === 0 ? at + m : at - m) % n) + n) % n];
-      ctx.fillStyle = side === 0 ? "rgba(255,224,138,0.22)" : "rgba(168,240,224,0.22)";
+      ctx.fillStyle = side === 0 ? "rgba(159,243,255,0.22)" : "rgba(168,240,224,0.22)";
       ctx.beginPath();
       ctx.arc(cx, cy, this.tol * pulse, 0, Math.PI * 2);
       ctx.fill();
@@ -396,7 +396,7 @@ export class ScissorsMode implements Mode {
 
 /** 왕실 재단실: 장밋빛 벽 + 원단 아래 호두나무 재단 탁자(금 모서리). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  drawPalace(ctx, W, H, t, ["#5a1f3d", "#2a0f22"], "scissors");
+  drawPalace(ctx, W, H, t, ["#1a1626", "#07070c"], "scissors");
   const x = W * 0.12;
   const y = H * 0.03;
   const w = W * 0.76;
@@ -414,12 +414,12 @@ function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number)
   ctx.fill();
   ctx.restore();
   ctx.lineWidth = 8;
-  ctx.strokeStyle = "#c99a3b";
+  ctx.strokeStyle = "#8ea0b4";
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 18);
   ctx.stroke();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "#fff1b8";
+  ctx.strokeStyle = "#e6f6ff";
   ctx.stroke();
 }
 

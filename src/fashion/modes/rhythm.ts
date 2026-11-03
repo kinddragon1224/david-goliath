@@ -256,7 +256,7 @@ export class RhythmMode implements Mode {
       : Math.floor(t / 6) % 4;
     drawBallroom(ctx, this.W, this.H, t, pump, fever, sec);
     if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255,224,138,${this.flash})`;
+      ctx.fillStyle = `rgba(159,243,255,${this.flash})`;
       ctx.fillRect(0, 0, this.W, this.H);
     }
 
@@ -489,8 +489,8 @@ function drawPalm(
 const OUTFITS: [string, string, string][] = [
   ["#ffd6ea", "#d8ccff", "#c4f4ea"],
   ["#ff7eb6", "#b18cff", "#6fe0ff"],
-  ["#ffe08a", "#ff9fcb", "#c8b8ff"],
-  ["#ffffff", "#ffe08a", "#ffb347"],
+  ["#9ff3ff", "#ff9fcb", "#c8b8ff"],
+  ["#ffffff", "#9ff3ff", "#7fd8ff"],
 ];
 
 function drawMannequin(
@@ -618,8 +618,8 @@ function drawBallroom(
   sec: number,
 ): void {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#2a1240");
-  bg.addColorStop(1, "#140822");
+  bg.addColorStop(0, "#0d111a");
+  bg.addColorStop(1, "#040509");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
   // 그린 연회장 그림이 있으면 그걸 깔고, 모자이크 벽·샹들리에·바닥은 건너뛴다
@@ -651,7 +651,7 @@ function drawBallroom(
       }
     }
     // 벽 아래 금 몰딩
-    ctx.fillStyle = "#c99a3b";
+    ctx.fillStyle = "#8ea0b4";
     ctx.fillRect(0, rows * cell, W, 6);
     ctx.fillStyle = `rgba(255,241,184,${0.4 + pump * 0.4})`;
     ctx.fillRect(0, rows * cell, W, 2);
@@ -660,7 +660,7 @@ function drawBallroom(
     const cx = W / 2;
     const cy = H * 0.1;
     ctx.save();
-    ctx.strokeStyle = "#e9c46a";
+    ctx.strokeStyle = "#c3cfdc";
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(cx, 0);
@@ -675,7 +675,7 @@ function drawBallroom(
       ctx.stroke();
     }
     ctx.fillStyle = "#fff6d6";
-    ctx.shadowColor = "#ffe08a";
+    ctx.shadowColor = "#9ff3ff";
     ctx.shadowBlur = 14 + pump * 18;
     for (let i = 0; i < 13; i++) {
       const a = (i / 12) * Math.PI;
@@ -696,7 +696,7 @@ function drawBallroom(
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   const beams = fever ? 10 : 6;
-  const colors = fever ? ["#ffe08a", "#ffffff", "#ffb347"] : ["#ffd27a", "#ff9fcb", "#fff1d0"];
+  const colors = fever ? ["#9ff3ff", "#ffffff", "#7fd8ff"] : ["#9ff3ff", "#ff9fcb", "#ffffff"];
   for (let i = 0; i < beams; i++) {
     const fromLeft = i % 2 === 0;
     const ox = fromLeft ? 0 : W;
@@ -766,7 +766,7 @@ function drawBallroom(
     const sy2 = y - 18;
     const tx = sx + Math.sin(sway) * 50;
     const ty = sy2 - Math.cos(sway) * 50;
-    ctx.strokeStyle = "#c99a3b";
+    ctx.strokeStyle = "#8ea0b4";
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(sx, sy2);
@@ -782,7 +782,7 @@ function drawBallroom(
       ctx.fillStyle = fl;
       ctx.fillRect(x - 56, y - 72, 92, 92);
     }
-    const col = fever ? "#ffe08a" : ["#ffd27a", "#ff9fcb", "#fff1d0", "#ffb347"][i % 4];
+    const col = fever ? "#9ff3ff" : ["#9ff3ff", "#ff9fcb", "#ffffff", "#7fd8ff"][i % 4];
     ctx.save();
     ctx.shadowColor = col;
     ctx.shadowBlur = 20 + pump * 20;
