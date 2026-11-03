@@ -33,7 +33,8 @@ export const LEVEL_BOXES = [0.28, 0.5, 0.72].map((cx) => ({
   w: 0.19,
   h: 0.13,
 }));
-const LEVEL_HOLD = 0.7;
+/** 가슴 높이라 옷매무새 고치다 잘못 골리지 않게 1초. */
+const LEVEL_HOLD = 1.0;
 
 export interface Fx {
   score(points: number, x: number, y: number, label?: string, tone?: Tone): void;

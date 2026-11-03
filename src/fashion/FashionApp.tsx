@@ -1135,7 +1135,13 @@ function AttractOverlay({
           </div>
         )}
       </div>
-      {/* 난이도: 손을 버튼 위에 잠깐 올려 두거나 눌러서 고른다(자리는 core LEVEL_BOXES) */}
+      {/* 현장엔 마우스·키보드가 없다: 손을 버튼에 1초 대거나 터치로 고른다(자리는 core LEVEL_BOXES) */}
+      <p
+        className="f-serif absolute inset-x-0 text-center text-xl text-[var(--f-ink)] [text-shadow:0_2px_8px_#000]"
+        style={{ top: `calc(${LEVEL_BOXES[0].y * 100}% - 2.2rem)` }}
+      >
+        난이도 · 버튼에 손을 1초 대거나 터치하세요
+      </p>
       {LEVEL_BOXES.map((b, i) => {
         const on = ui.level === i;
         const k = ui.levelHover?.i === i ? ui.levelHover.k : 0;
