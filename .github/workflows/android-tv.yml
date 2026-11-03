@@ -11,6 +11,9 @@ on:
       - "offline/**"
       - "android/**"
       - "public/mediapipe/**"
+      - "public/art/**"
+      - "public/brand/**"
+      - "public/voice/**"
       - "scripts/build-offline.mjs"
       - "package-lock.json"
       - ".github/workflows/android-tv.yml"
@@ -49,6 +52,18 @@ jobs:
           mkdir -p android/app/src/main/assets
           cp -r dist-offline/DavidGoliath/app/. android/app/src/main/assets/
           echo "APP_VERSION=$(cat dist-offline/DavidGoliath/app/version.txt)" >> "$GITHUB_ENV"
+
+      # 위브온판은 같은 빌드를 web 브랜치에 올린다. Vercel(weaveon-fashion)이 web 브랜치를 배포한다.
+      # (main 의 .vercel/output 은 교회판 사이트용이라 main 을 바로 연결하면 교회판이 올라간다)
+      - name: 웹 체험판을 web 브랜치에 올리기
+        if: env.EDITION == 'weaveon'
+        run: |
+          cd dist-offline/DavidGoliath/app
+          git init -q -b web
+          git add -A
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" \
+            commit -q -m "웹 체험판 v$APP_VERSION (${GITHUB_SHA::7})"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY.git" web
 
       - uses: actions/setup-java@v4
         with:
