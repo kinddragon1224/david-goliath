@@ -11,6 +11,7 @@ import {
 } from "@/game/kiosk";
 import {
   drawBackdrop,
+  drawGarmentPhoto,
   drawStar,
   FashionGame,
   GRADE_LINES,
@@ -660,12 +661,16 @@ function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: numb
   path.closePath();
   ctx.shadowColor = "rgba(0,0,0,0.35)";
   ctx.shadowBlur = f.w * 0.06;
-  const fill = ctx.createLinearGradient(-f.w / 2, 0, f.w / 2, f.h);
-  fill.addColorStop(0, g.color);
-  fill.addColorStop(1, g.shade);
-  ctx.globalAlpha = 0.94;
-  ctx.fillStyle = fill;
-  ctx.fill(path);
+  // 시그니처 옷은 진짜 사진을 입힌다(못 불렀으면 색 천)
+  const photo = drawGarmentPhoto(ctx, g, -f.w / 2, 0, f.w, f.h);
+  if (!photo) {
+    const fill = ctx.createLinearGradient(-f.w / 2, 0, f.w / 2, f.h);
+    fill.addColorStop(0, g.color);
+    fill.addColorStop(1, g.shade);
+    ctx.globalAlpha = 0.94;
+    ctx.fillStyle = fill;
+    ctx.fill(path);
+  }
   ctx.shadowBlur = 0;
   // 비단 광택이 사선으로 지나간다
   ctx.save();
@@ -680,10 +685,12 @@ function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: numb
   ctx.fillRect(-f.w / 2, 0, f.w, f.h);
   ctx.restore();
   ctx.globalAlpha = 1;
-  ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(2, f.w * 0.015);
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.stroke(path);
+  if (!photo) {
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, f.w * 0.015);
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.stroke(path);
+  }
   // 테두리를 따라 반짝이
   ctx.fillStyle = "#ffffff";
   g.pts.forEach(([x, y], i) => {
@@ -1109,7 +1116,7 @@ function AttractOverlay({
                 <img
                   src={`/brand/${g.photo}.webp`}
                   alt=""
-                  className="aspect-[3/4] w-full rounded-xl border-[0.2rem] border-[var(--f-frame)] object-cover shadow-lg"
+                  className="aspect-[3/4] w-full rounded-xl border-[0.2rem] border-[var(--f-frame)] bg-[#eef2f6] object-contain p-1 shadow-lg"
                 />
                 <figcaption className="mt-1 text-center text-xs whitespace-nowrap text-[var(--f-muted)]">
                   {g.brand}
@@ -1219,7 +1226,7 @@ function FinaleOverlay({
               <img
                 src={`/brand/${g.photo}.webp`}
                 alt=""
-                className="aspect-[3/4] w-full rounded-xl object-cover"
+                className="aspect-[3/4] w-full rounded-xl object-contain"
               />
               <p className="f-serif mt-1 text-center text-sm text-[#1b1526]">진짜 옷 · {g.brand}</p>
             </div>
@@ -1336,7 +1343,7 @@ function CollectionCard({ item }: { item: Item }) {
         <img
           src={`/brand/${photo}.webp`}
           alt=""
-          className="h-[7.5rem] w-full rounded-xl border-2 border-[var(--f-frame)] object-cover"
+          className="h-[7.5rem] w-full rounded-xl border-2 border-[var(--f-frame)] bg-[#eef2f6] object-contain p-1"
         />
       ) : item.shape ? (
         <GarmentIcon

@@ -1,6 +1,6 @@
 import { OneEuro } from "@/game/motion";
 import type { PoseFrame } from "@/game/pose";
-import { ECO, LUMINO, pickOutfit, type Garment, type Pt } from "./garments";
+import { BRANDS, ECO, LAYOVER, pickOutfit, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
@@ -263,6 +263,8 @@ export class FashionGame implements Fx {
     readonly sound: FashionSound,
     private onUi: (ui: FashionUi) => void,
   ) {
+    // 옷 사진은 미리 불러 둔다(처음 나올 때 색 천으로 깜빡이지 않게)
+    BRANDS.forEach(garmentPhoto);
     this.rows = this.load();
     this.timeLeft = mode.seconds;
   }
@@ -384,7 +386,7 @@ export class FashionGame implements Fx {
     this.lastTick = 99;
     this.outfit = pickOutfit(
       this.collected.map((c) => c.label),
-      this.station === "rhythm" ? ECO : LUMINO,
+      this.station === "rhythm" ? ECO : LAYOVER,
     );
     this.gradeSaid = false;
     this.sound.play("complete");
@@ -1130,16 +1132,40 @@ export function ease(a: number, b: number, k: number): number {
 
 const ART = new Map<string, HTMLImageElement>();
 
-/** public/art/<name>.webp를 한 번만 불러 둔다. 다 불러오기 전(또는 실패)엔 null. */
-function artImage(name: string): HTMLImageElement | null {
+/** 그림 파일을 한 번만 불러 둔다. 다 불러오기 전(또는 실패)엔 null. */
+function loadImage(src: string): HTMLImageElement | null {
   if (typeof Image === "undefined") return null;
-  let img = ART.get(name);
+  let img = ART.get(src);
   if (!img) {
     img = new Image();
-    img.src = `/art/${name}.webp`;
-    ART.set(name, img);
+    img.src = src;
+    ART.set(src, img);
   }
   return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+function artImage(name: string): HTMLImageElement | null {
+  return loadImage(`/art/${name}.webp`);
+}
+
+/** 시그니처 옷 사진(배경 지운 것). 사진이 없는 옷이거나 아직 못 불렀으면 null. */
+export function garmentPhoto(g: Garment): HTMLImageElement | null {
+  return g.photo ? loadImage(`/brand/${g.photo}.webp`) : null;
+}
+
+/** 옷 사진을 상자에 그린다(pts가 사진 윤곽이라 상자 = 사진). 그렸으면 true. */
+export function drawGarmentPhoto(
+  ctx: CanvasRenderingContext2D,
+  g: Garment,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): boolean {
+  const img = garmentPhoto(g);
+  if (!img) return false;
+  ctx.drawImage(img, x, y, w, h);
+  return true;
 }
 
 /** 배경 그림을 무대에 꽉 채워(넘치는 쪽은 잘라) 깔고, 가운데를 살짝 어둡게 해 게임 그림이 잘 보이게. 그렸으면 true. */

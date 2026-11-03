@@ -1,4 +1,5 @@
 import {
+  drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
   fabricTexture,
@@ -16,7 +17,7 @@ import {
 } from "../core";
 import {
   ECO,
-  LUMINO,
+  LAYOVER,
   RESTITCH,
   SEOLBAEK,
   SILUA,
@@ -34,7 +35,7 @@ import {
  * 손이 다리미. 다림판 위 옷을 쓱쓱 문질러 주름을 편다. 다 펴면 옷이 개켜져 옷걸이로 가고 다음 옷.
  * 쉬지 않고 다리면 스팀 게이지가 차고, 가득 차면 4초 동안 '스팀 부스트'(다리미가 커지고 점수 1.5배). */
 
-const ORDER: Garment[] = [LUMINO, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
+const ORDER: Garment[] = [LAYOVER, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
 const COLS = 28;
 const ROWS = 22;
 /** 이만큼 펴면 완성. */
@@ -61,7 +62,15 @@ export class IronMode implements Mode {
   private cells: Cell[] = [];
   private total = 0;
   private finished: Garment[] = [];
-  private fly: { path: Path2D; color: string; t: number; cx: number; cy: number } | null = null;
+  private fly: {
+    path: Path2D;
+    g: Garment;
+    box: { x: number; y: number; w: number; h: number };
+    color: string;
+    t: number;
+    cx: number;
+    cy: number;
+  } | null = null;
   private trail: Trail[] = [];
   private steamPuffs: { x: number; y: number; t: number; vx: number }[] = [];
   private rand = rng(7);
@@ -254,6 +263,8 @@ export class IronMode implements Mode {
       this.finished.push(g);
       this.fly = {
         path: this.path,
+        g,
+        box: { ...this.box },
         color: g.color,
         t: 0,
         cx: this.box.x + this.box.w / 2,
@@ -296,7 +307,9 @@ export class IronMode implements Mode {
     ctx.save();
     ctx.clip(this.path);
     const b = this.box;
-    fabricTexture(ctx, b.x, b.y, b.w, b.h, g.shade);
+    // 진짜 옷 사진 위에 주름을 얹는다(사진을 못 불렀으면 색 천)
+    if (!drawGarmentPhoto(ctx, g, b.x, b.y, b.w, b.h))
+      fabricTexture(ctx, b.x, b.y, b.w, b.h, g.shade);
     // 다린 자리: 매끈한 광택 자국
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -320,16 +333,17 @@ export class IronMode implements Mode {
       const dx = Math.cos(c.a) * L;
       const dy = Math.sin(c.a) * L;
       const a = Math.min(1, c.w);
+      // 사진 옷이 비쳐 보이게 주름은 반투명하게
       ctx.strokeStyle = g.shade;
-      ctx.globalAlpha = a * 0.55;
-      ctx.lineWidth = cw * 0.26;
+      ctx.globalAlpha = a * 0.38;
+      ctx.lineWidth = cw * 0.16;
       ctx.beginPath();
       ctx.moveTo(c.x - dx, c.y - dy);
       ctx.lineTo(c.x + dx, c.y + dy);
       ctx.stroke();
       ctx.strokeStyle = "#ffffff";
-      ctx.globalAlpha = a * 0.6;
-      ctx.lineWidth = cw * 0.12;
+      ctx.globalAlpha = a * 0.35;
+      ctx.lineWidth = cw * 0.08;
       ctx.beginPath();
       ctx.moveTo(c.x - dx - dy * 0.14, c.y - dy + dx * 0.14);
       ctx.lineTo(c.x + dx - dy * 0.14, c.y + dy + dx * 0.14);
@@ -373,8 +387,11 @@ export class IronMode implements Mode {
       ctx.translate(this.fly.cx, this.fly.cy - this.H * 0.6 * k * k);
       ctx.scale(1 - k * 0.7, (1 - k * 0.7) * (1 - Math.sin(k * Math.PI) * 0.4));
       ctx.translate(-this.fly.cx, -this.fly.cy);
-      ctx.fillStyle = this.fly.color;
-      ctx.fill(this.fly.path);
+      const fb = this.fly.box;
+      if (!drawGarmentPhoto(ctx, this.fly.g, fb.x, fb.y, fb.w, fb.h)) {
+        ctx.fillStyle = this.fly.color;
+        ctx.fill(this.fly.path);
+      }
       ctx.restore();
     }
 
@@ -566,6 +583,8 @@ function drawBoutique(
     ctx.shadowColor = "#9ff3ff";
     ctx.shadowBlur = 16;
     ctx.fill();
+    ctx.shadowBlur = 0;
+    drawGarmentPhoto(ctx, gm, -w / 2, 22, w, h);
     ctx.restore();
   });
 }

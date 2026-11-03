@@ -1,4 +1,5 @@
 import {
+  drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
   TONE,
@@ -14,7 +15,7 @@ import {
 } from "../core";
 import {
   ECO,
-  LUMINO,
+  LAYOVER,
   RESTITCH,
   SEOLBAEK,
   SILUA,
@@ -32,7 +33,7 @@ import {
  * 손이 가위. 재단 매트 위 원단에 분필로 그린 옷본 선을 따라 한 바퀴 오린다.
  * 빛나는 점(지금 자를 곳)에 손을 대고 화살표 쪽으로 천천히 움직이면 잘려 나간다. */
 
-const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LUMINO, SILUA];
+const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LAYOVER, SILUA];
 const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
 const PIECE_BONUS = 600;
 
@@ -58,7 +59,14 @@ export class ScissorsMode implements Mode {
   private pieceOn = 0;
   private pieceOff = 0;
   private snipT = 0;
-  private fall: { path: Path2D; color: string; t: number } | null = null;
+  private fall: {
+    path: Path2D;
+    g: Garment;
+    box: { x: number; y: number; w: number; h: number };
+    color: string;
+    t: number;
+  } | null = null;
+  private box = { x: 0, y: 0, w: 0, h: 0 };
   private lastSnip = 0;
   private back = 0;
   private activeHands: number[] = [];
@@ -85,6 +93,7 @@ export class ScissorsMode implements Mode {
   private load(): void {
     this.garment = ORDER[this.gi % ORDER.length];
     const p = place(this.garment, this.W / 2, this.H * 0.5, this.W * 0.5, this.H * 0.7);
+    this.box = p;
     this.pts = toWorld(this.garment, p);
     this.outline = pathOf(this.pts);
     this.path = resample(this.pts, this.step);
@@ -177,7 +186,13 @@ export class ScissorsMode implements Mode {
       fx.celebrate(`${fullName(this.garment)} 완성!`, "mint");
       fx.sfx("complete");
       if (acc >= 80) fx.say("clean-cut", true);
-      this.fall = { path: this.outline, color: this.garment.color, t: 0 };
+      this.fall = {
+        path: this.outline,
+        g: this.garment,
+        box: { ...this.box },
+        color: this.garment.color,
+        t: 0,
+      };
       this.finished.push(this.garment);
       this.gi++;
       this.load();
@@ -204,9 +219,14 @@ export class ScissorsMode implements Mode {
     ctx.fillRect(f.x, f.y, f.w, f.h);
     ctx.restore();
     drawPrint(ctx, f.x, f.y, f.w, f.h, PRINTS[this.gi % PRINTS.length], this.garment.shade);
-    // 옷본 조각 안쪽은 살짝 밝게
+    // 옷본 조각 안쪽은 살짝 밝게 + 오려 낼 진짜 옷이 비친다
     ctx.fillStyle = "rgba(255,255,255,0.18)";
     ctx.fill(this.outline);
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    const b = this.box;
+    drawGarmentPhoto(ctx, this.garment, b.x, b.y, b.w, b.h);
+    ctx.restore();
     // 시침핀
     for (const [px, py] of [
       [f.x + 24, f.y + 24],
@@ -320,8 +340,11 @@ export class ScissorsMode implements Mode {
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 30;
       ctx.shadowOffsetY = 20;
-      ctx.fillStyle = this.fall.color;
-      ctx.fill(this.fall.path);
+      const fb = this.fall.box;
+      if (!drawGarmentPhoto(ctx, this.fall.g, fb.x, fb.y, fb.w, fb.h)) {
+        ctx.fillStyle = this.fall.color;
+        ctx.fill(this.fall.path);
+      }
       ctx.restore();
     }
 

@@ -1,4 +1,5 @@
 import {
+  drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
   fabricTexture,
@@ -15,6 +16,8 @@ import {
 } from "../core";
 import {
   ECO,
+  LAYOVER,
+  RESTITCH,
   SEOLBAEK,
   SILUA,
   TAILORED,
@@ -36,29 +39,73 @@ type Seam = {
   line: (k: number, aspect: number) => [number, number];
 };
 
+/** 꺾인 길: 점들 사이를 길이 비율대로 잇는다. */
+function poly(pts: [number, number][]): (k: number) => [number, number] {
+  const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+  const total = seg.reduce((a, b) => a + b, 0);
+  return (k) => {
+    let d = k * total;
+    for (let i = 0; i < seg.length; i++) {
+      if (d <= seg[i] || i === seg.length - 1) {
+        const r = Math.min(1, d / seg[i]);
+        return [
+          pts[i][0] + (pts[i + 1][0] - pts[i][0]) * r,
+          pts[i][1] + (pts[i + 1][1] - pts[i][1]) * r,
+        ];
+      }
+      d -= seg[i];
+    }
+    return pts[pts.length - 1];
+  };
+}
+
+/** 사진 속 실제 자리(밑단·라펠·카라·프릴)를 따라 꿰맨다. */
 const SEAMS: Seam[] = [
   {
-    name: "한복 치마 밑단",
+    name: "두루마기 밑단",
     garment: SEOLBAEK,
-    line: (k) => [0.15 + 0.7 * k, 0.8 + Math.sin(k * Math.PI * 2) * 0.05],
+    line: (k) => [0.14 + 0.72 * k, 0.79 + Math.sin(k * Math.PI) * 0.03],
   },
   {
-    name: "재킷 라펠",
+    name: "수트 라펠",
     garment: TAILORED,
-    line: (k) => [0.3 + 0.4 * k, 0.1 + (1 - Math.abs(k * 2 - 1)) * 0.36],
+    line: poly([
+      [0.3, 0.07],
+      [0.5, 0.32],
+      [0.7, 0.07],
+    ]),
   },
   {
-    name: "웨딩드레스 레이스 둘레",
+    name: "리본 허리선 · 튤 옆선",
     garment: SILUA,
-    line: (k, aspect) => [
-      0.5 + (Math.cos(k * Math.PI * 2 - Math.PI / 2) * 0.2) / aspect,
-      0.68 + Math.sin(k * Math.PI * 2 - Math.PI / 2) * 0.2,
-    ],
+    line: poly([
+      [0.25, 0.31],
+      [0.72, 0.31],
+      [0.86, 0.88],
+    ]),
   },
   {
-    name: "고딕 원피스 옆선",
+    name: "세일러 카라",
     garment: ECO,
-    line: (k) => [0.5 + Math.sin(k * Math.PI * 3) * 0.15, 0.2 + 0.66 * k],
+    line: poly([
+      [0.22, 0.12],
+      [0.5, 0.33],
+      [0.78, 0.12],
+    ]),
+  },
+  {
+    name: "치마 허리선 · 리본 끈",
+    garment: RESTITCH,
+    line: poly([
+      [0.25, 0.33],
+      [0.6, 0.33],
+      [0.63, 0.74],
+    ]),
+  },
+  {
+    name: "튤 프릴 단",
+    garment: LAYOVER,
+    line: (k) => [0.1 + 0.8 * k, 0.62 + Math.sin(k * Math.PI * 4) * 0.015],
   },
 ];
 const HOLES = 10;
@@ -204,14 +251,14 @@ export class SewingMode implements Mode {
     ctx.restore();
     ctx.save();
     ctx.clip(path);
-    fabricTexture(ctx, p.x, p.y, p.w, p.h, s.garment.shade);
+    if (!drawGarmentPhoto(ctx, s.garment, p.x, p.y, p.w, p.h)) {
+      fabricTexture(ctx, p.x, p.y, p.w, p.h, s.garment.shade);
+    }
     ctx.restore();
-    ctx.strokeStyle = "#d4a63c";
-    ctx.lineWidth = 5;
-    ctx.stroke(path);
 
     // 꿰맬 길 안내(어두운 옷 위에서는 밝게)
-    ctx.strokeStyle = s.garment === ECO ? "rgba(255,240,210,0.7)" : "rgba(42,34,56,0.55)";
+    const dark = s.garment === ECO || s.garment === SEOLBAEK;
+    ctx.strokeStyle = dark ? "rgba(255,240,210,0.8)" : "rgba(42,34,56,0.6)";
     ctx.lineWidth = 4;
     ctx.setLineDash([10, 12]);
     ctx.beginPath();
@@ -265,9 +312,10 @@ export class SewingMode implements Mode {
           : "#ff6fa8"
         : isNext
           ? "#ffffff"
-          : "rgba(40,30,60,0.55)";
-      ctx.strokeStyle = "#2a2238";
-      ctx.lineWidth = 4;
+          : "rgba(255,255,255,0.7)";
+      // 어떤 색 옷 위에서도 보이게: 밝은 속 + 짙은 테
+      ctx.strokeStyle = "#0b0f18";
+      ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.arc(h.x, h.y, isNext ? 24 : 13, 0, Math.PI * 2);
       ctx.fill();
