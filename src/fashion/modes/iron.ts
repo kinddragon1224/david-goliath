@@ -50,7 +50,8 @@ const SCORCH_PENALTY = [0, 200, 400];
 /** 주름이 펴지는 빠르기(하드는 주름이 깊다). */
 const PRESS = [1, 0.85, 0.62];
 
-type Cell = { x: number; y: number; w: number; a: number; len: number };
+/** w: 남은 주름, w0: 처음 주름, dw: 주름 그림에 마지막으로 반영한 w. */
+type Cell = { x: number; y: number; w: number; w0: number; dw: number; a: number; len: number };
 type Trail = { x: number; y: number; t: number; r: number };
 
 export class IronMode implements Mode {
@@ -88,6 +89,7 @@ export class IronMode implements Mode {
     cy: number;
   } | null = null;
   private trail: Trail[] = [];
+  private wrinkle: HTMLCanvasElement | null = null;
   private steamPuffs: { x: number; y: number; t: number; vx: number }[] = [];
   private rand = rng(7);
   private ironR = 80;
@@ -137,20 +139,87 @@ export class IronMode implements Mode {
         if (!inside(this.pts, x, y)) continue;
         // 결이 흐르듯 이웃 주름끼리 비슷한 방향
         const flow = Math.sin(x * 0.008 + this.gi) * 1.1 + Math.cos(y * 0.011) * 0.8;
+        const w = 0.75 + this.rand() * 0.25;
         this.cells.push({
           x,
           y,
-          w: 0.75 + this.rand() * 0.25,
+          w,
+          w0: w,
+          dw: w,
           a: flow + (this.rand() - 0.5) * 0.5,
           len: 0.5 + this.rand() * 0.7,
         });
       }
     }
     this.total = this.cells.reduce((s, c) => s + c.w, 0);
+    this.bakeWrinkles(g);
     this.scorches = [];
     this.earned = 0;
     this.hot = null;
     this.hotT = 0;
+  }
+
+  /** 옷 한 벌의 주름을 한 번만 그려 둔다. 칸마다 부드러운 골(그림자)과 등성이(빛). */
+  private bakeWrinkles(g: Garment): void {
+    if (typeof document === "undefined") return;
+    const b = this.box;
+    const cv = this.wrinkle ?? document.createElement("canvas");
+    this.wrinkle = cv;
+    cv.width = Math.max(1, Math.ceil(b.w));
+    cv.height = Math.max(1, Math.ceil(b.h));
+    const x = cv.getContext("2d");
+    if (!x) return;
+    x.translate(-b.x, -b.y);
+    x.clip(this.path);
+    x.lineCap = "round";
+    const cw = b.w / COLS;
+    const fold = (c: Cell, off: number, color: string, passes: [number, number][]) => {
+      const L = cw * 2.6 * c.len;
+      const dx = Math.cos(c.a) * L;
+      const dy = Math.sin(c.a) * L;
+      // 결에 수직으로 조금 휜다
+      const nx = -Math.sin(c.a);
+      const ny = Math.cos(c.a);
+      const bend = (c.len - 0.85) * cw * 0.9;
+      x.strokeStyle = color;
+      for (const [w, a] of passes) {
+        x.globalAlpha = a;
+        x.lineWidth = w * cw;
+        x.beginPath();
+        x.moveTo(c.x - dx + nx * off, c.y - dy + ny * off);
+        x.quadraticCurveTo(c.x + nx * (off + bend), c.y + ny * (off + bend), c.x + dx + nx * off, c.y + dy + ny * off);
+        x.stroke();
+      }
+    };
+    // 그림자 먼저 전부, 빛은 그 위에(겹친 주름이 지저분해지지 않게)
+    // 칸 셋 중 하나만: 촘촘하면 얼룩말 무늬가 된다
+    const some = this.cells.filter((_, i) => (i * 7) % 3 === 0);
+    for (const c of some) fold(c, 0, g.shade, [[1.6, 0.05], [0.9, 0.07], [0.4, 0.11]]);
+    for (const c of some) fold(c, -cw * 0.38, "#ffffff", [[0.7, 0.06], [0.25, 0.14]]);
+  }
+
+  /** 펴진 만큼 주름 그림을 지운다(다리미 지나간 자리만 매끈해진다). */
+  private eraseWrinkles(): void {
+    const x = this.wrinkle?.getContext("2d");
+    if (!x) return;
+    const b = this.box;
+    const r = (b.w / COLS) * 1.4;
+    x.save();
+    x.setTransform(1, 0, 0, 1, -b.x, -b.y);
+    x.globalCompositeOperation = "destination-out";
+    for (const c of this.cells) {
+      if (c.dw - c.w < 0.02 && !(c.w <= 0 && c.dw > 0)) continue;
+      // 남은 비율 dw/w0 → w/w0 으로 줄이려면 그만큼의 불투명도로 지운다
+      const a = c.dw > 0 ? 1 - c.w / c.dw : 1;
+      c.dw = c.w;
+      const gr = x.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+      gr.addColorStop(0, `rgba(0,0,0,${a})`);
+      gr.addColorStop(0.55, `rgba(0,0,0,${a * 0.8})`);
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      x.fillStyle = gr;
+      x.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+    }
+    x.restore();
   }
 
   private left(): number {
@@ -333,7 +402,6 @@ export class IronMode implements Mode {
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
     const g = this.garment();
     drawBoutique(ctx, this.W, this.H, t, this.finished);
-    drawBoard(ctx, this.W, this.H);
 
     // 옷
     ctx.save();
@@ -364,31 +432,9 @@ export class IronMode implements Mode {
       ctx.lineTo(p1.x, p1.y);
       ctx.stroke();
     }
-    // 주름: 천의 결을 따라 흐르는 골(어두운 선)과 등성이(밝은 선)
-    const cw = b.w / COLS;
-    for (const c of this.cells) {
-      if (c.w < 0.05) continue;
-      const L = cw * 1.25 * c.len;
-      const dx = Math.cos(c.a) * L;
-      const dy = Math.sin(c.a) * L;
-      const a = Math.min(1, c.w);
-      // 사진 옷이 비쳐 보이게 주름은 반투명하게
-      ctx.strokeStyle = g.shade;
-      ctx.globalAlpha = a * 0.38;
-      ctx.lineWidth = cw * 0.16;
-      ctx.beginPath();
-      ctx.moveTo(c.x - dx, c.y - dy);
-      ctx.lineTo(c.x + dx, c.y + dy);
-      ctx.stroke();
-      ctx.strokeStyle = "#ffffff";
-      ctx.globalAlpha = a * 0.35;
-      ctx.lineWidth = cw * 0.08;
-      ctx.beginPath();
-      ctx.moveTo(c.x - dx - dy * 0.14, c.y - dy + dx * 0.14);
-      ctx.lineTo(c.x + dx - dy * 0.14, c.y + dy + dx * 0.14);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
+    // 주름: 미리 그려 둔 부드러운 주름 그림. 다린 자리는 지워져 있다.
+    this.eraseWrinkles();
+    if (this.wrinkle) ctx.drawImage(this.wrinkle, b.x, b.y);
     // 흐르는 광택
     const sx = b.x + ((t * 220) % (b.w + 600)) - 300;
     const shine = ctx.createLinearGradient(sx - 160, b.y, sx + 160, b.y + b.h);
@@ -416,11 +462,6 @@ export class IronMode implements Mode {
       ctx.restore();
     }
     ctx.restore();
-    ctx.strokeStyle = g.shade;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([12, 9]);
-    ctx.stroke(this.path);
-    ctx.setLineDash([]);
 
     // 남은 주름이 적어지면 어디 남았는지 반짝
     if (this.hot && phase === "play" && this.pct() >= 70) {
@@ -559,8 +600,9 @@ export class IronMode implements Mode {
 function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   const x0 = W * 0.06;
   const x1 = W * 0.94;
-  const cy = H * 0.53;
-  const hh = H * 0.33;
+  // 옷(높이 0.82H, 가운데 0.52H)이 판 안에 다 들어오게
+  const cy = H * 0.52;
+  const hh = H * 0.43;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(x0 + hh * 0.2, cy);
@@ -582,7 +624,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.clip();
-  ctx.strokeStyle = "rgba(201,154,59,0.16)";
+  ctx.strokeStyle = "rgba(201,154,59,0.07)";
   ctx.lineWidth = 18;
   for (let x = x0 - H; x < x1 + H; x += 54) {
     ctx.beginPath();
@@ -622,7 +664,8 @@ function drawBoutique(
   done: Garment[],
 ): void {
   drawPalace(ctx, W, H, t, undefined, "iron");
-  // 금 행거와 완성한 옷
+  drawBoard(ctx, W, H);
+  // 금 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;
   ctx.strokeStyle = "#d4af5f";
   ctx.lineWidth = 6;

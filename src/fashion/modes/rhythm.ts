@@ -1,6 +1,9 @@
+import { BRANDS } from "../garments";
 import {
   drawArt,
+  drawGarmentPhoto,
   drawHandGlow,
+  garmentPhoto,
   TONE,
   type DemoHand,
   type Fx,
@@ -536,6 +539,70 @@ function drawMannequin(
   ctx.save();
   ctx.translate(0, -bob);
   const glow = fever ? TONE.gold : "#d8ccff";
+  const arms = () => {
+    const on = hands.filter((h) => h.on).sort((a, b) => a.x - b.x);
+    const sides = [
+      { sx: cx - sw, h: on.length === 2 ? on[0] : on[0] && on[0].x < cx ? on[0] : null, dir: -1 },
+      { sx: cx + sw, h: on.length === 2 ? on[1] : on[0] && on[0].x >= cx ? on[0] : null, dir: 1 },
+    ];
+    ctx.strokeStyle = "#f6f1ff";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const s of sides) {
+      const hx = s.h ? s.h.x : s.sx + s.dir * W * 0.04;
+      const hy = s.h ? s.h.y + bob : sy + H * 0.25;
+      // 팔을 너무 길게 늘이지 않게 어깨 쪽으로 당긴 손 끝
+      const dx = hx - s.sx;
+      const dy = hy - sy;
+      const L = Math.hypot(dx, dy);
+      const maxL = W * 0.22;
+      const k = L > maxL ? maxL / L : 1;
+      const ex = s.sx + dx * k;
+      const ey = sy + dy * k;
+      const mx = (s.sx + ex) / 2 + s.dir * 24;
+      const my = (sy + ey) / 2 + 20;
+      ctx.lineWidth = 18;
+      ctx.beginPath();
+      ctx.moveTo(s.sx, sy + 8);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+      ctx.fillStyle = "#f6f1ff";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 14, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+  const head = () => {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 30 + pump * 30;
+    const hg = ctx.createRadialGradient(cx - H * 0.015, sy - H * 0.115, 2, cx, sy - H * 0.1, H * 0.06);
+    hg.addColorStop(0, "#ffffff");
+    hg.addColorStop(1, "#d9d2ec");
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.ellipse(cx, sy - H * 0.1, H * 0.045, H * 0.058, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e9e3f6";
+    ctx.fillRect(cx - 10, sy - H * 0.05, 20, H * 0.06);
+    ctx.shadowBlur = 0;
+  };
+  // 시그니처 옷 사진을 입은 모델: 팔은 소매 뒤로, 사진, 머리 순
+  const g = BRANDS[look % BRANDS.length];
+  if (g && garmentPhoto(g)) {
+    arms();
+    head();
+    const top = sy - H * 0.035;
+    const gh = H * 0.95 - top;
+    const gw = gh * g.aspect;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 24 + pump * 30;
+    // 박자에 맞춰 살짝 흔들린다
+    ctx.translate(cx, top);
+    ctx.rotate(Math.sin(t * 4) * 0.02);
+    drawGarmentPhoto(ctx, g, -gw / 2, 0, gw, gh);
+    ctx.restore();
+    return;
+  }
   ctx.shadowColor = glow;
   ctx.shadowBlur = 30 + pump * 30;
   // 드레스
@@ -570,47 +637,8 @@ function drawMannequin(
     ctx.fill();
   }
   ctx.restore();
-  ctx.shadowColor = glow;
-  ctx.shadowBlur = 30 + pump * 30;
-  // 머리·목
-  ctx.fillStyle = "#f6f1ff";
-  ctx.beginPath();
-  ctx.arc(cx, sy - H * 0.1, H * 0.055, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillRect(cx - 10, sy - H * 0.05, 20, H * 0.05);
-  ctx.shadowBlur = 0;
-  // 팔
-  const on = hands.filter((h) => h.on).sort((a, b) => a.x - b.x);
-  const sides = [
-    { sx: cx - sw, h: on.length === 2 ? on[0] : on[0] && on[0].x < cx ? on[0] : null, dir: -1 },
-    { sx: cx + sw, h: on.length === 2 ? on[1] : on[0] && on[0].x >= cx ? on[0] : null, dir: 1 },
-  ];
-  ctx.strokeStyle = "#f6f1ff";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const s of sides) {
-    const hx = s.h ? s.h.x : s.sx + s.dir * W * 0.04;
-    const hy = s.h ? s.h.y + bob : sy + H * 0.25;
-    // 팔을 너무 길게 늘이지 않게 어깨 쪽으로 당긴 손 끝
-    const dx = hx - s.sx;
-    const dy = hy - sy;
-    const L = Math.hypot(dx, dy);
-    const maxL = W * 0.22;
-    const k = L > maxL ? maxL / L : 1;
-    const ex = s.sx + dx * k;
-    const ey = sy + dy * k;
-    const mx = (s.sx + ex) / 2 + s.dir * 24;
-    const my = (sy + ey) / 2 + 20;
-    ctx.lineWidth = 18;
-    ctx.beginPath();
-    ctx.moveTo(s.sx, sy + 8);
-    ctx.quadraticCurveTo(mx, my, ex, ey);
-    ctx.stroke();
-    ctx.fillStyle = "#f6f1ff";
-    ctx.beginPath();
-    ctx.arc(ex, ey, 14, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  head();
+  arms();
   ctx.restore();
 }
 

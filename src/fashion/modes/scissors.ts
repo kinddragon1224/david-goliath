@@ -2,6 +2,7 @@ import {
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
+  fabricTexture,
   TONE,
   type DemoHand,
   type Fx,
@@ -278,6 +279,14 @@ export class ScissorsMode implements Mode {
     ctx.fillRect(f.x, f.y, f.w, f.h);
     ctx.restore();
     drawPrint(ctx, f.x, f.y, f.w, f.h, PRINTS[this.gi % PRINTS.length], this.garment.shade);
+    // 천의 결 + 위에서 비치는 조명(납작한 색판이 아니라 천처럼)
+    fabricTexture(ctx, f.x, f.y, f.w, f.h, this.garment.shade);
+    const lit = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.4, f.y + f.h);
+    lit.addColorStop(0, "rgba(255,255,255,0.16)");
+    lit.addColorStop(0.6, "rgba(255,255,255,0)");
+    lit.addColorStop(1, "rgba(0,0,0,0.14)");
+    ctx.fillStyle = lit;
+    ctx.fillRect(f.x, f.y, f.w, f.h);
     // 옷본 조각 안쪽은 살짝 밝게 + 오려 낼 진짜 옷이 비친다
     ctx.fillStyle = "rgba(255,255,255,0.18)";
     ctx.fill(this.outline);
@@ -497,7 +506,7 @@ export class ScissorsMode implements Mode {
   }
 }
 
-/** 왕실 재단실: 장밋빛 벽 + 원단 아래 호두나무 재단 탁자(금 모서리). */
+/** 재단실: 원단 아래 초록 재단 매트(눈금 + 자 눈금). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   drawPalace(ctx, W, H, t, ["#1a1626", "#07070c"], "scissors");
   const x = W * 0.12;
@@ -508,13 +517,41 @@ function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number)
   ctx.shadowColor = "rgba(0,0,0,0.5)";
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 12;
-  const wood = ctx.createLinearGradient(0, y, 0, y + h);
-  wood.addColorStop(0, "#6b4223");
-  wood.addColorStop(1, "#3e2412");
-  ctx.fillStyle = wood;
+  const mat = ctx.createLinearGradient(x, y, x + w, y + h);
+  mat.addColorStop(0, "#2a6b5a");
+  mat.addColorStop(1, "#173f35");
+  ctx.fillStyle = mat;
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 18);
   ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 18);
+  ctx.clip();
+  const cell = w / 30;
+  for (let i = 1; i * cell < Math.max(w, h); i++) {
+    ctx.strokeStyle = i % 5 === 0 ? "rgba(236,255,248,0.26)" : "rgba(236,255,248,0.1)";
+    ctx.lineWidth = i % 5 === 0 ? 2 : 1;
+    ctx.beginPath();
+    if (i * cell < w) {
+      ctx.moveTo(x + i * cell, y);
+      ctx.lineTo(x + i * cell, y + h);
+    }
+    if (i * cell < h) {
+      ctx.moveTo(x, y + i * cell);
+      ctx.lineTo(x + w, y + i * cell);
+    }
+    ctx.stroke();
+  }
+  // 자 눈금과 숫자(위쪽 가장자리)
+  ctx.fillStyle = "rgba(236,255,248,0.55)";
+  ctx.font = `600 ${Math.round(cell * 0.42)}px sans-serif`;
+  ctx.textAlign = "center";
+  for (let i = 1; i * cell < w; i++) {
+    ctx.fillRect(x + i * cell - 1, y, 2, i % 5 === 0 ? cell * 0.45 : cell * 0.22);
+    if (i % 5 === 0) ctx.fillText(String(i), x + i * cell, y + cell * 0.85);
+  }
   ctx.restore();
   ctx.lineWidth = 8;
   ctx.strokeStyle = "#8ea0b4";
@@ -540,7 +577,7 @@ function drawPrint(
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.16;
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   if (kind === "dots") {
