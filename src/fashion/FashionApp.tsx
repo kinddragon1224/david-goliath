@@ -1044,7 +1044,7 @@ function AttractOverlay({
   const teasers = [
     TEASER[station],
     "완성한 옷을 거울 속 내 몸에 입혀 줘요!",
-    "중촌 청년 디자이너 6팀의 옷을 만들어요",
+    "창작자×예술인 콜라보 6팀의 옷을 만들어요",
     ...(top ? [`오늘 최고 ${top.toLocaleString("ko-KR")}점 · 도전!`] : []),
   ];
   const [ti, setTi] = useState(0);
@@ -1144,7 +1144,7 @@ const TEASER: Record<FashionStation, string> = {
   iron: "두 손으로 다리면 점수 2배!",
   scissors: "두 손으로 양쪽에서 오리면 2배 빨라요!",
   sewing: "빨리 이어 꿰매면 황금실 피버!",
-  rhythm: "음악에 맞춰 가면무도회 주인공!",
+  rhythm: "음악에 맞춰 브랜드 런칭 쇼 주인공!",
 };
 
 /** 대기 화면: 양손을 번쩍 들었다 내리는 사람(따라 하면 시작). */

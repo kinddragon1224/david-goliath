@@ -607,7 +607,7 @@ function drawStarHand(ctx: CanvasRenderingContext2D, h: Hand, r: number, t: numb
   ctx.restore();
 }
 
-/** 가면무도회 연회장: 금빛 모자이크 벽 + 샹들리에 + 조명 빛줄기 + 대리석 바닥 + 촛불 든 손님. */
+/** 런칭 쇼 연회장: 금빛 모자이크 벽 + 샹들리에 + 조명 빛줄기 + 대리석 바닥 + 응원봉·카메라 든 관객. */
 function drawBallroom(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -752,7 +752,7 @@ function drawBallroom(
   ctx.fillStyle = sp;
   ctx.fillRect(0, fy, W, H - fy);
 
-  // 촛불 든 가면무도회 손님(맨 아래)
+  // 응원봉 든 런칭 쇼 관객(맨 아래)
   const n = 22;
   for (let i = 0; i < n; i++) {
     const x = (i + 0.5) * (W / n) + Math.sin(i * 3.1) * 12;
@@ -772,12 +772,16 @@ function drawBallroom(
     ctx.moveTo(sx, sy2);
     ctx.lineTo(tx, ty);
     ctx.stroke();
-    // 손님 얼굴 위 금 가면
-    ctx.fillStyle = "#e9c46a";
-    ctx.beginPath();
-    ctx.ellipse(x - 8, y - 6, 8, 5, -0.2, 0, Math.PI * 2);
-    ctx.ellipse(x + 8, y - 6, 8, 5, 0.2, 0, Math.PI * 2);
-    ctx.fill();
+    // 런칭 쇼 관객의 카메라 플래시: 사람마다 엇갈려 가끔 번쩍
+    const ph = (t * 0.45 + i * 0.37) % 1;
+    if (ph < 0.05) {
+      const a = 1 - ph / 0.05;
+      const fl = ctx.createRadialGradient(x - 10, y - 26, 0, x - 10, y - 26, 46);
+      fl.addColorStop(0, `rgba(255,255,255,${a})`);
+      fl.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = fl;
+      ctx.fillRect(x - 56, y - 72, 92, 92);
+    }
     const col = fever ? "#ffe08a" : ["#ffd27a", "#ff9fcb", "#fff1d0", "#ffb347"][i % 4];
     ctx.save();
     ctx.shadowColor = col;
