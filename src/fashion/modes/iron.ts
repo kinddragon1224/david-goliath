@@ -50,8 +50,24 @@ const SCORCH_PENALTY = [0, 200, 400];
 /** 주름이 펴지는 빠르기(하드는 주름이 깊다). */
 const PRESS = [1, 0.85, 0.62];
 
-/** w: 남은 주름, w0: 처음 주름, dw: 주름 그림에 마지막으로 반영한 w. */
-type Cell = { x: number; y: number; w: number; w0: number; dw: number; a: number; len: number };
+/** 옷을 가로 2 × 세로 3 구역으로 나눈다. 구역 주름이 이만큼만 남으면 '띵' 하고 싹 펴진다. */
+const ZONE_COLS = 2;
+const ZONE_ROWS = 3;
+const ZONE_SNAP = 0.15;
+const ZONE_BONUS = 100;
+
+/** w: 남은 주름, w0: 처음 주름, dw: 주름 그림에 마지막으로 반영한 w, z: 구역. */
+type Cell = {
+  x: number;
+  y: number;
+  w: number;
+  w0: number;
+  dw: number;
+  a: number;
+  len: number;
+  z: number;
+};
+type Zone = { w0: number; done: boolean; flash: number; x: number; y: number; w: number; h: number };
 type Trail = { x: number; y: number; t: number; r: number };
 
 export class IronMode implements Mode {
@@ -90,6 +106,7 @@ export class IronMode implements Mode {
   } | null = null;
   private trail: Trail[] = [];
   private wrinkle: HTMLCanvasElement | null = null;
+  private zones: Zone[] = [];
   private steamPuffs: { x: number; y: number; t: number; vx: number }[] = [];
   private rand = rng(7);
   private ironR = 80;
@@ -148,10 +165,25 @@ export class IronMode implements Mode {
           dw: w,
           a: flow + (this.rand() - 0.5) * 0.5,
           len: 0.5 + this.rand() * 0.7,
+          z: Math.floor((j / ROWS) * ZONE_ROWS) * ZONE_COLS + Math.floor((i / COLS) * ZONE_COLS),
         });
       }
     }
     this.total = this.cells.reduce((s, c) => s + c.w, 0);
+    this.zones = [];
+    for (let k = 0; k < ZONE_COLS * ZONE_ROWS; k++) {
+      const zw = p.w / ZONE_COLS;
+      const zh = p.h / ZONE_ROWS;
+      this.zones.push({
+        w0: this.cells.reduce((s, c) => (c.z === k ? s + c.w : s), 0),
+        done: false,
+        flash: 0,
+        x: p.x + (k % ZONE_COLS) * zw,
+        y: p.y + Math.floor(k / ZONE_COLS) * zh,
+        w: zw,
+        h: zh,
+      });
+    }
     this.bakeWrinkles(g);
     this.scorches = [];
     this.earned = 0;
@@ -333,6 +365,25 @@ export class IronMode implements Mode {
     }
     if (this.trail.length > 160) this.trail.splice(0, this.trail.length - 160);
 
+    // 구역 완료: 거의 다 편 구역은 '띵' 하고 남은 주름까지 싹 펴진다
+    this.zones.forEach((z, k) => {
+      z.flash = Math.max(0, z.flash - dt);
+      if (z.done || z.w0 <= 0) return;
+      let left = 0;
+      for (const c of this.cells) if (c.z === k) left += c.w;
+      if (left > z.w0 * ZONE_SNAP) return;
+      z.done = true;
+      z.flash = 0.6;
+      for (const c of this.cells) if (c.z === k) c.w = 0;
+      const pts = (left / this.total) * GARMENT_POINTS + ZONE_BONUS;
+      this.earned += pts;
+      const zx = z.x + z.w / 2;
+      const zy = z.y + z.h / 2;
+      fx.score(pts, zx, zy, `구역 완료 +${ZONE_BONUS}`, "mint");
+      fx.burst(zx, zy, 26, "mint");
+      fx.sfx("good");
+    });
+
     // 스팀 게이지
     if (this.boost <= 0) {
       this.steam = ironing
@@ -435,6 +486,12 @@ export class IronMode implements Mode {
     // 주름: 미리 그려 둔 부드러운 주름 그림. 다린 자리는 지워져 있다.
     this.eraseWrinkles();
     if (this.wrinkle) ctx.drawImage(this.wrinkle, b.x, b.y);
+    // 방금 끝낸 구역: 하얀 광택이 번쩍
+    for (const z of this.zones) {
+      if (z.flash <= 0) continue;
+      ctx.fillStyle = `rgba(255,255,255,${(z.flash / 0.6) * 0.45})`;
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+    }
     // 흐르는 광택
     const sx = b.x + ((t * 220) % (b.w + 600)) - 300;
     const shine = ctx.createLinearGradient(sx - 160, b.y, sx + 160, b.y + b.h);
