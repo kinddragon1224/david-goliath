@@ -97,6 +97,10 @@ export class ScissorsMode implements Mode {
   private pair = false;
   private pairT = 0;
   private fabric = { x: 0, y: 0, w: 0, h: 0 };
+  /** 손마다 최근 위치(칼날 궤적). */
+  private trails: { x: number; y: number; t: number }[][] = [[], []];
+  /** 자를 때 튀는 실밥·천 부스러기. */
+  private bits: { x: number; y: number; vx: number; vy: number; a: number; va: number; life: number; c: string }[] = [];
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -112,6 +116,8 @@ export class ScissorsMode implements Mode {
     this.nickT = 0;
     this.jamT = 0;
     this.cutAt = [-9, -9];
+    this.trails = [[], []];
+    this.bits = [];
     this.tol = Math.min(W, H) * TOL[this.level];
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
@@ -148,6 +154,19 @@ export class ScissorsMode implements Mode {
 
   update(dt: number, t: number, hands: Hand[], fx: Fx): void {
     this.snipT = Math.max(0, this.snipT - dt);
+    hands.forEach((h, i) => {
+      const tr = (this.trails[i] ??= []);
+      if (h.on) tr.push({ x: h.x, y: h.y, t });
+      while (tr.length && (t - tr[0].t > 0.16 || tr.length > 12)) tr.shift();
+    });
+    for (const b of this.bits) {
+      b.life -= dt;
+      b.vy += 1400 * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.a += b.va * dt;
+    }
+    this.bits = this.bits.filter((b) => b.life > 0);
     if (this.fall) {
       this.fall.t += dt;
       if (this.fall.t > 1.2) this.fall = null;
@@ -222,6 +241,22 @@ export class ScissorsMode implements Mode {
       this.pieceOn += dt;
       const h = hands[this.activeHands[0]];
       fx.score(adv * 4 * (pair ? 2 : 1), h.x, h.y);
+      // 싹둑할 때마다 자른 자리에서 실밥이 튄다(천 색 + 안감 색)
+      for (const side of [0, 1] as const) {
+        if (t - this.lastSnip <= 0.16 || (side === 1 && best[1] <= 0)) continue;
+        const [px, py] = this.path[this.front(side)];
+        for (let k = 0; k < 5 && this.bits.length < 60; k++)
+          this.bits.push({
+            x: px,
+            y: py,
+            vx: (Math.random() - 0.5) * 420,
+            vy: -120 - Math.random() * 260,
+            a: Math.random() * Math.PI,
+            va: (Math.random() - 0.5) * 18,
+            life: 0.5 + Math.random() * 0.4,
+            c: Math.random() < 0.6 ? this.garment.color : this.garment.shade,
+          });
+      }
       this.snipT = 0.18;
       if (t - this.lastSnip > 0.16) {
         fx.sfx("snip");
@@ -436,6 +471,41 @@ export class ScissorsMode implements Mode {
       }
       ctx.restore();
     }
+
+    // 실밥
+    for (const b of this.bits) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, b.life * 2.5);
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.a);
+      ctx.fillStyle = b.c;
+      ctx.fillRect(-7, -2, 14, 4);
+      ctx.strokeStyle = "rgba(20,14,30,0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-7, -2, 14, 4);
+      ctx.restore();
+    }
+    // 칼날 궤적: 자르는 중이면 밝은 민트, 아니면 은은하게
+    this.trails.forEach((tr, i) => {
+      if (tr.length < 2) return;
+      const hot = this.activeHands.includes(i) && this.snipT > 0;
+      // 밝은 천 위에서도 보이게: 짙은 청록 테 + 흰 심
+      ctx.save();
+      ctx.lineCap = "round";
+      for (const [col, wid] of hot
+        ? ([["32,150,140", 18], ["255,255,255", 7]] as const)
+        : ([["255,255,255", 8]] as const))
+        for (let k = 1; k < tr.length; k++) {
+          const f = k / tr.length;
+          ctx.strokeStyle = `rgba(${col},${(hot ? 0.85 : 0.3) * f})`;
+          ctx.lineWidth = wid * f;
+          ctx.beginPath();
+          ctx.moveTo(tr[k - 1].x, tr[k - 1].y);
+          ctx.lineTo(tr[k].x, tr[k].y);
+          ctx.stroke();
+        }
+      ctx.restore();
+    });
 
     hands.forEach((h, i) =>
       drawScissors(ctx, h, this.tol, this.activeHands.includes(i) ? this.snipT : 0, t),

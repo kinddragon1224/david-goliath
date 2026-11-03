@@ -1,6 +1,7 @@
 import { BRANDS } from "../garments";
 import {
   drawArt,
+  drawFlare,
   drawGarmentPhoto,
   drawHandGlow,
   garmentPhoto,
@@ -390,6 +391,21 @@ export class RhythmMode implements Mode {
     }
 
     // 판정 글자
+    // 맞힌 패드에서 빛 고리가 터진다
+    for (const j of this.judge) {
+      if (j.text === "놓침" || j.t > 0.35) continue;
+      const p = this.pads[j.pad];
+      const k = j.t / 0.35;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      ctx.strokeStyle = TONE[j.tone];
+      ctx.lineWidth = 12 * (1 - k) + 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, this.R * (0.9 + k * 0.7), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      drawFlare(ctx, p.x, p.y, this.R * (1.3 - k * 0.5), j.tone, 1 - k);
+    }
     for (const j of this.judge) {
       const p = this.pads[j.pad];
       ctx.globalAlpha = 1 - j.t / 0.6;

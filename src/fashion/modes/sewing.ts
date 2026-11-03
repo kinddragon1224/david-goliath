@@ -1,4 +1,5 @@
 import {
+  drawFlare,
   drawGarmentPhoto,
   drawHandGlow,
   propImage,
@@ -166,6 +167,8 @@ export class SewingMode implements Mode {
   private needleHand = 0;
   private demoPos: DemoHand | null = null;
   private box = { x: 0, y: 0, w: 1, h: 1 };
+  /** 찍은 구멍에서 퍼지는 빛 고리. */
+  private pops: { x: number; y: number; t0: number; tone: "gold" | "white" }[] = [];
 
   /** 솔기 위 한 점(무대 좌표). */
   private at(k: number): [number, number] {
@@ -188,6 +191,7 @@ export class SewingMode implements Mode {
     this.earlies = 0;
     this.earlyAt = -9;
     this.wasIn = [false, false];
+    this.pops = [];
     this.tol = Math.min(W, H) * TOL[this.level];
     this.tip = RING[this.level]
       ? "구멍 옆에서 기다렸다가, 원이 하얗게 닫힐 때 콕!"
@@ -303,6 +307,7 @@ export class SewingMode implements Mode {
             : `+${pts}`;
       fx.score(pts, hole.x, hole.y - this.tol * 0.9, label, this.fever() ? "gold" : "white");
       fx.burst(hole.x, hole.y, this.fever() || perfect ? 14 : 8, "gold");
+      this.pops.push({ x: hole.x, y: hole.y, t0: t, tone: perfect || this.fever() ? "gold" : "white" });
       if (timed) {
         if (perfect) this.perfects++;
         fx.stamp(
@@ -501,6 +506,20 @@ export class SewingMode implements Mode {
       ctx.lineTo(nxt.x, nxt.y);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+    // 콕! 찍은 자리에서 고리가 퍼지며 사라진다
+    this.pops = this.pops.filter((p) => t - p.t0 < 0.4);
+    for (const p of this.pops) {
+      const k = (t - p.t0) / 0.4;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      ctx.strokeStyle = TONE[p.tone];
+      ctx.lineWidth = 10 * (1 - k) + 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, this.tol * (0.6 + k * 1.1), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      drawFlare(ctx, p.x, p.y, this.tol * (1.4 - k * 0.6), p.tone, 1 - k);
     }
     for (const h of hands) drawNeedle(ctx, h, this.tol, this.flash, this.fever());
   }
