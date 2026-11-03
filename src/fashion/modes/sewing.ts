@@ -185,6 +185,8 @@ export class SewingMode implements Mode {
     this.perfects = 0;
     this.misses = 0;
     this.earlies = 0;
+    this.earlyAt = -9;
+    this.wasIn = [false, false];
     this.tol = Math.min(W, H) * TOL[this.level];
     this.tip = RING[this.level]
       ? "구멍 옆에서 기다렸다가, 원이 하얗게 닫힐 때 콕!"
@@ -540,7 +542,11 @@ export class SewingMode implements Mode {
           label: "콤보",
           value: this.combo / FEVER_AT,
           text:
-            this.combo > 0 ? `${this.combo}콤보 · ${FEVER_AT}콤보면 피버` : `빨리 이어 찍으면 콤보`,
+            this.combo > 0
+              ? `${this.combo}콤보 · ${FEVER_AT}콤보면 피버`
+              : RING[this.level]
+                ? "원이 하얘질 때 콕 찍으면 콤보"
+                : "빨리 이어 찍으면 콤보",
         };
   }
 

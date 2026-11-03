@@ -38,19 +38,21 @@ const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LAYOVER, SILUA];
 const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
 const PIECE_BONUS = 600;
 /** 선 허용 폭(화면 짧은 쪽 비율). 하드는 옷마다 조금씩 더 좁아진다. */
-const TOL = [0.085, 0.066, 0.054];
+const TOL = [0.085, 0.07, 0.06];
 /** 노멀·하드: 가위 자리 가까이서 선을 벗어나면 원단에 흠집 + 감점. */
-const NICK_PENALTY = [0, 100, 200];
-const NICK_GAP = 0.45;
+const NICK_PENALTY = [0, 80, 150];
+const NICK_GAP = 0.5;
+/** 선에서 이만큼(허용 폭 배수) 벗어나야 흠집. 웹캠 손 떨림은 봐준다. */
+const NICK_AT = 1.25;
 /** 흠집 내면 가위가 잠깐 걸려 못 자른다(대충 빨리 휘두르는 게 손해가 되게). */
-const JAM = [0, 0.35, 0.5];
+const JAM = [0, 0.3, 0.4];
 
 export class ScissorsMode implements Mode {
   seconds = 40;
   hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
   tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
   // 봇 기준. 이지: 양손 깔끔 20~34k, 한 손 12~21k, 대충 10~15k
-  // 노멀: 양손 깔끔 30k, 손 떨림 25k, 한 손 19k, 대충 휘두르기 22k / 하드: 28k, 15k, 17k, 6k
+  // 노멀: 양손 깔끔 31k, 손 떨림 27k, 한 손 16k, 선 밖으로 휘두르기 16~17k / 하드: 29k, 25k, 16k, 2.5~5.5k
   grades: [number, number, number][] = [
     [16000, 8000, 3500],
     [15000, 7500, 3000],
@@ -105,6 +107,9 @@ export class ScissorsMode implements Mode {
     this.pair = false;
     this.pairT = 0;
     this.nickCount = 0;
+    this.nickT = 0;
+    this.jamT = 0;
+    this.cutAt = [-9, -9];
     this.tol = Math.min(W, H) * TOL[this.level];
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
@@ -175,7 +180,7 @@ export class ScissorsMode implements Mode {
         }
       }
       // 막 자르던 손이 선을 벗어날 때만(멀리서 다가오는 손은 봐준다)
-      if (near && minD > this.tol * 1.1 && h.speed > this.W * 0.1 && t - this.cutAt[hi] < 0.5)
+      if (near && minD > this.tol * NICK_AT && h.speed > this.W * 0.1 && t - this.cutAt[hi] < 0.5)
         stray.push({ h, d: minD });
     });
     // 노멀·하드: 선을 벗어나 가위질하면 흠집

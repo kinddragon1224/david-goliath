@@ -26,8 +26,10 @@ const BEAT = 60 / BPM;
 /** 고리가 보이기 시작해 박자에 닿기까지(초). */
 const APPROACH = BEAT * 2.4;
 /** 판정 폭(초) 이지·노멀·하드. 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
-const PERFECT_W = [0.14, 0.11, 0.085];
-const GOOD_W = [0.32, 0.24, 0.19];
+const PERFECT_W = [0.14, 0.12, 0.1];
+const GOOD_W = [0.32, 0.26, 0.22];
+/** 웹캠·인식·손떨림 거르기로 손이 늦게 보이는 만큼(초). 판정 시각을 이만큼 당겨 박자에 맞춘다. */
+const LAG = 0.1;
 const FEVER_AT = 10;
 
 type Note = { pad: number; at: number; state: "wait" | "perfect" | "good" | "miss"; sec: number };
@@ -133,6 +135,10 @@ export class RhythmMode implements Mode {
     this.maxCombo = 0;
     this.judge = [];
     this.demoPos = [];
+    this.inside = [
+      [false, false, false, false],
+      [false, false, false, false],
+    ];
     this.hint = "원 안 숫자 3·2·1 다음 '지금!'에 손을 대요";
   }
 
@@ -180,19 +186,21 @@ export class RhythmMode implements Mode {
         const entered = inPad && !this.inside[hi][pi];
         this.inside[hi][pi] = inPad;
         if (!inPad) return;
+        // 시범 손은 늦게 보일 일이 없다
+        const seen = h.ghost ? now : now - LAG;
         const n = this.notes.find(
-          (x) => x.pad === pi && x.state === "wait" && Math.abs(x.at - now) <= GOOD,
+          (x) => x.pad === pi && x.state === "wait" && Math.abs(x.at - seen) <= GOOD,
         );
         if (!n) return;
-        const d = now - n.at;
-        // 미리 대고 있으면 박자가 맞을 때 친 것으로(하드는 박자에 맞춰 새로 들어와야)
-        if (!entered && (this.level === 2 || d < -PERFECT)) return;
+        const d = seen - n.at;
+        // 미리 대고 있으면 박자가 맞을 때 친 것으로(하드는 박자에 맞춰 새로 들어와야, 시범 손은 봐준다)
+        if (!entered && ((this.level === 2 && !h.ghost) || d < -PERFECT)) return;
         this.hit(n, Math.abs(d) <= PERFECT ? "perfect" : "good", fx);
       });
     });
 
     for (const n of this.notes) {
-      if (n.state === "wait" && now - n.at > GOOD) {
+      if (n.state === "wait" && now - (this.started ? LAG : 0) - n.at > GOOD) {
         n.state = "miss";
         this.miss++;
         this.combo = 0;

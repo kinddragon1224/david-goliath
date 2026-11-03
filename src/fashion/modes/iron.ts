@@ -45,8 +45,8 @@ const GARMENT_POINTS = 1000;
 const GARMENT_BONUS = 500;
 const BOOST_SECONDS = 4;
 /** 노멀·하드: 옷 위에 다리미를 이만큼(초) 가만히 대고 있으면 눌음 자국. 이지는 안 눌는다. */
-const SCORCH_AFTER = [0, 1.1, 0.7];
-const SCORCH_PENALTY = [0, 300, 600];
+const SCORCH_AFTER = [0, 1.4, 1.0];
+const SCORCH_PENALTY = [0, 200, 400];
 /** 주름이 펴지는 빠르기(하드는 주름이 깊다). */
 const PRESS = [1, 0.85, 0.62];
 
@@ -58,7 +58,7 @@ export class IronMode implements Mode {
   hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
   tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
   // 봇 기준. 이지: 양손 깔끔 27~40k, 한 손 9~11k, 양손 대충 7~17k, 한 손 대충 1~5k
-  // 노멀: 양손 36~38k, 한 손 11k, 자주 멈칫(눌음 12개) ~18k / 하드: 양손 33~35k, 한 손 10k, 멈칫(눌음 14개) ~8k
+  // 노멀: 양손 36~38k, 한 손(반짝이 따라) 11k, 1.6초씩 멈칫(눌음 16개) 9.5k / 하드: 양손 33k, 한 손 9.5k, 멈칫(눌음 18개) 5k
   grades: [number, number, number][] = [
     [14000, 7000, 2500],
     [13000, 6500, 2200],
@@ -216,7 +216,8 @@ export class IronMode implements Mode {
       this.heat[hi] = still ? this.heat[hi] + dt : Math.max(0, this.heat[hi] - dt * 3);
       const lim = SCORCH_AFTER[this.level];
       if (lim && this.heat[hi] >= lim) {
-        this.heat[hi] = 0;
+        // 한 번 눌면 그 자리에서 곧바로 또 눌지 않게 한 번 더 기다려 준다
+        this.heat[hi] = -lim;
         this.scorchCount++;
         this.scorches.push({ x: h.x, y: h.y, a: this.rand() * Math.PI });
         const pen = SCORCH_PENALTY[this.level];

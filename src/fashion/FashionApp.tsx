@@ -185,8 +185,20 @@ export function FashionApp({ station }: { station: FashionStation }) {
     const mirrorState: MirrorState = { cx: 0.5, body: null };
     const finaleState: MirrorState = { cx: 0.5, body: null };
     let raf = 0;
+    // 한 장면이 터져도 다음 장면은 그린다. 계속 터지면(무인 운영) 대기 화면일 때 새로고침.
+    let fails = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      try {
+        frameStep(now);
+        fails = 0;
+      } catch (e) {
+        fails++;
+        if (fails === 1) console.error(e);
+        if (fails > 90 && (game.phase === "attract" || fails > 600)) window.location.reload();
+      }
+    };
+    const frameStep = (now: number) => {
       const video = videoRef.current;
       if (pose.takeDisconnect()) game.setReadiness("off", "off");
       let frame: PoseFrame | null = null;

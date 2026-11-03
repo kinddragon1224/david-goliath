@@ -265,10 +265,12 @@ export class FashionGame implements Fx {
   private trauma = 0;
   private stopT = 0;
   private flashA = 0;
+  private awayT = 0;
 
   setLevel(level: Level): void {
     if (this.level === level) return;
     this.level = level;
+    this.awayT = 0;
     this.rows = this.load();
     this.sound.play("tick");
     if (this.phase === "attract") {
@@ -352,9 +354,18 @@ export class FashionGame implements Fx {
     this.emit(true);
   }
 
+  private todayMemo: { rows: ScoreRow[]; n: number; k: string; out: ScoreRow[] } | null = null;
+
+  /** 오늘 기록(높은 순). 화면이 0.1초마다 부르니 기록·날짜가 그대로면 다시 안 센다. */
   today(): ScoreRow[] {
     const k = dayKey(Date.now());
-    return this.rows.filter((r) => dayKey(r.at) === k).sort((a, b) => b.s - a.s || a.at - b.at);
+    const m = this.todayMemo;
+    if (m && m.rows === this.rows && m.n === this.rows.length && m.k === k) return m.out;
+    const out = this.rows
+      .filter((r) => dayKey(r.at) === k)
+      .sort((a, b) => b.s - a.s || a.at - b.at);
+    this.todayMemo = { rows: this.rows, n: this.rows.length, k, out };
+    return out;
   }
 
   resize(W: number, H: number): void {
@@ -691,6 +702,16 @@ export class FashionGame implements Fx {
           this.setLevel(over as Level);
         }
       }
+      // 사람이 떠난 지 8초면 다음 사람을 위해 노멀로 되돌린다
+      // (카메라 없이 터치로 하는 중이면 사람 유무를 모르니 두지 않는다)
+      this.awayT = this.present || this.camera !== "live" ? 0 : this.awayT + dt;
+      if (this.awayT > 8 && this.level !== 1) {
+        this.level = 1;
+        this.rows = this.load();
+        this.mode.level = 1;
+        this.mode.reset(this.W, this.H);
+        this.emit(true);
+      }
       // 아무도 없으면 40초마다 MC가 지나가는 사람을 부른다
       if (!this.present && this.time - this.helloAt > 40) {
         this.helloAt = this.time;
@@ -843,8 +864,8 @@ export class FashionGame implements Fx {
 
     // 엉뚱한 곳에 오래 있으면 "여기로!" 화살표
     const tgt = this.phase === "play" ? this.mode.target() : null;
-    if (tgt && this.offTargetT > GUIDE_AFTER) {
-      const on = this.real.filter((h) => h.on);
+    const on = this.real.filter((h) => h.on);
+    if (tgt && this.offTargetT > GUIDE_AFTER && on.length) {
       const from = on.reduce((a, b) =>
         Math.hypot(a.x - tgt.x, a.y - tgt.y) < Math.hypot(b.x - tgt.x, b.y - tgt.y) ? a : b,
       );
