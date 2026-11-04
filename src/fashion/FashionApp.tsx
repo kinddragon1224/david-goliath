@@ -520,7 +520,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
       </div>
 
       {ui.soundBlocked && (
-        <p className="f-ghost pointer-events-none absolute right-4 bottom-4 z-30 px-4 py-2 text-sm">
+        <p className="f-ghost pointer-events-none absolute right-4 bottom-12 z-30 px-4 py-2 text-sm">
           화면을 한 번 눌러 소리를 켜 주세요
         </p>
       )}

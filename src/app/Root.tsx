@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PRODUCER } from "@/game/constants";
 import { GameApp } from "@/game/GameApp";
 import { EDITION_ID } from "@/game/edition";
 import { FashionApp } from "@/fashion/FashionApp";
@@ -15,7 +16,26 @@ export function Root() {
     setStation(EDITION_ID === "weaveon" || fromQuery ? s : "goliath");
   }, []);
   if (station === undefined) return <div className="fixed inset-0 bg-[#0d0b14]" />;
-  if (station === null) return <StationPicker onPick={setStation} />;
-  if (station === "goliath") return <GameApp />;
-  return <FashionApp station={station} />;
+  return (
+    <>
+      {station === null ? (
+        <StationPicker onPick={setStation} />
+      ) : station === "goliath" ? (
+        <GameApp />
+      ) : (
+        <FashionApp station={station} />
+      )}
+      <ProducerMark />
+    </>
+  );
+}
+
+/** 모든 화면 구석의 제작사 표기. 로고가 남색이라 어두운 화면에서도 보이게 흰 바탕에 얹는다. */
+function ProducerMark() {
+  return (
+    <div className="pointer-events-none fixed right-2 bottom-2 z-40 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[#14306b]">
+      <span>제작</span>
+      <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-4 w-auto" />
+    </div>
+  );
 }

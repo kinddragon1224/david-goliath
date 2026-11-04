@@ -402,7 +402,7 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
       <span className="t-btn animate-throb bg-don px-9 py-4 text-2xl text-cream">
         화면을 눌러 시작
       </span>
-      <div className="absolute inset-x-4 bottom-4">
+      <div className="absolute inset-x-4 bottom-11">
         <Credit full />
       </div>
     </button>
@@ -872,7 +872,7 @@ function Hud({ ui }: { ui: UiSnap }) {
         )}
       </div>
       <div className="flex-1" />
-      <div className="mb-5 px-4">
+      <div className="mb-10 px-4">
         <HintPill>{ui.motionHint}</HintPill>
       </div>
     </>
