@@ -74,6 +74,8 @@ export class RhythmMode implements Mode {
   level: Level = 1;
   music = null;
   track = TRACK;
+  /** 끝 몇 초는 곡이 잦아들어 음표가 없어서 그만큼 일찍 시작한다. */
+  rushAt = 17;
   private W = 1400;
   private H = 860;
   private notes: Note[] = [];

@@ -94,6 +94,9 @@ const initialUi: FashionUi = {
   muted: false,
   soundBlocked: false,
   resultLeft: 0,
+  rush: false,
+  toTop: 0,
+  toGrade: 0,
   homeProgress: 0,
   level: 1,
   levelHover: null,
@@ -427,6 +430,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             <TimerRing
               pct={ui.seconds > 0 ? ui.timeLeft / ui.seconds : 0}
               left={Math.ceil(ui.timeLeft)}
+              hot={ui.rush}
             />
           </div>
         ) : (
@@ -456,8 +460,10 @@ export function FashionApp({ station }: { station: FashionStation }) {
         {ui.phase === "play" && (
           <>
             <div className="absolute inset-x-0 bottom-4 flex justify-center px-4">
-              <p className="f-card f-serif max-w-full truncate px-7 py-2.5 text-center text-xl">
-                {ui.hint}
+              <p
+                className={`f-serif max-w-full truncate px-7 py-2.5 text-center ${ui.rush ? "animate-throb rounded-3xl bg-[var(--f-pink)] text-3xl text-[#1b1526] shadow-2xl" : "f-card text-xl"}`}
+              >
+                {ui.rush ? "막판 점수 2배! 끝까지!" : ui.hint}
               </p>
             </div>
             {ui.noHands && (
@@ -850,10 +856,10 @@ function QueueChip({ q }: { q: QueueItem }) {
   );
 }
 
-function TimerRing({ pct, left }: { pct: number; left: number }) {
+function TimerRing({ pct, left, hot }: { pct: number; left: number; hot: boolean }) {
   const r = 26;
   const c = 2 * Math.PI * r;
-  const urgent = left <= 5;
+  const urgent = hot || left <= 5;
   return (
     <div className={`relative size-[4.4rem] ${urgent ? "animate-throb" : ""}`}>
       <svg viewBox="0 0 64 64" className="size-full -rotate-90">
@@ -1109,6 +1115,8 @@ function AttractOverlay({
     const id = window.setInterval(() => setTi((i) => i + 1), 3500);
     return () => window.clearInterval(id);
   }, []);
+  // 오락실 대기 화면처럼: 아무도 없으면 글자를 잠깐 치우고 시범 플레이를 보여 준다
+  const fade = `transition-opacity duration-500 ${ui.demo && ti % 4 === 3 ? "opacity-0" : ""}`;
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-[3%]">
       {/* 무대 조명 빛줄기 + 반짝이 */}
@@ -1138,7 +1146,7 @@ function AttractOverlay({
           </span>
         ))}
       </div>
-      <div className="f-card pointer-events-auto relative px-8 py-3 text-center">
+      <div className={`f-card pointer-events-auto relative px-8 py-3 text-center ${fade}`}>
         <div className="flex items-center justify-center gap-3">
           <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
           <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
@@ -1154,7 +1162,7 @@ function AttractOverlay({
           창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
         </p>
       </div>
-      <div key={ti} className="f-card animate-pop relative px-8 py-3">
+      <div key={ti} className={`f-card animate-pop relative px-8 py-3 ${fade}`}>
         <p className="f-serif f-pearl text-center text-5xl leading-tight">
           {teasers[ti % teasers.length]}
         </p>
@@ -1178,7 +1186,7 @@ function AttractOverlay({
       </div>
       {/* 현장엔 마우스·키보드가 없다: 손을 버튼에 1초 대거나 터치로 고른다(자리는 core LEVEL_BOXES) */}
       <p
-        className="f-serif absolute inset-x-0 text-center text-xl text-[var(--f-ink)] [text-shadow:0_2px_8px_#000]"
+        className={`f-serif absolute inset-x-0 text-center text-xl text-[var(--f-ink)] [text-shadow:0_2px_8px_#000] ${fade}`}
         style={{ top: `calc(${LEVEL_BOXES[0].y * 100}% - 2.2rem)` }}
       >
         난이도 · 버튼에 손을 1초 대거나 터치하세요
@@ -1191,7 +1199,7 @@ function AttractOverlay({
             key={i}
             type="button"
             onClick={() => onLevel(i as Level)}
-            className={`pointer-events-auto absolute overflow-hidden rounded-3xl border-[0.2rem] text-center transition-transform ${
+            className={`pointer-events-auto absolute overflow-hidden rounded-3xl border-[0.2rem] text-center ${fade} ${
               on
                 ? "scale-105 border-[var(--f-gold)] bg-[#0a0d14]/90 shadow-[0_0_2rem_rgba(159,243,255,0.55)]"
                 : "border-white/30 bg-[#0a0d14]/70"
@@ -1362,23 +1370,49 @@ function ResultOverlay({
   onAgain: () => void;
   onHome: () => void;
 }) {
+  // 점수가 올라가다 멈추면 등급 도장이 쾅
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const at = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - at) / 1100);
+      setShown(Math.round(ui.score * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [ui.score]);
+  const goal =
+    ui.rank === 1
+      ? "오늘 1위!"
+      : ui.toTop > 0
+        ? `1위까지 ${ui.toTop.toLocaleString("ko-KR")}점!`
+        : ui.toGrade > 0
+          ? `${GRADE_NAMES[ui.grade - 1]}까지 ${ui.toGrade.toLocaleString("ko-KR")}점!`
+          : "다시 도전해 보세요!";
   return (
     <div className="absolute inset-0 flex items-center justify-center rounded-[2rem] bg-black/55 p-[3%]">
       <div className="f-card animate-pop pointer-events-auto flex max-h-full w-full max-w-[52rem] flex-col gap-5 overflow-hidden p-7">
         <div className="flex items-center gap-6">
-          <GradeBadge grade={ui.grade} />
-          <div className="min-w-0 flex-1">
+          <div className="f-slam">
+            <GradeBadge grade={ui.grade} />
+          </div>
+          <div className="f-slam min-w-0 flex-1">
             <p className="text-sm tracking-[0.3em] text-[var(--f-muted)]">오늘의 등급</p>
             <p className="f-serif f-pearl text-5xl leading-tight">{GRADE_NAMES[ui.grade]}</p>
             <p className="f-serif mt-1 text-lg text-[var(--f-muted)]">{GRADE_LINES[ui.grade]}</p>
           </div>
           <div className="text-right">
             <p className="f-serif text-6xl leading-none tabular-nums">
-              {ui.score.toLocaleString("ko-KR")}
+              {shown.toLocaleString("ko-KR")}
             </p>
-            <p className="mt-2 text-base text-[var(--f-gold)]">
-              {ui.rank > 0 ? `오늘 ${ui.todayCount}명 중 ${ui.rank}위` : "다시 도전해 보세요!"}
-            </p>
+            <p className="f-serif mt-2 text-2xl text-[var(--f-gold)]">{goal}</p>
+            {ui.rank > 0 && (
+              <p className="text-sm text-[var(--f-muted)]">
+                오늘 {ui.todayCount}명 중 {ui.rank}위
+              </p>
+            )}
           </div>
         </div>
         <div className="flex gap-3">
@@ -1410,14 +1444,17 @@ function ResultOverlay({
         )}
         <div className="flex items-center gap-3">
           <button type="button" onClick={onAgain} className="f-btn h-14 flex-1 text-2xl" autoFocus>
-            다시 하기
+            다시 하기 {ui.resultLeft <= 10 ? ui.resultLeft : ""}
           </button>
           <button type="button" onClick={onHome} className="f-ghost h-14 flex-1 text-xl">
             처음으로
           </button>
         </div>
-        <p className="-mt-2 text-center text-sm text-[var(--f-muted)]">
-          양손을 들면 바로 다시 · {ui.resultLeft}초 뒤 처음 화면
+        <p
+          key={ui.resultLeft}
+          className={`f-serif -mt-2 text-center text-xl ${ui.resultLeft <= 10 ? "animate-pop text-[var(--f-gold)]" : "text-[var(--f-muted)]"}`}
+        >
+          양손을 번쩍 들면 바로 다시 도전!
         </p>
       </div>
     </div>

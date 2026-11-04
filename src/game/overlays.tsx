@@ -900,6 +900,17 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
                 ? `이달 ${ui.monthRank}위`
                 : "기록되지 않았습니다"}
         </p>
+        {!ui.checkMode && ui.monthRank > 1 && (
+          <p className="mt-1 font-display text-2xl text-don">
+            1위까지{" "}
+            {(
+              monthlyRows(ui.scores, monthKey(Date.now()))[0].score -
+              ui.score +
+              1
+            ).toLocaleString("ko-KR")}
+            점!
+          </p>
+        )}
         <dl className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-2xl border-[0.25rem] border-ink bg-sun px-3 py-2">
             <dt className="font-display text-sm">크리티컬</dt>

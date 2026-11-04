@@ -218,6 +218,7 @@ export class FashionSound {
       case "perfect":
         this.tone(NOTE(84), t, 0.1, "triangle", 0.22);
         this.tone(NOTE(91), t + 0.05, 0.16, "sine", 0.18);
+        this.tone(95, t, 0.18, "sine", 0.45, 45);
         break;
       case "miss":
         this.tone(220, t, 0.18, "sine", 0.12, 150);
@@ -225,6 +226,7 @@ export class FashionSound {
       case "complete":
         [76, 79, 83, 88, 91].forEach((n, i) => this.tone(NOTE(n), t + i * 0.06, 0.4, "sine", 0.2));
         this.hiss(t, 0.6, 0.05, 8000, 0.7);
+        this.tone(110, t, 0.3, "sine", 0.55, 40);
         break;
       case "snip":
         this.hiss(t, 0.05, 0.25, 4500, 3);

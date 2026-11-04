@@ -92,6 +92,8 @@ export interface Mode {
   level: Level;
   /** 판 동안 깔리는 잔잔한 음악. 리듬은 자체 음악. */
   music: "lofi" | null;
+  /** 막판 점수 2배가 시작되는 남은 시간(초). 없으면 10초. */
+  rushAt?: number;
   /** 판에 쓸 곡 파일. 카운트다운 동안 받아 둔다. */
   track?: string;
   /** 터치로 누른 자리(무대 x). */
@@ -146,6 +148,11 @@ export type FashionUi = {
   muted: boolean;
   soundBlocked: boolean;
   resultLeft: number;
+  /** 막판 점수 2배 중. */
+  rush: boolean;
+  /** 결과 화면 다음 목표: 오늘 1위까지, 다음 등급까지 남은 점수(0이면 없음). */
+  toTop: number;
+  toGrade: number;
   homeProgress: number;
   level: Level;
   /** 대기 화면에서 손이 올라가 있는 난이도 버튼과 채워진 정도. */
@@ -164,6 +171,7 @@ export const GRADE_LINES = [
 
 const COUNTDOWN = 3;
 const RESULT_SECONDS = 14;
+const RUSH_SECONDS = 10;
 const HANDS_UP_HOLD = 1.0;
 const ABSENT_END = 7;
 /** 사람 손이 이만큼 안 보이면 대기 화면에서 시범 손이 나온다. */
@@ -283,6 +291,18 @@ export class FashionGame implements Fx {
   private stopT = 0;
   private flashA = 0;
   private awayT = 0;
+  /** 판정 도장이 찍힐 때 화면이 살짝 다가온다. */
+  private zoom = 0;
+  /** 막판 2배로 더 얻은 점수. 등급은 이걸 빼고 매겨서 체험별 등급 기준을 그대로 쓴다. */
+  private bonus = 0;
+  private rushOn = false;
+  private passedTop = false;
+  private toTop = 0;
+  private toGrade = 0;
+
+  private get rush(): boolean {
+    return this.phase === "play" && this.timeLeft <= (this.mode.rushAt ?? RUSH_SECONDS);
+  }
 
   setLevel(level: Level): void {
     if (this.level === level) return;
@@ -424,6 +444,9 @@ export class FashionGame implements Fx {
     this.countT = COUNTDOWN;
     this.lastTick = COUNTDOWN + 1;
     this.points = 0;
+    this.bonus = 0;
+    this.rushOn = false;
+    this.passedTop = false;
     this.pops = [];
     this.handsUpT = 0;
     this.trauma = 0;
@@ -466,7 +489,10 @@ export class FashionGame implements Fx {
     const today = this.today();
     this.rank = row.s > 0 ? today.findIndex((r) => r.at === row.at) + 1 : 0;
     const g = this.mode.grades[this.level];
-    this.grade = this.points >= g[0] ? 0 : this.points >= g[1] ? 1 : this.points >= g[2] ? 2 : 3;
+    const base = this.points - this.bonus;
+    this.grade = base >= g[0] ? 0 : base >= g[1] ? 1 : base >= g[2] ? 2 : 3;
+    this.toTop = this.rank !== 1 && today[0] ? today[0].s - row.s + 1 : 0;
+    this.toGrade = this.grade > 0 ? Math.ceil(g[this.grade - 1] - base) : 0;
     // 거울 앞에 사람이 있으면 완성한 옷을 입혀 보는 피날레, 없으면 바로 결과
     if (this.present && this.camera === "live") this.goFinale();
     else this.goResult();
@@ -495,6 +521,7 @@ export class FashionGame implements Fx {
     this.gradeSaid = false;
     this.phase = "result";
     this.resultT = RESULT_SECONDS;
+    this.lastTick = 99;
     this.rain(this.grade <= 1 ? 220 : 120);
     this.emit(true);
   }
@@ -599,6 +626,10 @@ export class FashionGame implements Fx {
   /* Fx */
   score(points: number, x: number, y: number, label?: string, tone: Tone = "gold"): void {
     if (this.phase !== "play") return;
+    if (this.rush && points > 0) {
+      this.bonus += points;
+      points *= 2;
+    }
     this.points = Math.max(0, this.points + points);
     if (label)
       this.pops.push({
@@ -616,6 +647,7 @@ export class FashionGame implements Fx {
     // 도장은 한 번에 하나만(겹치면 읽히지 않는다)
     this.pops = this.pops.filter((p) => !p.stamp);
     this.pops.push({ x, y, text, tone, t: 0, big: true, stamp: true });
+    this.zoom = 1;
   }
 
   shake(amount: number): void {
@@ -781,9 +813,26 @@ export class FashionGame implements Fx {
     } else if (this.phase === "play") {
       this.timeLeft = Math.max(0, this.timeLeft - dt);
       const sec = Math.ceil(this.timeLeft);
-      if (sec <= 5 && sec < this.lastSecond && sec > 0) this.sound.play("tick");
+      // 곡이 있는 판은 째깍 소리가 박자를 흐린다
+      if (sec <= 10 && sec < this.lastSecond && sec > 0 && !this.mode.track)
+        this.sound.play("tick");
       if (sec === 10 && this.lastSecond > 10 && this.mode.seconds > 15) this.sound.say("ten");
       this.lastSecond = sec;
+      if (this.rush && !this.rushOn) {
+        this.rushOn = true;
+        this.cele = { text: "막판 점수 2배!", tone: "pink", t: 0 };
+        this.sound.play("complete");
+        this.rain(80);
+        this.emit(true);
+      }
+      // 오늘 1등을 넘는 순간
+      const best = this.today()[0]?.s;
+      if (!this.passedTop && best && this.points > best) {
+        this.passedTop = true;
+        this.stamp("오늘 1등 돌파!", this.W / 2, this.H * 0.42, "gold");
+        this.sound.play("complete");
+        this.rain(60);
+      }
       // 히트스톱 동안은 옷과 판정이 멈춘다(시계는 흐른다)
       if (this.stopT > 0) this.stopT -= dt;
       else this.mode.update(dt, this.time, this.hands, this);
@@ -821,6 +870,11 @@ export class FashionGame implements Fx {
       if (this.finaleT >= FINALE.end) this.goResult();
     } else if (this.phase === "result") {
       this.resultT -= dt;
+      const left = Math.ceil(this.resultT);
+      if (left <= 10 && left < this.lastTick && left > 0) {
+        this.lastTick = left;
+        this.sound.play("tick");
+      }
       if (this.handsUpNow && this.present && this.resultT < RESULT_SECONDS - 3) this.handsUpT += dt;
       else this.handsUpT = 0;
       if (this.handsUpT >= HANDS_UP_HOLD) this.goCountdown();
@@ -829,6 +883,7 @@ export class FashionGame implements Fx {
 
     this.trauma = Math.max(0, this.trauma - dt * 1.8);
     this.flashA = Math.max(0, this.flashA - dt * 2.5);
+    this.zoom = Math.max(0, this.zoom - dt * 7);
     for (const p of this.pops) p.t += dt;
     this.pops = this.pops.filter((p) => p.t < (p.stamp ? 0.75 : 1.1));
     for (const s of this.sparks) {
@@ -892,10 +947,16 @@ export class FashionGame implements Fx {
     roundRect(ctx, 0, 0, W, H, 36);
     ctx.clip();
     // 흔들림: trauma² 만큼, 부드러운 잡음으로(Eiserloh 'Juicing Your Cameras')
-    const sh = this.trauma * this.trauma * 22;
+    const sh = this.trauma * this.trauma * 30;
     if (sh > 0.3) {
       ctx.translate(Math.sin(this.time * 61) * sh, Math.cos(this.time * 47 + 1.3) * sh);
       ctx.rotate(Math.sin(this.time * 37) * sh * 0.0015);
+    }
+    if (this.zoom > 0) {
+      const z = 1 + this.zoom * 0.025;
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(z, z);
+      ctx.translate(-W / 2, -H / 2);
     }
     this.mode.draw(ctx, this.time, this.hands, this.phase);
 
@@ -956,11 +1017,11 @@ export class FashionGame implements Fx {
         ctx.translate(p.x, p.y - 30 * k);
         ctx.rotate(-0.06);
         ctx.scale(s, s);
-        ctx.font = `700 76px "Gowun Batang", serif`;
+        ctx.font = `700 100px "Gowun Batang", serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.lineJoin = "round";
-        ctx.lineWidth = 14;
+        ctx.lineWidth = 18;
         ctx.strokeStyle = "rgba(10,12,20,0.92)";
         ctx.strokeText(p.text, 0, 0);
         ctx.shadowColor = TONE[p.tone];
@@ -972,7 +1033,7 @@ export class FashionGame implements Fx {
       }
       const k = p.t / 1.1;
       ctx.globalAlpha = 1 - k * k;
-      ctx.font = `700 ${p.big ? 56 : 42}px "Gowun Batang", serif`;
+      ctx.font = `700 ${p.big ? 70 : 52}px "Gowun Batang", serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 10;
@@ -1047,14 +1108,17 @@ export class FashionGame implements Fx {
     ctx.restore();
 
     // 피버: 무대 테두리가 금빛으로 맥박
-    const hot = (this.phase === "play" && this.mode.meter()?.hot) ?? false;
+    const rush = this.rush;
+    const hot = rush || ((this.phase === "play" && this.mode.meter()?.hot) ?? false);
     if (hot) {
-      const pulse = (Math.sin(this.time * 9) + 1) / 2;
+      const pulse = (Math.sin(this.time * (rush ? 14 : 9)) + 1) / 2;
       ctx.save();
       roundRect(ctx, 4, 4, W - 8, H - 8, 34);
-      ctx.lineWidth = 10 + pulse * 8;
-      ctx.strokeStyle = `rgba(159,243,255,${0.5 + pulse * 0.4})`;
-      ctx.shadowColor = "#9ff3ff";
+      ctx.lineWidth = (rush ? 16 : 10) + pulse * 8;
+      ctx.strokeStyle = rush
+        ? `rgba(255,111,168,${0.6 + pulse * 0.4})`
+        : `rgba(159,243,255,${0.5 + pulse * 0.4})`;
+      ctx.shadowColor = rush ? "#ff6fa8" : "#9ff3ff";
       ctx.shadowBlur = 40;
       ctx.stroke();
       ctx.restore();
@@ -1100,6 +1164,9 @@ export class FashionGame implements Fx {
       muted: this.sound.muted,
       soundBlocked: !!this.sound.ctx && !this.sound.running,
       resultLeft: Math.max(0, Math.ceil(this.resultT)),
+      rush: this.rush,
+      toTop: this.toTop,
+      toGrade: this.toGrade,
       homeProgress: this.homeProgress,
       level: this.level,
       levelHover: this.levelHover,
@@ -1179,7 +1246,7 @@ export function roundRect(
   h: number,
   r: number,
 ): void {
-  const rr = Math.min(r, w / 2, h / 2);
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.arcTo(x + w, y, x + w, y + h, rr);
