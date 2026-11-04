@@ -347,24 +347,12 @@ function HintPill({ children }: { children: ReactNode }) {
   );
 }
 
-/** 제작사 표기. full이면 사업자 정보까지. */
-function Credit({ full }: { full?: boolean }) {
-  if (!full) {
-    return (
-      <div className="flex items-center justify-center gap-2 text-[0.6875rem] font-bold text-fg-muted">
-        <span>제작</span>
-        <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-3.5 w-auto" />
-      </div>
-    );
-  }
+/** 사업자 정보. 로고는 모든 화면 구석에 있으니(Root) 여기엔 넣지 않는다. */
+function Credit() {
   return (
     <div className="w-full rounded-2xl border-[0.25rem] border-ink bg-paper/95 px-4 py-2.5 text-center">
-      <div className="flex items-center justify-center gap-2">
-        <span className="font-display text-sm text-fg-muted">제작</span>
-        <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-5 w-auto" />
-      </div>
       <p
-        className="mt-1.5 text-[0.625rem] leading-relaxed text-fg-muted text-pretty"
+        className="text-[0.625rem] leading-relaxed text-fg-muted text-pretty"
         style={{ wordBreak: "keep-all" }}
       >
         상호 {PRODUCER.name} · 대표 {PRODUCER.ceo} · 사업자등록번호 {PRODUCER.bizNo}
@@ -403,7 +391,7 @@ function Boot({ ui, onBegin }: { ui: UiSnap; onBegin: () => void }) {
         화면을 눌러 시작
       </span>
       <div className="absolute inset-x-4 bottom-11">
-        <Credit full />
+        <Credit />
       </div>
     </button>
   );
@@ -528,9 +516,6 @@ function Attract({
             모션 다시 준비
           </button>
         )}
-        <div className="mt-2.5 border-t-[0.125rem] border-dashed border-ink/20 pt-2">
-          <Credit />
-        </div>
       </section>
     </>
   );

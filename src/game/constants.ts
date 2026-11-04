@@ -31,11 +31,11 @@ export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = EDITION.scoresKey;
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.8.3";
+export const APP_VERSION = "1.8.4";
 
 export const GAME_TITLE = "다윗과 골리앗";
 
-/** 제작사 표기. 첫 화면 아래와 대기 화면에 나온다. */
+/** 제작사 표기. 로고는 모든 화면 구석, 사업자 정보는 첫 화면 아래에 나온다. */
 export const PRODUCER = {
   logo: "/therumen-logo.png",
   name: "더루멘(THE RUMEN)",
