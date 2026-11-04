@@ -7,10 +7,17 @@ const PATTERN: Lane[] = [0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0];
 /** 8박마다 이 박부터 반 박 연타가 낀다(다른 손이 받는다). 8이면 없음. */
 const FILL_FROM = [8, 6, 4];
 
-/** 박 번호(0부터)별 음표. 첫 네 박은 세기만 한다. */
-export function chart(lastBeat: number, level: Level): { beat: number; lane: Lane }[] {
-  const out: { beat: number; lane: Lane }[] = [];
+/** 박 번호(0부터)별 음표. 첫 네 박은 세기만 한다. 16박마다 끝 박은 두 손 동시. */
+export function chart(
+  lastBeat: number,
+  level: Level,
+): { beat: number; lane: Lane; both?: boolean }[] {
+  const out: { beat: number; lane: Lane; both?: boolean }[] = [];
   for (let i = 4; i <= lastBeat; i++) {
+    if (i % 16 === 15) {
+      out.push({ beat: i, lane: 0, both: true }, { beat: i, lane: 1, both: true });
+      continue;
+    }
     const lane = PATTERN[i % PATTERN.length];
     out.push({ beat: i, lane });
     if (i % 8 >= FILL_FROM[level] && i < lastBeat)

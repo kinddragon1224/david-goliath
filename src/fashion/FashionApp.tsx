@@ -64,7 +64,7 @@ const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   rhythm: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
     { icon: "ring", text: "손을 들었다가 점선 아래로 쿵!" },
-    { icon: "music", text: "빨강은 왼쪽, 파랑은 오른쪽" },
+    { icon: "music", text: "빨강 왼쪽 · 파랑 오른쪽 · 금빛 양손" },
   ],
 };
 

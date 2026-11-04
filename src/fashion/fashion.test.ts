@@ -25,8 +25,12 @@ test("몽글 드럼 채보: 박 순서대로, 두 손 다 쓰고, 어려울수�
   assert.ok(easy.length < normal.length && normal.length < hard.length);
   assert.deepEqual(new Set(easy.map((n) => n.lane)), new Set([0, 1]));
   for (const c of [easy, normal, hard])
-    c.forEach((n, i) => assert.ok(i === 0 || c[i - 1].beat < n.beat));
+    c.forEach((n, i) => assert.ok(i === 0 || c[i - 1].beat <= n.beat));
   assert.equal(easy[0].beat, 4);
+  assert.deepEqual(
+    easy.filter((n) => n.both).map((n) => [n.beat, n.lane]),
+    [[15, 0], [15, 1], [31, 0], [31, 1], [47, 0], [47, 1]],
+  );
 });
 
 test("내려치기: 올렸다 빠르게 줄을 지나야 한 번, 들지 않거나 느리면 안 친다", () => {

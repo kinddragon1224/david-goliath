@@ -21,15 +21,19 @@ import {
 
 /** 06 몽글 드럼
  * 큰 북 하나를 두 손으로 친다. 위 줄을 흘러오는 빨강 '왼'은 왼쪽에서, 파랑 '오'는 오른쪽에서
- * 손을 들었다가 점선 아래로 내려친다. 10콤보부터 런웨이 피버(점수 1.5배). */
+ * 손을 들었다가 점선 아래로 내려친다. 금빛 '양손'은 두 손 같이, 끝은 마음껏 연타.
+ * 밤 축제로 시작해 콤보가 쌓일수록 무대가 밝아지고, 10콤보부터 런웨이 피버(점수 1.5배). */
 
 /** 곡: AI 5형제 끝부분(144.26초~끝)을 잘라 첫 소리가 0박이다. */
 export const TRACK = "/audio/mongle-drum.mp3";
 const SONG = 45.58;
 const BPM = 82.5;
 const BEAT = 60 / BPM;
-/** 곡이 잦아들기 전 마지막 음표 박. */
+/** 곡이 잦아들기 전 마지막 박. */
 const LAST_BEAT = 54;
+/** 이 박부터 끝까지는 음표 없이 마음껏 치는 연타 구간. */
+const ROLL_BEAT = 49;
+const ROLL_POINTS = 150;
 /** 음표가 줄 끝에서 판정 원까지 오는 시간(초) 이지·노멀·하드. */
 const LEAD = [2.6, 2.3, 2];
 /** 판정 폭(초). 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
@@ -50,6 +54,7 @@ const FONT = `"Gowun Batang", serif`;
 
 type Note = {
   lane: Lane;
+  both?: boolean;
   at: number;
   state: "wait" | "perfect" | "good" | "miss";
   sec: number;
@@ -65,7 +70,7 @@ export class RhythmMode implements Mode {
   seconds = Math.ceil(SONG + 1);
   hint = "손을 들었다가 점선 아래로 내려쳐요";
   tip = "빨강 '왼'은 왼쪽, 파랑 '오'는 오른쪽에서 내려쳐요";
-  // 음표 수: 이지 51, 노멀 63(판정 폭 좁음), 하드 77(더 좁음). 소리 시계라 봇으로 못 재서 음표 수로 맞춤.
+  // 음표 수: 이지 48, 노멀 57(판정 폭 좁음), 하드 69(더 좁음) + 끝 연타. 모두 맞히고 연타 24번이면 35k·42k·51k(막판 2배 포함).
   grades: [number, number, number][] = [
     [22000, 11000, 5000],
     [26000, 13000, 5000],
@@ -93,6 +98,11 @@ export class RhythmMode implements Mode {
   /** 판정 원 고리: 맞히면 터진다. */
   private ring: { t: number; tone: Tone }[] = [];
   private end = 0;
+  /** 무대 밝기 0(밤)~1(대낮). 콤보를 따라간다. */
+  private glow = 0;
+  private missT = 0;
+  private roll = 0;
+  private rollOn = false;
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -108,6 +118,10 @@ export class RhythmMode implements Mode {
     this.taps = [];
     this.flash = [0, 0];
     this.ring = [];
+    this.glow = 0;
+    this.missT = 0;
+    this.roll = 0;
+    this.rollOn = false;
     this.hint = "손을 들었다가 점선 아래로 내려쳐요";
   }
 
@@ -116,8 +130,9 @@ export class RhythmMode implements Mode {
     this.t0 = fx.sound.now() + 0.25;
     if (!fx.sound.playTrack(this.t0))
       fx.sound.startMusic(BPM, this.t0, Math.ceil(SONG / BEAT / 4));
-    this.notes = chart(LAST_BEAT, this.level).map((c) => ({
+    this.notes = chart(ROLL_BEAT - 1, this.level).map((c) => ({
       lane: c.lane,
+      both: c.both,
       at: this.t0 + c.beat * BEAT,
       state: "wait",
       sec: sectionOf(c.beat),
@@ -136,6 +151,14 @@ export class RhythmMode implements Mode {
     return this.combo >= FEVER_AT;
   }
 
+  private rolling(at: number): boolean {
+    return (
+      this.started &&
+      at >= this.t0 + ROLL_BEAT * BEAT &&
+      at <= this.t0 + (LAST_BEAT + 1) * BEAT
+    );
+  }
+
   /** 터치: 누른 쪽 북을 바로 친다. */
   tap(x: number): void {
     this.taps.push(x);
@@ -145,10 +168,17 @@ export class RhythmMode implements Mode {
     this.flash = this.flash.map((f) => Math.max(0, f - dt * 5));
     for (const r of this.ring) r.t += dt;
     this.ring = this.ring.filter((r) => r.t < 0.35);
+    this.missT = Math.max(0, this.missT - dt);
+    this.glow += (Math.min(1, this.combo / FEVER_AT) - this.glow) * Math.min(1, dt * 4);
     // 귀에 들리는 시각으로 판정한다(오디오 시계는 스피커보다 앞서 간다)
     this.now = this.started ? fx.sound.now() - fx.sound.latency() : t;
     const now = this.now;
     const GOOD = GOOD_W[this.level];
+    if (!this.rollOn && this.rolling(now)) {
+      this.rollOn = true;
+      fx.stamp("마음껏 두드려요!", this.W / 2, this.H * 0.44, "gold");
+      fx.shake(0.3);
+    }
     // 대기 화면: 시범용 박자를 계속 만든다
     if (!this.started && !this.notes.some((n) => n.at > now)) {
       const seq: Lane[] = [0, 1, 0, 1, 1, 0, 0, 1];
@@ -174,6 +204,7 @@ export class RhythmMode implements Mode {
         n.state = "miss";
         this.miss++;
         this.combo = 0;
+        this.missT = 0.35;
         fx.score(0, this.targetX(), this.railY() + this.R() * 3, "놓침", "white");
       }
     }
@@ -188,7 +219,9 @@ export class RhythmMode implements Mode {
       );
     }
     const next = this.notes.find((n) => n.state === "wait");
-    this.hint = this.fever()
+    this.hint = this.rolling(now)
+      ? "마음껏 두드려요! 칠수록 점수!"
+      : this.fever()
       ? `런웨이 피버! ${this.combo}콤보 · 점수 1.5배`
       : this.combo >= 4
         ? `${this.combo}콤보! 계속 박자를 타요`
@@ -201,6 +234,13 @@ export class RhythmMode implements Mode {
     this.flash[lane] = 1;
     if (loud) fx.sound.play(lane ? "drum-right" : "drum-left");
     fx.burst(this.W * (lane ? 0.62 : 0.38), this.H * LINE, 5, LANE_TONE[lane]);
+    if (this.rolling(at)) {
+      this.roll++;
+      fx.score(ROLL_POINTS, this.W * (lane ? 0.62 : 0.38), this.H * LINE);
+      fx.burst(this.W / 2, this.H * LINE, 10, "gold");
+      fx.shake(0.1);
+      return;
+    }
     const GOOD = GOOD_W[this.level];
     let n: Note | null = null;
     for (const x of this.notes) {
@@ -222,12 +262,22 @@ export class RhythmMode implements Mode {
     } else this.good++;
     fx.score(pts, x, y);
     fx.burst(x, y, kind === "perfect" ? 14 : 6, LANE_TONE[lane]);
-    fx.stamp(
-      kind === "perfect" ? "퍼펙트!" : "좋아요",
-      x + this.R() * 1.5,
-      y + this.R() * 3,
-      kind === "perfect" ? "gold" : "white",
-    );
+    // 양손 음표는 두 손이 다 맞아야 '쾅!'
+    const hit = n;
+    const pair =
+      hit.both &&
+      this.notes.some((m) => m !== hit && m.at === hit.at && m.state !== "wait" && m.state !== "miss");
+    if (pair) {
+      fx.stamp("쾅!", this.W / 2, this.H * 0.44, "gold");
+      fx.burst(this.W / 2, this.H * LINE, 30, "gold");
+      fx.shake(0.4);
+    } else
+      fx.stamp(
+        kind === "perfect" ? "퍼펙트!" : "좋아요",
+        x + this.R() * 1.5,
+        y + this.R() * 3,
+        kind === "perfect" ? "gold" : "white",
+      );
     this.ring.push({ t: 0, tone: LANE_TONE[lane] });
     if (this.combo === FEVER_AT) {
       fx.score(0, this.W / 2, this.H * 0.42, "런웨이 피버!", "gold");
@@ -260,6 +310,7 @@ export class RhythmMode implements Mode {
       ctx.fillStyle = "#58b6e8";
       ctx.fillRect(0, 0, W, H);
     }
+    drawNight(ctx, W, H, t, pump, this.glow, this.fever());
 
     // 두 손 자리: 몸 가운데를 기준으로 왼쪽 빨강, 오른쪽 파랑
     [0, 1].forEach((lane) => {
@@ -270,7 +321,7 @@ export class RhythmMode implements Mode {
       ctx.fillRect(lane ? W / 2 : 0, lineY, W / 2, H - lineY);
     });
 
-    drawDrummer(ctx, W, H, lineY, pump, this.flash);
+    drawDrummer(ctx, W, H, lineY, pump, this.flash, this.fever(), this.missT, t);
 
     // 내려치는 줄
     ctx.save();
@@ -304,6 +355,15 @@ export class RhythmMode implements Mode {
 
     this.drawRail(ctx, now, t, pump);
 
+    // 콤보·연타 수: 왼쪽에 크게, 박자에 뛴다
+    const rolling = this.rolling(now);
+    const count = rolling ? this.roll : this.combo;
+    if (count >= 3) {
+      const x = W * 0.17;
+      outlined(ctx, `${count}`, x, H * 0.44, H * (0.14 + pump * 0.02), this.fever() ? "#ffd34d" : "#ffffff");
+      outlined(ctx, rolling ? "연타" : "콤보", x, H * 0.54, H * 0.05, "#ffffff");
+    }
+
     // 첫 마디: 곡에 맞춰 하나·둘·셋·넷 세기
     const beatNo = Math.floor((now - this.t0) / BEAT);
     if (this.started && beatNo >= 0 && beatNo < 4) {
@@ -331,28 +391,51 @@ export class RhythmMode implements Mode {
     const x0 = W * 0.012;
     ctx.save();
     roundRect(ctx, x0, top, W - x0 * 2, r * 3.8, r * 0.9);
-    ctx.fillStyle = "rgba(255,248,232,0.94)";
+    ctx.fillStyle = "rgba(10,13,20,0.88)";
     ctx.fill();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = "#886545";
+    ctx.strokeStyle = this.fever() ? TONE.gold : "#8ea0b4";
     ctx.stroke();
     ctx.clip();
-    ctx.fillStyle = "#f1ddbe";
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
     ctx.fillRect(tx, y - r * 0.9, W, r * 1.8);
+    const xAt = (at: number) => tx + ((at - now) / lead) * (W - tx - r * 1.2);
+    if (this.started) {
+      // 박자 눈금: 음표 사이가 몇 박인지 눈으로 읽힌다
+      const first = Math.ceil((now - this.t0) / BEAT);
+      for (let b = Math.max(0, first); b <= LAST_BEAT; b++) {
+        const x = xAt(this.t0 + b * BEAT);
+        if (x > W) break;
+        ctx.fillStyle = b % 4 ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.34)";
+        ctx.fillRect(x - 1.5, y - r * 0.9, 3, r * 1.8);
+      }
+      // 연타 구간: 금빛 긴 띠
+      const rx = xAt(this.t0 + ROLL_BEAT * BEAT);
+      const re = xAt(this.t0 + (LAST_BEAT + 1) * BEAT);
+      if (rx < W && re > tx) {
+        const from = Math.max(tx, rx);
+        roundRect(ctx, from, y - r * 0.8, re - from, r * 1.6, r * 0.8);
+        ctx.fillStyle = "#ffd34d";
+        ctx.fill();
+        ctx.fillStyle = "#3a2410";
+        ctx.font = `800 ${Math.round(r * 0.95)}px ${FONT}`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("연타! 연타! 연타!", from + r * 0.6, y + 2);
+      }
+    }
     const beat = this.flash[0] || this.flash[1];
     ctx.lineWidth = 7;
-    ctx.fillStyle = "#ffefab";
-    ctx.strokeStyle = "#9a734d";
+    ctx.fillStyle = "rgba(159,243,255,0.16)";
+    ctx.strokeStyle = TONE.gold;
     ctx.beginPath();
     ctx.arc(tx, y, r * (1.35 + beat * 0.2 + pump * 0.05), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.lineWidth = 3;
-    ctx.fillStyle = "#fffdf4";
-    ctx.strokeStyle = "#dbae59";
+    ctx.strokeStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(tx, y, r * 1.05, 0, Math.PI * 2);
-    ctx.fill();
     ctx.stroke();
     // 가까운 음표가 위에 오도록 뒤에서부터
     for (let i = this.notes.length - 1; i >= 0; i--) {
@@ -360,8 +443,10 @@ export class RhythmMode implements Mode {
       if (n.state !== "wait") continue;
       const left = n.at - now;
       if (left > lead + 0.2) continue;
-      const x = tx + (left / lead) * (W - tx - r * 1.2);
-      if (x > -r) drawNote(ctx, x, y, r, n.lane);
+      const x = xAt(n.at);
+      if (x <= -r) continue;
+      if (n.both) drawBothNote(ctx, x, y, r);
+      else drawNote(ctx, x, y, r, n.lane);
     }
     ctx.restore();
     // 맞힌 자리에서 고리가 터진다
@@ -384,6 +469,7 @@ export class RhythmMode implements Mode {
       { label: "퍼펙트", value: `${this.perfect}` },
       { label: "좋아요", value: `${this.good}` },
       { label: "최고 콤보", value: `${this.maxCombo}` },
+      { label: "연타", value: `${this.roll}번` },
     ];
   }
 
@@ -468,7 +554,7 @@ function outlined(
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   ctx.lineWidth = size * 0.16;
-  ctx.strokeStyle = "#fffdf4";
+  ctx.strokeStyle = "rgba(20,14,30,0.92)";
   ctx.strokeText(text, x, y);
   ctx.fillStyle = color;
   ctx.fillText(text, x, y);
@@ -500,6 +586,59 @@ function drawNote(
   ctx.fillText(LANE_MARK[lane], x, y + 2);
 }
 
+/** 금빛 '양손' 음표: 두 손을 같이 내려친다. */
+function drawBothNote(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  const R = r * 1.2;
+  ctx.fillStyle = "#ffd34d";
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(x, y, R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#3a2410";
+  ctx.font = `800 ${Math.round(R * 0.72)}px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("양손", x, y + 2);
+}
+
+/** 밤 축제: 콤보가 없으면 어두운 무대, 쌓일수록 낮처럼 밝아진다. 조명은 박자에 뛴다. */
+function drawNight(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  pump: number,
+  glow: number,
+  fever: boolean,
+): void {
+  ctx.fillStyle = `rgba(7,9,18,${0.72 * (1 - glow * 0.8)})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const beams = fever ? 6 : 4;
+  for (let i = 0; i < beams; i++) {
+    const ox = W * ((i + 0.5) / beams);
+    const tipX = W / 2 + Math.sin(t * (0.7 + i * 0.17) + i * 1.7) * W * 0.34;
+    const spread = W * 0.1;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const a = 0.1 + pump * 0.16;
+    const c = fever ? "255,211,77" : i % 2 ? "159,243,255" : "255,184,220";
+    g.addColorStop(0, `rgba(${c},${a})`);
+    g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(ox - 12, 0);
+    ctx.lineTo(ox + 12, 0);
+    ctx.lineTo(tipX + spread, H);
+    ctx.lineTo(tipX - spread, H);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 /** 몽글이와 큰 북. 북 가죽이 내려치는 줄에 걸린다. */
 function drawDrummer(
   ctx: CanvasRenderingContext2D,
@@ -508,6 +647,9 @@ function drawDrummer(
   lineY: number,
   pump: number,
   flash: number[],
+  fever: boolean,
+  missT: number,
+  t: number,
 ): void {
   const cx = W / 2;
   const S = Math.min(W, H) * 0.56;
@@ -515,9 +657,10 @@ function drawDrummer(
   const hero = artImage("mongle");
   if (hero) {
     const hs = S * 0.92;
-    const lean = (flash[1] - flash[0]) * 0.06;
+    // 친 쪽으로 기울고, 놓치면 움찔한다
+    const lean = (flash[1] - flash[0]) * 0.06 + Math.sin(t * 40) * missT * 0.12;
     ctx.save();
-    ctx.translate(cx, lineY - S * 0.1 - pump * 8 + hit * 6);
+    ctx.translate(cx, lineY - S * 0.1 - pump * (fever ? 26 : 8) + hit * 6);
     ctx.rotate(lean);
     ctx.drawImage(hero, -hs / 2, -hs * 0.8, hs, hs);
     ctx.restore();
@@ -543,6 +686,14 @@ function drawDrummer(
     ctx.beginPath();
     ctx.ellipse(cx, top + S * 0.27, S * 0.41, S * 0.23, 0, 0, Math.PI * 2);
     ctx.fill();
+    // 가죽에 번지는 물결
+    const k = 1 - f;
+    ctx.globalAlpha = f;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.ellipse(cx + (lane ? 1 : -1) * S * 0.2, top + S * 0.27, S * 0.3 * k, S * 0.16 * k, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   });
 }
