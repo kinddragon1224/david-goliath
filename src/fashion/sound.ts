@@ -213,7 +213,7 @@ export class FashionSound {
         );
         break;
       case "good":
-        this.tone(NOTE(81), t, 0.12, "triangle", 0.2);
+        this.tone(NOTE(81 + step), t, 0.12, "triangle", 0.2);
         break;
       case "perfect":
         this.tone(NOTE(84), t, 0.1, "triangle", 0.22);

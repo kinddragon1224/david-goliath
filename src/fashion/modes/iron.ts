@@ -35,7 +35,8 @@ import {
 } from "../garments";
 
 /** 03 다리미 챌린지
- * 손이 다리미. 다림판 위 옷을 쓱쓱 문질러 주름을 편다. 다 펴면 옷이 개켜져 옷걸이로 가고 다음 옷.
+ * 손이 다리미. 칙칙하게 구겨진 옷을 쓱쓱 문지르면 지나간 자리만 산뜻한 진짜 옷이 드러난다.
+ * 다 펴면 옷이 개켜져 옷걸이로 가고 다음 옷.
  * 쉬지 않고 다리면 스팀 게이지가 차고, 가득 차면 4초 동안 '스팀 부스트'(다리미가 커지고 점수 1.5배). */
 
 const ORDER: Garment[] = [LAYOVER, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
@@ -57,6 +58,12 @@ const ZONE_COLS = 2;
 const ZONE_ROWS = 3;
 const ZONE_SNAP = 0.15;
 const ZONE_BONUS = 100;
+/** 구역을 끝낼 때마다 올라가는 '띵' 음(반음). */
+const ZONE_LADDER = [0, 2, 4, 7, 9, 12];
+/** 안 다린 옷을 덮는 칙칙함. 다린 자리만 걷혀서 진짜 옷색이 드러난다. */
+const DULL = "rgba(22,24,34,0.52)";
+/** 이만큼 빠르게(초당 무대 폭 비율) 오가야 '쓱!'으로 친다. 웹캠 손 떨림은 안 센다. */
+const STROKE_SPEED = 0.22;
 
 /** w: 남은 주름, w0: 처음 주름, dw: 주름 그림에 마지막으로 반영한 w, z: 구역. */
 type Cell = {
@@ -120,6 +127,10 @@ export class IronMode implements Mode {
   private time = 0;
   private pair = false;
   private pairT = 0;
+  /** 손마다 지금 미는 방향과 마지막 '쓱!' 시각. */
+  private dir = [0, 0];
+  private strokeAt = [0, 0];
+  private strokes = 0;
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -136,6 +147,9 @@ export class IronMode implements Mode {
     this.rand = rng(7);
     this.heat = [0, 0];
     this.scorchCount = 0;
+    this.dir = [0, 0];
+    this.strokeAt = [0, 0];
+    this.strokes = 0;
     this.ironR = Math.min(W, H) * 0.095;
     this.load();
   }
@@ -205,6 +219,8 @@ export class IronMode implements Mode {
     if (!x) return;
     x.translate(-b.x, -b.y);
     x.clip(this.path);
+    x.fillStyle = DULL;
+    x.fillRect(b.x, b.y, b.w, b.h);
     x.lineCap = "round";
     const cw = b.w / COLS;
     const fold = (c: Cell, off: number, color: string, passes: [number, number][]) => {
@@ -228,8 +244,9 @@ export class IronMode implements Mode {
     // 그림자 먼저 전부, 빛은 그 위에(겹친 주름이 지저분해지지 않게)
     // 칸 셋 중 하나만: 촘촘하면 얼룩말 무늬가 된다
     const some = this.cells.filter((_, i) => (i * 7) % 3 === 0);
-    for (const c of some) fold(c, 0, g.shade, [[1.6, 0.05], [0.9, 0.07], [0.4, 0.11]]);
-    for (const c of some) fold(c, -cw * 0.38, "#ffffff", [[0.7, 0.06], [0.25, 0.14]]);
+    // 가는 선을 빼고 넓게만: 또렷한 선은 막대기처럼 보인다
+    for (const c of some) fold(c, 0, "#0c0e16", [[1.8, 0.07], [1.1, 0.09]]);
+    for (const c of some) fold(c, -cw * 0.38, "#ffffff", [[0.9, 0.06], [0.5, 0.06]]);
   }
 
   /** 펴진 만큼 주름 그림을 지운다(다리미 지나간 자리만 매끈해진다). */
@@ -237,18 +254,20 @@ export class IronMode implements Mode {
     const x = this.wrinkle?.getContext("2d");
     if (!x) return;
     const b = this.box;
-    const r = (b.w / COLS) * 1.4;
+    // 칸 사이에 칙칙함이 점점이 남지 않게 이웃 칸까지 넉넉히
+    const r = Math.max(b.w / COLS, b.h / ROWS) * 2;
     x.save();
     x.setTransform(1, 0, 0, 1, -b.x, -b.y);
     x.globalCompositeOperation = "destination-out";
     for (const c of this.cells) {
       if (c.dw - c.w < 0.02 && !(c.w <= 0 && c.dw > 0)) continue;
-      // 남은 비율 dw/w0 → w/w0 으로 줄이려면 그만큼의 불투명도로 지운다
-      const a = c.dw > 0 ? 1 - c.w / c.dw : 1;
+      // 남은 비율 dw/w0 → w/w0 으로 줄이려면 그만큼의 불투명도로 지운다.
+      // 제곱이라 절반만 다려도 3/4이 걷힌다: 지나간 자리가 바로 산뜻해 보이게
+      const a = c.dw > 0 ? 1 - (c.w / c.dw) ** 2 : 1;
       c.dw = c.w;
       const gr = x.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
       gr.addColorStop(0, `rgba(0,0,0,${a})`);
-      gr.addColorStop(0.55, `rgba(0,0,0,${a * 0.8})`);
+      gr.addColorStop(0.7, `rgba(0,0,0,${a})`);
       gr.addColorStop(1, "rgba(0,0,0,0)");
       x.fillStyle = gr;
       x.fillRect(c.x - r, c.y - r, r * 2, r * 2);
@@ -329,6 +348,27 @@ export class IronMode implements Mode {
         fx.shake(0.4);
         fx.sfx("miss");
       }
+      // 크게 오가다 방향을 틀 때마다 '쓱!' 하고 김이 뿜어진다
+      const v = Math.abs(h.vx) > Math.abs(h.vy) ? h.vx : h.vy;
+      if (h.on && this.onCloth(h) && Math.abs(v) > this.W * STROKE_SPEED) {
+        const d = Math.sign(v);
+        if (d !== this.dir[hi]) {
+          if (this.dir[hi] && t - this.strokeAt[hi] > 0.2) {
+            this.strokes++;
+            this.strokeAt[hi] = t;
+            fx.score(0, h.x, h.y - this.ironR * 1.2, "쓱!", "white");
+            for (let k = 0; k < 4; k++)
+              this.steamPuffs.push({
+                x: h.x + (this.rand() - 0.5) * this.ironR,
+                y: h.y,
+                t: 0,
+                vx: (this.rand() - 0.5) * 180 - d * 90,
+              });
+            fx.sfx("steam");
+          }
+          this.dir[hi] = d;
+        }
+      }
     });
     for (const h of hands) {
       if (!h.on) continue;
@@ -382,8 +422,9 @@ export class IronMode implements Mode {
       const zx = z.x + z.w / 2;
       const zy = z.y + z.h / 2;
       fx.score(pts, zx, zy, `구역 완료 +${ZONE_BONUS}`, "mint");
-      fx.burst(zx, zy, 26, "mint");
-      fx.sfx("good");
+      fx.burst(zx, zy, 40, "mint");
+      fx.shake(0.12);
+      fx.sfx("good", ZONE_LADDER[this.zones.filter((q) => q.done).length - 1]);
     });
 
     // 스팀 게이지
@@ -398,6 +439,15 @@ export class IronMode implements Mode {
         fx.say("steam", true);
         fx.stamp("스팀 부스트!", this.W / 2, this.H * 0.2, "mint");
         fx.shake(0.3);
+        // 다림판 아래에서 김이 확 올라온다
+        const b = this.box;
+        for (let k = 0; k < 18; k++)
+          this.steamPuffs.push({
+            x: b.x + this.rand() * b.w,
+            y: b.y + b.h,
+            t: this.rand() * 0.2,
+            vx: (this.rand() - 0.5) * 120,
+          });
       }
     }
 
@@ -419,8 +469,12 @@ export class IronMode implements Mode {
       );
       fx.celebrate(`${fullName(g)} 완성!`, "pink");
       fx.sfx("complete");
-      fx.hitstop(0.09);
-      fx.shake(0.45);
+      fx.hitstop(0.16);
+      fx.shake(0.6);
+      // 옷 윤곽을 따라 반짝
+      this.pts.forEach(([x, y], i) => {
+        if (i % 3 === 0) fx.burst(x, y, 3, "white");
+      });
       this.finished.push(g);
       this.fly = {
         path: this.path,
@@ -478,7 +532,7 @@ export class IronMode implements Mode {
       const p1 = this.trail[i];
       if (p1.t - p0.t > 0.2) continue;
       const k = 1 - (t - p1.t) / 1.4;
-      ctx.strokeStyle = `rgba(255,255,255,${0.28 * k})`;
+      ctx.strokeStyle = `rgba(255,255,255,${0.12 * k})`;
       ctx.lineWidth = p1.r * 1.4;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
@@ -536,6 +590,8 @@ export class IronMode implements Mode {
       ctx.restore();
     }
 
+    drawProgress(ctx, this.W * 0.87, this.H * 0.5, this.H * 0.095, this.pct());
+
     // 완성된 옷: 개켜지며 위로 날아간다
     if (this.fly) {
       const k = Math.min(1, this.fly.t);
@@ -544,6 +600,8 @@ export class IronMode implements Mode {
       ctx.translate(this.fly.cx, this.fly.cy - this.H * 0.6 * k * k);
       ctx.scale(1 - k * 0.7, (1 - k * 0.7) * (1 - Math.sin(k * Math.PI) * 0.4));
       ctx.translate(-this.fly.cx, -this.fly.cy);
+      ctx.shadowColor = "#ffffff";
+      ctx.shadowBlur = 50;
       const fb = this.fly.box;
       if (!drawGarmentPhoto(ctx, this.fly.g, fb.x, fb.y, fb.w, fb.h)) {
         ctx.fillStyle = this.fly.color;
@@ -594,6 +652,7 @@ export class IronMode implements Mode {
     return [
       { label: "완성한 옷", value: `${this.finished.length}벌` },
       { label: "마지막 옷", value: `${this.pct()}%` },
+      { label: "쓱쓱", value: `${this.strokes}번` },
       ...(SCORCH_AFTER[this.level] ? [{ label: "눌음 자국", value: `${this.scorchCount}개` }] : []),
     ];
   }
@@ -649,6 +708,38 @@ export class IronMode implements Mode {
   }
 }
 
+/** 지금 옷을 얼마나 폈는지 큰 고리. */
+function drawProgress(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  pct: number,
+): void {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = r * 0.2;
+  ctx.fillStyle = "rgba(8,10,16,0.75)";
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = TONE.gold;
+  ctx.shadowColor = TONE.gold;
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + (pct / 100) * Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `700 ${Math.round(r * 0.72)}px "Gowun Batang", serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${pct}%`, x, y + 2);
+  ctx.restore();
+}
+
 /** 다림판: 한쪽이 뾰족한 긴 판 + 덮개 줄무늬. */
 function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   const x0 = W * 0.06;
@@ -671,13 +762,13 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 14;
   const g = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  g.addColorStop(0, "#fbf3e2");
-  g.addColorStop(1, "#ead8b6");
+  g.addColorStop(0, "#2a3040");
+  g.addColorStop(1, "#12161f");
   ctx.fillStyle = g;
   ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.clip();
-  ctx.strokeStyle = "rgba(201,154,59,0.07)";
+  ctx.strokeStyle = "rgba(200,235,255,0.05)";
   ctx.lineWidth = 18;
   for (let x = x0 - H; x < x1 + H; x += 54) {
     ctx.beginPath();
@@ -686,13 +777,13 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
     ctx.stroke();
   }
   ctx.restore();
-  // 금 테두리
+  // 은 테두리
   ctx.save();
   ctx.lineWidth = 10;
   const chrome = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
   chrome.addColorStop(0, "#e6f6ff");
   chrome.addColorStop(0.5, "#8ea0b4");
-  chrome.addColorStop(1, "#f2d38a");
+  chrome.addColorStop(1, "#c3cfdc");
   ctx.strokeStyle = chrome;
   ctx.beginPath();
   ctx.moveTo(x0 + hh * 0.2, cy);
@@ -708,7 +799,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   ctx.restore();
 }
 
-/** 왕실 의상실: 자줏빛 다마스크 벽지 + 금테 아치 + 샹들리에 빛 + 위쪽 금 행거에 완성한 옷이 걸린다. */
+/** 의상실: 벽 그림 + 검은 다림판 + 위쪽 은 행거에 완성한 옷이 걸린다. */
 function drawBoutique(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -718,9 +809,9 @@ function drawBoutique(
 ): void {
   drawPalace(ctx, W, H, t, undefined, "iron");
   drawBoard(ctx, W, H);
-  // 금 행거와 완성한 옷(다림판 위에 걸린다)
+  // 은 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;
-  ctx.strokeStyle = "#d4af5f";
+  ctx.strokeStyle = "#c3cfdc";
   ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.moveTo(W * 0.08, ry);
@@ -732,7 +823,7 @@ function drawBoutique(
     ctx.save();
     ctx.translate(x, ry);
     ctx.rotate(sway);
-    ctx.strokeStyle = "#d4af5f";
+    ctx.strokeStyle = "#c3cfdc";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, 0);
