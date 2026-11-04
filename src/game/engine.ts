@@ -8,6 +8,7 @@ import {
   AIM_Y_SPAN,
   aimPoint,
   combatBand,
+  comboMultiplier,
   goliathAngle,
   hitPoints,
   segmentHitsBox,
@@ -33,6 +34,8 @@ import {
   DAVID_SHIFT_MAX,
   DODGE_BONUS,
   GOLIATH_HP,
+  KO_HOLD,
+  KO_LAND,
   KO_SECONDS,
   SPEAR_AT,
   SPEAR_FLIGHT,
@@ -70,6 +73,10 @@ const PRACTICE_MAX_SECONDS = 15;
 const AIM_ASSIST_PX = 110;
 /** 게임 중 양손을 이만큼(초) 들고 있으면 처음 화면으로. */
 const HOME_SECONDS = 2.5;
+/** 결과 화면을 보여 주는 시간(초). */
+const RESULT_SECONDS = 18;
+/** 마지막 일격에서 화면을 당기는 정도. */
+const KO_ZOOM = 0.45;
 
 export class Game {
   phase: Phase = "boot";
@@ -120,6 +127,9 @@ export class Game {
   charge = 0;
   shakeX = 0;
   shakeY = 0;
+  zoom = 0;
+  zoomX = WORLD_W / 2;
+  zoomY = WORLD_H / 2;
   stones: Stone[] = [];
   particles: Particle[] = [];
   floaters: Floater[] = [];
@@ -404,7 +414,9 @@ export class Game {
 
   /** 시작 동작: 양손을 머리 위로 1초 유지. 0.25초 이내로 놓친 것은 봐준다. */
   private stepHandsUp(dt: number): void {
-    const waiting = this.phase === "attract" || this.phase === "start";
+    // 결과 화면에서도 양손을 들면 바로 다시 도전한다(던지던 손이 읽히지 않게 잠깐 뒤부터)
+    const again = this.phase === "result" && !this.naming && this.resultAcc > 1.5;
+    const waiting = this.phase === "attract" || this.phase === "start" || again;
     if (!waiting || !this.poseReady || this.cameraState !== "live") {
       this.handsHold = 0;
       this.handsLost = 0;
@@ -431,6 +443,7 @@ export class Game {
       this.handsHold = 0;
       this.handsUpProgress = 0;
       this.audio.play("start");
+      if (again) this.goAttract();
       this.goGame();
     }
   }
@@ -633,8 +646,9 @@ export class Game {
     if (this.bannerLife <= 0) this.banner = null;
     this.trauma = Math.max(0, this.trauma - real * 1.8);
     const amp = this.calm ? 0 : this.trauma * this.trauma;
-    this.shakeX = (Math.random() - 0.5) * 10 * amp;
-    this.shakeY = (Math.random() - 0.5) * 6 * amp;
+    this.shakeX = (Math.random() - 0.5) * 24 * amp;
+    this.shakeY = (Math.random() - 0.5) * 14 * amp;
+    if (this.phase !== "ko") this.zoom = Math.max(0, this.zoom - real * 0.4);
     const winding =
       (this.phase === "play" || this.phase === "practice") && (this.armed || this.pointerHolding);
     if (winding) this.charge = Math.min(1, this.charge + real * 2.4);
@@ -696,7 +710,7 @@ export class Game {
         if (this.namingLeft <= 0) this.skipName();
       } else {
         this.resultAcc += real;
-        if (this.resultAcc > 18) this.goAttract();
+        if (this.resultAcc > RESULT_SECONDS) this.goAttract();
       }
     }
 
@@ -722,6 +736,9 @@ export class Game {
       charge: this.charge,
       shakeX: this.shakeX,
       shakeY: this.shakeY,
+      zoom: this.zoom,
+      zoomX: this.zoomX,
+      zoomY: this.zoomY,
       stones: this.stones,
       particles: this.particles,
       floaters: this.floaters,
@@ -1003,20 +1020,28 @@ export class Game {
     this.shieldUp = false;
     this.shieldWarn = false;
     this.stagger = 1;
-    this.trauma = 0.9;
+    this.trauma = 0.5;
     this.hitStop = 0.12;
     this.banner = null;
     this.audio.stopBeat();
-    this.audio.play("ko");
-    for (let i = 0; i < 3; i++) this.burst(x + (i - 1) * 120, y, true);
+    this.audio.play("finish");
+    this.burst(x, y, true);
     this.pushUi(true);
   }
 
+  /** 마지막 일격: 맞은 자리로 당겨 멈췄다가, 물러나며 쓰러지고, 땅에 닿을 때 쿵. */
   private stepKo(dt: number): void {
+    const was = this.koT;
     this.koT += dt;
     this.stagger = 1;
-    // 쓰러지는 동안 색종이를 계속 터뜨린다
-    if (Math.random() < dt * 8) {
+    this.zoom = KO_ZOOM * Math.max(0, Math.min(1, 1 - (this.koT - KO_HOLD) / 0.3));
+    if (was < KO_LAND && this.koT >= KO_LAND) {
+      this.trauma = 1;
+      this.audio.play("ko");
+      for (let i = 0; i < 3; i++) this.burst(WORLD_W * (0.25 + i * 0.25), 1300, true);
+    }
+    // 쓰러진 뒤로 색종이를 계속 터뜨린다
+    if (this.koT >= KO_LAND && Math.random() < dt * 8) {
       this.burst(WORLD_W * (0.2 + Math.random() * 0.6), 300 + Math.random() * 700, true);
     }
     if (this.koT >= KO_SECONDS) this.finishRound();
@@ -1034,7 +1059,7 @@ export class Game {
         return;
       this.spearIdx += 1;
       this.spear = { stage: "tell", t: 0, targetShift: this.davidShift, dodged: false };
-      this.banner = "창이 날아와요! 옆으로 피하세요!";
+      this.banner = "창이다! 옆으로!";
       this.bannerLife = SPEAR_TELL;
       this.audio.play("warn");
       return;
@@ -1180,6 +1205,10 @@ export class Game {
       s.y = y0 + vy0 * dt + 0.5 * GRAVITY * dt * dt;
       s.age += dt;
       s.rot += s.spin * dt;
+      if (s.spent) {
+        if (s.y > 1500) s.live = false;
+        continue;
+      }
       if (s.y > WORLD_H + 40 || s.x < -80 || s.x > WORLD_W + 80 || s.y < -120) {
         s.live = false;
         if (this.phase === "play") {
@@ -1278,7 +1307,17 @@ export class Game {
     const wy = y0 + (s.y - y0) * hit.t;
     const sfx = part === "방패" ? "hitShield" : part === "몸통" ? "hitSoft" : "hitHead";
     this.registerHit(part, wx, wy, sfx);
-    s.live = false;
+    if (part === "이마") {
+      s.live = false;
+      return;
+    }
+    // 이마가 아니면 돌이 튕겨 나간다
+    s.spent = true;
+    s.x = wx;
+    s.y = wy;
+    s.vx = s.vx * -0.25 + (wx < this.goliathX ? -240 : 240);
+    s.vy = -560;
+    s.spin *= 3;
   }
 
   private registerHit(
@@ -1318,6 +1357,11 @@ export class Game {
     this.stagger = crit ? 0.7 : 0.25;
     this.trauma = Math.min(0.7, this.trauma + (crit ? 0.45 : blocked ? 0.15 : 0.28));
     if (crit) this.hitStop = 0.045;
+    if (!blocked) {
+      this.zoom = Math.max(this.zoom, crit ? 0.07 : 0.025);
+      this.zoomX = x;
+      this.zoomY = y;
+    }
     this.rings.push({
       x,
       y,
@@ -1337,7 +1381,18 @@ export class Game {
     });
     this.burst(x, y, crit);
     this.audio.play(sfx);
-    if (!blocked && this.combo >= 3) this.audio.play("combo");
+    if (!blocked && this.combo >= 3) this.audio.play("combo", this.combo - 3);
+    if (!blocked && (this.combo === 3 || this.combo === 6)) {
+      this.floaters.push({
+        x: WORLD_W / 2,
+        y: 1230,
+        life: 1,
+        maxLife: 1,
+        text: `콤보 ×${comboMultiplier(this.combo)}`,
+        color: "#fff4dc",
+        kind: "good",
+      });
+    }
     if (crit) {
       this.foreheadHits += 1;
     }
@@ -1478,6 +1533,18 @@ export class Game {
       }
       this.aiPhase = "open";
       this.openCritUsed = false;
+      if (this.phase === "play") {
+        this.audio.play("open");
+        this.floaters.push({
+          x: this.goliathX + GOLIATH_LOCAL.forehead.x,
+          y: 70 + GOLIATH_LOCAL.forehead.y - 150,
+          life: 0.7,
+          maxLife: 0.7,
+          text: "지금!",
+          color: "#ffd23a",
+          kind: "info",
+        });
+      }
       return;
     }
     this.aiPhase = "rest";
@@ -1617,6 +1684,7 @@ export class Game {
       snap.savedName ?? "",
       Math.round(snap.handsUpProgress * 20),
       snap.waitingForPlayer ? 1 : 0,
+      snap.resultLeft,
       Math.round(snap.hpRatio * 100),
       snap.fever ? 1 : 0,
       snap.won ? 1 : 0,
@@ -1644,6 +1712,7 @@ export class Game {
       lastHit: this.lastHit,
       resultRank: this.resultRank,
       monthRank: this.monthRank,
+      resultLeft: Math.max(0, Math.ceil(RESULT_SECONDS - this.resultAcc)),
       naming: this.naming,
       savedName: this.savedName,
       scores: this.scores,

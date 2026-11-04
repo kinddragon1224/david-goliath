@@ -8,6 +8,7 @@ import {
   shieldLocal,
   type DavidPose,
 } from "./art";
+import { KO_HOLD } from "./boss";
 import { BEAT_BPM, GRAVITY, WORLD_H, WORLD_W } from "./constants";
 import { goliathAngle, stoneFlight } from "./rules";
 import type { Floater, GameSim } from "./types";
@@ -296,10 +297,10 @@ function staticBackground(): HTMLCanvasElement | null {
 
 function drawSky(ctx: CanvasRenderingContext2D, time: number, calm: boolean, fever = false): void {
   const sky = ctx.createLinearGradient(0, 0, 0, 1350);
-  // 피버 타임: 하늘이 붉은 금빛으로, 햇살이 빨리 돈다
-  sky.addColorStop(0, fever ? "#ff4a1f" : "#ff8a2a");
-  sky.addColorStop(0.45, fever ? "#ff9a1f" : "#ffb640");
-  sky.addColorStop(1, fever ? "#ffe066" : "#ffe7a0");
+  // 피버 타임: 해가 지듯 하늘이 확 어두워지고, 햇살이 빨리 돈다
+  sky.addColorStop(0, fever ? "#2c1050" : "#ff8a2a");
+  sky.addColorStop(0.45, fever ? "#c02848" : "#ffb640");
+  sky.addColorStop(1, fever ? "#ffb03a" : "#ffe7a0");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, WORLD_W, 1400);
 
@@ -1136,13 +1137,13 @@ function drawAim(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 
 function drawStones(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   for (const s of sim.stones) {
-    // 꼬리
+    // 꼬리(튕겨 나가는 돌은 없음)
     const sp = Math.hypot(s.vx, s.vy) || 1;
     const tx = -s.vx / sp;
     const ty = -s.vy / sp;
     ctx.strokeStyle = "rgba(255,255,255,0.75)";
     ctx.lineCap = "round";
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < (s.spent ? 0 : 3); i++) {
       ctx.lineWidth = 16 - i * 5;
       ctx.beginPath();
       ctx.moveTo(s.x + tx * 20, s.y + ty * 20);
@@ -1242,7 +1243,7 @@ function drawFloaters(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 
 /** 크리티컬 순간에 화면 가장자리에서 집중선. */
 function drawSpeedLines(ctx: CanvasRenderingContext2D, sim: GameSim): void {
-  if (sim.stagger < 0.4 || sim.goliathPose !== "hit") return;
+  if (sim.stagger < 0.4 || sim.goliathPose !== "hit" || sim.koT >= KO_HOLD) return;
   const k = Math.min(1, (sim.stagger - 0.4) / 0.3);
   const cx = sim.goliathX;
   const cy = 70 + GOLIATH_LOCAL.forehead.y;
@@ -1266,12 +1267,22 @@ function drawSpeedLines(ctx: CanvasRenderingContext2D, sim: GameSim): void {
 export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = false): void {
   ctx.save();
   ctx.translate(sim.shakeX, sim.shakeY);
+  if (!calm && sim.zoom > 0) {
+    ctx.translate(sim.zoomX, sim.zoomY);
+    ctx.scale(1 + sim.zoom, 1 + sim.zoom);
+    ctx.translate(-sim.zoomX, -sim.zoomY);
+  }
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
   drawSky(ctx, sim.time, calm, sim.fever);
   const bg = staticBackground();
   if (bg) ctx.drawImage(bg, 0, 0);
+  if (sim.fever) {
+    // 저녁 빛: 산과 땅도 함께 어두워진다
+    ctx.fillStyle = "rgba(90,16,64,0.32)";
+    ctx.fillRect(-20, 1040, WORLD_W + 40, WORLD_H - 1020);
+  }
 
   drawSpearMark(ctx, sim);
   drawGoliath(ctx, sim);
@@ -1288,6 +1299,12 @@ export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = fa
   drawFloaters(ctx, sim);
 
   ctx.restore();
+
+  // 마지막 일격 순간의 번쩍임
+  if (!calm && sim.koT >= 0 && sim.koT < 0.2) {
+    ctx.fillStyle = `rgba(255,255,255,${0.9 * (1 - sim.koT / 0.2)})`;
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  }
 }
 
 /** 내 모습 카드 위에 겹치는 표시. 영상은 그대로 보이고, 던질 손에만 표시를 단다.
@@ -1343,7 +1360,8 @@ export function drawPip(
 /* ───────── KO · 창 · 피버 ───────── */
 
 /** KO 쓰러짐 정도 0~1(살짝 튕김 포함). */
-function koFall(t: number): number {
+function koFall(koT: number): number {
+  const t = Math.max(0, koT - KO_HOLD);
   const u = Math.min(1, t / 0.7);
   const base = u * u;
   const bounce = t > 0.7 && t < 1.1 ? Math.sin(((t - 0.7) / 0.4) * Math.PI) * 0.06 : 0;
@@ -1352,7 +1370,7 @@ function koFall(t: number): number {
 
 /** 쓰러지는 순간 땅에서 피어오르는 먼지. */
 function drawKoDust(ctx: CanvasRenderingContext2D, sim: GameSim): void {
-  const t = sim.koT - 0.65;
+  const t = sim.koT - KO_HOLD - 0.65;
   if (t < 0 || t > 1.4) return;
   const k = t / 1.4;
   ctx.save();

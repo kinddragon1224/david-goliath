@@ -40,6 +40,7 @@ const initialUi = (): UiSnap => ({
   lastHit: null,
   resultRank: 0,
   monthRank: 0,
+  resultLeft: 0,
   naming: false,
   savedName: null,
   scores: [],
@@ -384,7 +385,8 @@ export function GameApp() {
           onHome={() => gameRef.current?.goHome()}
           wide={wide}
         />
-        {EDITION_ID === "weaveon" && (
+        {/* 경기 중에는 숨긴다: 시계를 가리고, 던지는 손이 머물면 체험 판이 열린다 */}
+        {EDITION_ID === "weaveon" && !pipLow && (
           <StationMenu current="goliath" onSame={() => gameRef.current?.goHome()} />
         )}
       </div>

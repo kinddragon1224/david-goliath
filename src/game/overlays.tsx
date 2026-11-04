@@ -13,6 +13,8 @@ import { resetStation } from "@/fashion/stations";
 import { isKiosk, isTv, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { GIANT_PRESETS } from "./giant";
+import { KO_LAND } from "./boss";
+import { comboMultiplier } from "./rules";
 import {
   formatScoreDate,
   monthCsv,
@@ -846,6 +848,11 @@ function Hud({ ui }: { ui: UiSnap }) {
               {ui.combo}
             </span>
             <span className="t-outline-sm font-display text-lg leading-none text-cream">콤보</span>
+            {ui.combo >= 3 && (
+              <span className="mt-1 rounded-full border-[0.1875rem] border-ink bg-sun px-2 font-display text-base text-don">
+                점수 ×{comboMultiplier(ui.combo)}
+              </span>
+            )}
           </div>
         )}
         {ui.banner && (
@@ -875,16 +882,29 @@ function Hud({ ui }: { ui: UiSnap }) {
 function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
   const best = ui.bestScore;
   const isBest = ui.resultRank === 1 && ui.score > 0;
+  // 점수가 올라가다 멈추면 제목이 쾅
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const at = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - at) / 1100);
+      setShown(Math.round(ui.score * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [ui.score]);
   return (
     <div className="pointer-events-auto flex h-full flex-col items-center justify-center overflow-y-auto bg-ink/55 px-5 pt-20 pb-6 text-center">
       <div className="t-panel relative w-full px-5 pt-9 pb-5">
         <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-          <span className="inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
+          <span className="f-slam inline-block rounded-full border-[0.3125rem] border-ink bg-don px-7 py-1.5 font-display text-2xl whitespace-nowrap text-cream">
             {ui.won ? "골리앗 KO!" : isBest ? "최고 기록!" : "아쉬워요!"}
           </span>
         </div>
-        <p className="animate-pop t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_0.375rem_0_var(--color-ink)]">
-          {ui.score.toLocaleString("ko-KR")}
+        <p className="t-outline font-display text-7xl leading-none tabular-nums text-sun drop-shadow-[0_0.375rem_0_var(--color-ink)]">
+          {shown.toLocaleString("ko-KR")}
         </p>
         <p className={`mt-2 font-display text-xl ${ui.won ? "text-don" : "text-ink"}`}>
           {ui.won
@@ -953,11 +973,14 @@ function Result({ ui, onNext }: { ui: UiSnap; onNext: () => void }) {
         onClick={onNext}
         className="t-btn mt-6 h-16 min-w-56 bg-don px-8 text-2xl text-cream"
       >
-        다음 사람
+        다음 사람 {ui.resultLeft <= 10 ? ui.resultLeft : ""}
       </button>
-      <p className="t-outline-sm mt-3 text-sm font-bold text-cream">
-        자리를 비우면 대기 화면으로 돌아갑니다
+      <p className="t-outline mt-3 font-display text-2xl text-sun">
+        양손을 번쩍 들면 바로 다시 도전!
       </p>
+      <div className="mt-2 h-3 w-56 overflow-hidden rounded-full border-[0.1875rem] border-ink bg-ink/60">
+        <div className="h-full bg-sun" style={{ width: `${ui.handsUpProgress * 100}%` }} />
+      </div>
     </div>
   );
 }
@@ -1424,8 +1447,13 @@ function HpBar({ ratio, fever }: { ratio: number; fever: boolean }) {
     <div className="mt-2 flex items-center gap-2 px-3 pr-16">
       <span className="t-outline-sm shrink-0 font-display text-lg text-cream">골리앗</span>
       <div className="relative h-7 flex-1 overflow-hidden rounded-full border-[0.25rem] border-ink bg-ink/70">
+        {/* 깎인 만큼 흰 칸이 잠깐 남았다가 따라 줄어든다 */}
         <div
-          className={`h-full rounded-full transition-[width] duration-200 ${pct > 40 ? "bg-don" : pct > 15 ? "bg-orange" : "animate-throb bg-sun"}`}
+          className="absolute inset-y-0 left-0 rounded-full bg-cream transition-[width] delay-300 duration-500"
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className={`relative h-full rounded-full transition-[width] duration-100 ${pct > 40 ? "bg-don" : pct > 15 ? "bg-orange" : "animate-throb bg-sun"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -1441,10 +1469,18 @@ function HpBar({ ratio, fever }: { ratio: number; fever: boolean }) {
 function KoSplash() {
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
-      <p className="animate-pop t-outline font-display text-[9rem] leading-none text-sun drop-shadow-[0_0.6rem_0_var(--color-ink)]">
+      <p
+        className="animate-pop t-outline font-display text-[9rem] leading-none text-sun drop-shadow-[0_0.6rem_0_var(--color-ink)]"
+        style={{ animationDelay: `${KO_LAND}s` }}
+      >
         KO!
       </p>
-      <p className="animate-pop t-outline font-display text-4xl text-cream">골리앗을 쓰러뜨렸다!</p>
+      <p
+        className="animate-pop t-outline font-display text-4xl text-cream"
+        style={{ animationDelay: `${KO_LAND + 0.15}s` }}
+      >
+        골리앗을 쓰러뜨렸다!
+      </p>
     </div>
   );
 }

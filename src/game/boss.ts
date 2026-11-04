@@ -21,8 +21,12 @@ export const FEVER_MULT = 2;
 
 /** 쓰러뜨렸을 때 남은 1초마다 보너스 점수. 빨리 쓰러뜨릴수록 높은 점수. */
 export const KO_BONUS_PER_SEC = 200;
+/** 마지막 일격에서 화면이 멈춘 채 당겨 보는 시간(초). 그 뒤 쓰러지기 시작한다. */
+export const KO_HOLD = 0.6;
+/** 땅에 쿵 닿는 시각(초). */
+export const KO_LAND = KO_HOLD + 0.7;
 /** 쓰러지는 연출 길이(초). */
-export const KO_SECONDS = 2.8;
+export const KO_SECONDS = 3.4;
 
 /** 창 던지기: 판 시작 후 이 시각(초)에 예고. 20초 판에 두 번. */
 export const SPEAR_AT = [6, 12.5];

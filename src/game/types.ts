@@ -19,6 +19,8 @@ export type Stone = {
   flightT: number;
   aimX: number;
   aimY: number;
+  /** 이미 맞고 튕겨 나가는 돌. 판정 없이 떨어진다. */
+  spent?: boolean;
 };
 
 export type Particle = {
@@ -65,6 +67,10 @@ export type GameSim = {
   charge: number;
   shakeX: number;
   shakeY: number;
+  /** 맞은 자리로 화면을 당기는 정도(0이면 그대로)와 그 중심. */
+  zoom: number;
+  zoomX: number;
+  zoomY: number;
   stones: Stone[];
   particles: Particle[];
   floaters: Floater[];
@@ -114,6 +120,8 @@ export type UiSnap = {
   lastHit: string | null;
   resultRank: number;
   monthRank: number;
+  /** 결과 화면이 닫히기까지 남은 초. */
+  resultLeft: number;
   naming: boolean;
   savedName: string | null;
   scores: ScoreRecord[];

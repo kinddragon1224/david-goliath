@@ -13,7 +13,9 @@ type SfxName =
   | "freeze"
   | "ko"
   | "warn"
-  | "fever";
+  | "fever"
+  | "open"
+  | "finish";
 
 /** 전체 음량. 키오스크 스피커에서 잘 들리게 예전(0.22)보다 키웠다. */
 const VOLUME = 0.42;
@@ -70,7 +72,8 @@ export class GameAudio {
     this.muted = was;
   }
 
-  play(name: SfxName): void {
+  /** step: 콤보가 이어질수록 음이 올라간다. */
+  play(name: SfxName, step = 0): void {
     if (!this.ctx || !this.master || this.muted) return;
     // 터치 없이 동작만으로 시작해 막혀 있었다면 다시 깨워 본다
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
@@ -107,9 +110,21 @@ export class GameAudio {
         this.chime(t, 523, 0.28);
         this.chime(t + 0.14, 392, 0.4);
         break;
-      case "combo":
-        this.chime(t, 660, 0.18);
-        this.chime(t + 0.05, 880, 0.16);
+      case "combo": {
+        const up = 2 ** (Math.min(step, 8) / 8);
+        this.chime(t, 660 * up, 0.18);
+        this.chime(t + 0.05, 880 * up, 0.16);
+        break;
+      }
+      case "open":
+        this.chime(t, 1175, 0.22);
+        this.chime(t + 0.07, 1568, 0.2);
+        break;
+      case "finish":
+        // 마지막 일격: 쿵 한 번과 길게 울리는 쇳소리, 그 뒤 잠깐 조용해진다
+        this.don(t, 1);
+        this.clang(t);
+        this.osc(1240, "triangle", t, 0.55, 0.22, 1100);
         break;
       case "ko":
         // 쿵 쿵 쿵 + 올라가는 팡파르
