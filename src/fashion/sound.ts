@@ -216,8 +216,8 @@ export class FashionSound {
         this.tone(NOTE(81 + step), t, 0.12, "triangle", 0.2);
         break;
       case "perfect":
-        this.tone(NOTE(84), t, 0.1, "triangle", 0.22);
-        this.tone(NOTE(91), t + 0.05, 0.16, "sine", 0.18);
+        this.tone(NOTE(84 + step), t, 0.1, "triangle", 0.22);
+        this.tone(NOTE(91 + step), t + 0.05, 0.16, "sine", 0.18);
         this.tone(95, t, 0.18, "sine", 0.45, 45);
         break;
       case "miss":
@@ -235,7 +235,7 @@ export class FashionSound {
         if (step) this.tone(NOTE(72 + step), t, 0.09, "triangle", 0.12);
         break;
       case "stitch":
-        this.tone(NOTE(88), t, 0.07, "sine", 0.2);
+        this.tone(NOTE(88 + step), t, 0.07, "sine", 0.2);
         this.hiss(t, 0.04, 0.1, 6000, 4);
         break;
       case "steam":

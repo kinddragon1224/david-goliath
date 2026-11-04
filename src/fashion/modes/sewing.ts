@@ -32,7 +32,8 @@ import {
 } from "../garments";
 
 /** 05 바느질 챌린지
- * 손이 바늘. 번호 붙은 바늘구멍을 차례로 콕 찍으면 실이 따라와 한 땀씩 꿰매진다.
+ * 손이 바늘. 옷의 솔기를 가까이 당겨 보며 번호 붙은 바늘구멍을 차례로 콕 찍으면
+ * 실이 따라오고, 땀마다 음이 이어져 솔기 하나가 짧은 가락이 된다. 다 꿰매면 옷 전체가 나온다.
  * 1.6초 안에 이어 찍으면 콤보, 5콤보부터는 '황금실 피버'(점수 2배). 솔기 하나를 다 꿰매면 다음 솔기. */
 
 /** 솔기 길: 옷이 놓인 상자 안 0~1 좌표. 가로·세로 화면 어디서나 옷 위에 놓인다. */
@@ -129,8 +130,16 @@ const PERFECT_TO = 1.15;
 /** 사람 손(웹캠 지연)엔 하드도 빡빡해서 '빨라요'는 콤보만 끊는다. */
 const EARLY_PENALTY = [0, 0, 0];
 const TOL = [0.085, 0.08, 0.072];
+/** 솔기를 이만큼까지 당겨 본다(옷 사진이 흐려지지 않는 선). */
+const ZOOM_MAX = 1.8;
+/** 구멍마다 내는 음(반음). 10땀이 한 가락. */
+const MELODY = [-5, -3, 0, 2, 4, 7, 4, 7, 9, 12];
+/** 땀 하나가 이어지는 시간(초). */
+const STITCH_T = 0.12;
+const PULL_T = 1.1;
 
-type Hole = { x: number; y: number; done: boolean; gold: boolean; miss?: boolean };
+type Box = { x: number; y: number; w: number; h: number };
+type Hole = { x: number; y: number; done: boolean; gold: boolean; miss?: boolean; at?: number };
 
 export class SewingMode implements Mode {
   seconds = 30;
@@ -166,7 +175,11 @@ export class SewingMode implements Mode {
   private time = 0;
   private needleHand = 0;
   private demoPos: DemoHand | null = null;
-  private box = { x: 0, y: 0, w: 1, h: 1 };
+  private box: Box = { x: 0, y: 0, w: 1, h: 1 };
+  /** 옷 전체가 무대에 들어오는 상자. */
+  private full: Box = { x: 0, y: 0, w: 1, h: 1 };
+  /** 솔기를 다 꿰매면 가까이 보던 옷이 전체 모습으로 물러난다. */
+  private pull: { g: Garment; from: Box; to: Box; t: number } | null = null;
   /** 찍은 구멍에서 퍼지는 빛 고리. */
   private pops: { x: number; y: number; t0: number; tone: "gold" | "white" }[] = [];
 
@@ -192,6 +205,7 @@ export class SewingMode implements Mode {
     this.earlyAt = -9;
     this.wasIn = [false, false];
     this.pops = [];
+    this.pull = null;
     this.tol = Math.min(W, H) * TOL[this.level];
     this.tip = RING[this.level]
       ? "구멍 옆에서 기다렸다가, 원이 하얗게 닫힐 때 콕!"
@@ -210,7 +224,24 @@ export class SewingMode implements Mode {
 
   private load(): void {
     const s = this.seam();
-    this.box = place(s.garment, this.W / 2, this.H * 0.53, this.W * 0.6, this.H * 0.9);
+    const full = place(s.garment, this.W / 2, this.H * 0.53, this.W * 0.6, this.H * 0.9);
+    this.full = full;
+    this.box = full;
+    // 솔기가 무대 가운데 크게 오도록 옷을 당긴다
+    const line = Array.from({ length: 21 }, (_, i) => this.at(i / 20));
+    const xs = line.map((p) => p[0]);
+    const ys = line.map((p) => p[1]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const z = Math.max(
+      1,
+      Math.min(ZOOM_MAX, (this.W * 0.66) / Math.max(1, x1 - x0), (this.H * 0.6) / Math.max(1, y1 - y0)),
+    );
+    this.box = {
+      x: this.W / 2 - ((x0 + x1) / 2 - full.x) * z,
+      y: this.H * 0.5 - ((y0 + y1) / 2 - full.y) * z,
+      w: full.w * z,
+      h: full.h * z,
+    };
     this.holes = [];
     const off = Math.min(this.W, this.H) * 0.065;
     for (let i = 0; i < HOLES; i++) {
@@ -240,6 +271,10 @@ export class SewingMode implements Mode {
   update(dt: number, t: number, hands: Hand[], fx: Fx): void {
     this.time = t;
     this.flash = Math.max(0, this.flash - dt);
+    if (this.pull) {
+      this.pull.t += dt;
+      if (this.pull.t > PULL_T) this.pull = null;
+    }
     if (this.openAt < 0) this.openAt = t;
     const timed = RING[this.level] > 0;
     // 이지는 빨리 이어 찍어야 콤보, 노멀·하드는 놓치지 않으면 콤보
@@ -251,6 +286,7 @@ export class SewingMode implements Mode {
       // 놓침: 땀이 빠지고 콤보가 끊긴다
       hole.done = true;
       hole.miss = true;
+      hole.at = t;
       this.combo = 0;
       this.misses++;
       const pen = MISS_PENALTY[this.level];
@@ -287,6 +323,7 @@ export class SewingMode implements Mode {
       }
       const perfect = timed && !held && k <= PERFECT_TO;
       hole.done = true;
+      hole.at = t;
       this.needleHand = hi;
       const quick = timed || t - this.lastHit <= COMBO_GAP;
       this.combo = quick ? this.combo + 1 : 1;
@@ -323,6 +360,7 @@ export class SewingMode implements Mode {
       }
       fx.sfx(
         this.combo === FEVER_AT ? "perfect" : timed ? (perfect ? "perfect" : "good") : "stitch",
+        MELODY[this.next],
       );
       if (this.combo === FEVER_AT) {
         fx.say("gold-fever", true);
@@ -332,11 +370,14 @@ export class SewingMode implements Mode {
       this.openAt = t;
     });
     if (this.next >= this.holes.length) {
-      fx.score(SEAM_BONUS, this.W / 2, this.H * 0.4, `보너스 +${SEAM_BONUS}`, "pink");
+      fx.score(SEAM_BONUS, this.W / 2, this.H * 0.32, `보너스 +${SEAM_BONUS}`, "pink");
       fx.celebrate(`${fullName(this.seam().garment)} 완성!`, "pink");
       fx.sfx("complete");
-      fx.hitstop(0.09);
-      fx.shake(0.45);
+      fx.hitstop(0.16);
+      fx.shake(0.6);
+      // 꿰맨 자리를 따라 반짝
+      for (const h of this.holes) if (!h.miss) fx.burst(h.x, h.y, 6, "gold");
+      this.pull = { g: this.seam().garment, from: this.box, to: this.full, t: 0 };
       this.sewn.push(this.seam());
       this.si++;
       this.load();
@@ -392,15 +433,19 @@ export class SewingMode implements Mode {
         : b.gold
           ? "#ffd34d"
           : THREADS[this.si % THREADS.length];
-      ctx.lineWidth = b.miss ? 5 : 10;
+      ctx.lineWidth = b.miss ? 5 : 12;
       ctx.setLineDash(b.miss ? [6, 10] : []);
       if (b.gold) {
         ctx.shadowColor = "#ffd34d";
         ctx.shadowBlur = 16;
       }
+      // 땀이 구멍에서 구멍으로 쭉 이어진다
+      const grow = b.at === undefined ? 1 : Math.min(1, (t - b.at) / STITCH_T);
+      const ex = a.x + (b.x - a.x) * grow;
+      const ey = a.y + (b.y - a.y) * grow;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
-      ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - 10, b.x, b.y);
+      ctx.quadraticCurveTo((a.x + ex) / 2, (a.y + ey) / 2 - 10, ex, ey);
       ctx.stroke();
       ctx.shadowBlur = 0;
       if (!b.miss) {
@@ -520,6 +565,21 @@ export class SewingMode implements Mode {
       ctx.stroke();
       ctx.restore();
       drawFlare(ctx, p.x, p.y, this.tol * (1.4 - k * 0.6), p.tone, 1 - k);
+    }
+    // 다 꿰맨 옷: 가까이 보던 자리에서 전체 모습으로 물러났다가 사라진다
+    if (this.pull) {
+      const { g, from, to, t: pt } = this.pull;
+      const k = 1 - Math.pow(1 - Math.min(1, pt / 0.5), 3);
+      const fade = Math.min(1, (PULL_T - pt) / 0.3);
+      const mix = (a: number, b: number) => a + (b - a) * k;
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = "rgba(6,8,14,0.72)";
+      ctx.fillRect(0, 0, this.W, this.H);
+      ctx.shadowColor = "#ffffff";
+      ctx.shadowBlur = 40;
+      drawGarmentPhoto(ctx, g, mix(from.x, to.x), mix(from.y, to.y), mix(from.w, to.w), mix(from.h, to.h));
+      ctx.restore();
     }
     for (const h of hands) drawNeedle(ctx, h, this.tol, this.flash, this.fever());
   }
