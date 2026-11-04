@@ -92,6 +92,10 @@ export interface Mode {
   level: Level;
   /** 판 동안 깔리는 잔잔한 음악. 리듬은 자체 음악. */
   music: "lofi" | null;
+  /** 판에 쓸 곡 파일. 카운트다운 동안 받아 둔다. */
+  track?: string;
+  /** 터치로 누른 자리(무대 x). */
+  tap?(x: number): void;
   reset(W: number, H: number): void;
   update(dt: number, t: number, hands: Hand[], fx: Fx): void;
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void;
@@ -415,6 +419,7 @@ export class FashionGame implements Fx {
   private goCountdown(): void {
     this.sound.unlock();
     this.sound.stopMusic();
+    if (this.mode.track) this.sound.loadTrack(this.mode.track);
     this.phase = "countdown";
     this.countT = COUNTDOWN;
     this.lastTick = COUNTDOWN + 1;
@@ -579,6 +584,11 @@ export class FashionGame implements Fx {
   pointerMove(x: number, y: number, nowMs: number): void {
     this.pointer = { at: nowMs };
     this.moveHand(this.real[0], x, y);
+  }
+
+  pointerDown(x: number, y: number, nowMs: number): void {
+    this.pointerMove(x, y, nowMs);
+    this.mode.tap?.(x);
   }
 
   pointerUp(): void {
@@ -1442,7 +1452,7 @@ function loadImage(src: string): HTMLImageElement | null {
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
-function artImage(name: string): HTMLImageElement | null {
+export function artImage(name: string): HTMLImageElement | null {
   return loadImage(`/art/${name}.webp`);
 }
 

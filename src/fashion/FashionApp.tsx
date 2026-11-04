@@ -63,8 +63,8 @@ const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   ],
   rhythm: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "ring", text: "3·2·1 '지금!'에 손을 대요" },
-    { icon: "music", text: "금빛 고리는 두 손 만세" },
+    { icon: "ring", text: "손을 들었다가 점선 아래로 쿵!" },
+    { icon: "music", text: "빨강은 왼쪽, 파랑은 오른쪽" },
   ],
 };
 
@@ -255,7 +255,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
     const onDown = (e: PointerEvent) => {
       down = true;
       const p = toStage(e);
-      game.pointerMove(p.x, p.y, performance.now());
+      game.pointerDown(p.x, p.y, performance.now());
     };
     const onMove = (e: PointerEvent) => {
       if (!down && e.pointerType !== "mouse") return;
@@ -1098,8 +1098,10 @@ function AttractOverlay({
   const top = ui.todayTop[0]?.s;
   const teasers = [
     TEASER[station],
-    "완성한 옷을 거울 속 내 몸에 입혀 줘요!",
-    "창작자×예술인 콜라보 6팀의 옷을 만들어요",
+    // 몽글 드럼은 옷을 만들지 않는다
+    ...(station === "rhythm"
+      ? []
+      : ["완성한 옷을 거울 속 내 몸에 입혀 줘요!", "창작자×예술인 콜라보 6팀의 옷을 만들어요"]),
     ...(top ? [`오늘 최고 ${top.toLocaleString("ko-KR")}점 · 도전!`] : []),
   ];
   const [ti, setTi] = useState(0);
@@ -1243,7 +1245,7 @@ const TEASER: Record<FashionStation, string> = {
   iron: "두 손으로 다리면 점수 2배!",
   scissors: "두 손으로 양쪽에서 오리면 2배 빨라요!",
   sewing: "빨리 이어 꿰매면 황금실 피버!",
-  rhythm: "음악에 맞춰 브랜드 런칭 쇼 주인공!",
+  rhythm: "두 손으로 큰 북을 쿵쿵! 10콤보면 피버!",
 };
 
 /** 대기 화면: 양손을 번쩍 들었다 내리는 사람(따라 하면 시작). */

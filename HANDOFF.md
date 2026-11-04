@@ -9,7 +9,7 @@
 ## 구조
 - `src/app/Root.tsx`: 체험 고르기(기기에 저장, `?game=` 으로 고정). 위브온판(`VITE_EDITION=weaveon`)
 - `src/game/*`: 02 다윗과 골리앗(태고의 달인 풍). 난이도 숫자는 `src/game/boss.ts`, `src/game/rules.ts`
-- `src/fashion/*`: 03 다리미 · 04 가위질 · 05 바느질 · 06 리듬
+- `src/fashion/*`: 03 다리미 · 04 가위질 · 05 바느질 · 06 몽글 드럼(코드 id는 rhythm. 원본 저장소 mongle-air-drum에서 옮겨 옴, 곡은 public/audio/mongle-drum.mp3 = AI 5형제 144.26초~끝)
   - `core.ts` 공통 엔진(시범 손, 여기로 화살표, 축하·색종이, 처음으로 동작)
   - `modes/*.ts` 체험별 규칙·그림. `FashionApp.tsx` 화면(피팅룸 거울, 진행 줄, 결과 컬렉션)
 - 오프라인 윈도우판: `npm run build:offline:weaveon` → `dist-offline/`

@@ -18,6 +18,40 @@ import {
   resample,
   toWorld,
 } from "./garments.ts";
+import { chart, StrikeDetector } from "./drum.ts";
+
+test("몽글 드럼 채보: 박 순서대로, 두 손 다 쓰고, 어려울수록 빽빽하다", () => {
+  const [easy, normal, hard] = ([0, 1, 2] as const).map((l) => chart(54, l));
+  assert.ok(easy.length < normal.length && normal.length < hard.length);
+  assert.deepEqual(new Set(easy.map((n) => n.lane)), new Set([0, 1]));
+  for (const c of [easy, normal, hard])
+    c.forEach((n, i) => assert.ok(i === 0 || c[i - 1].beat < n.beat));
+  assert.equal(easy[0].beat, 4);
+});
+
+test("내려치기: 올렸다 빠르게 줄을 지나야 한 번, 들지 않거나 느리면 안 친다", () => {
+  const p = (y: number, x = 0.3) => ({ x, y });
+  const d = new StrikeDetector();
+  assert.equal(d.update(0, p(0.5), 0, 0.65, 0.48), null);
+  const hit = d.update(0, p(0.75), 100, 0.65, 0.48);
+  assert.equal(hit?.lane, 0);
+  assert.ok(hit && hit.timeMs > 0 && hit.timeMs < 100);
+  assert.equal(d.update(0, p(0.79), 180, 0.65, 0.48), null);
+  d.update(0, p(0.4), 300, 0.65, 0.48);
+  assert.equal(d.update(0, p(0.75, 0.8), 400, 0.65, 0.48)?.lane, 1);
+
+  const slow = new StrikeDetector();
+  slow.update(0, p(0.55), 0, 0.65, 0.48);
+  slow.update(0, p(0.62), 300, 0.65, 0.48);
+  assert.equal(slow.update(0, p(0.66), 500, 0.65, 0.48), null);
+
+  // 인식이 끊긴 뒤 줄 아래서 나타나면 없는 타격을 만들지 않는다
+  const gap = new StrikeDetector();
+  gap.update(0, p(0.4), 0, 0.65, 0.48);
+  assert.equal(gap.update(0, p(0.75), 500, 0.65, 0.48), null);
+  gap.update(0, null, 600, 0.65, 0.48);
+  assert.equal(gap.update(0, p(0.75), 700, 0.65, 0.48), null);
+});
 
 test("피날레 옷: 마지막 상의 + 마지막 하의, 원피스는 혼자, 없으면 기본 옷", () => {
   assert.deepEqual(pickOutfit(["티셔츠", "치마", "바지", "재킷"]), [PANTS, JACKET]);

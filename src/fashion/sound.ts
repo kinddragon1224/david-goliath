@@ -1,4 +1,4 @@
-/** 패션 체험 효과음과 리듬 챌린지 음악. 파일 없이 Web Audio로 만든다(오프라인·TV 대응). */
+/** 패션 체험 효과음과 음악. 몽글 드럼 곡만 파일이고 나머지는 Web Audio로 만든다(오프라인·TV 대응). */
 
 export type Sfx =
   | "tick"
@@ -11,7 +11,9 @@ export type Sfx =
   | "stitch"
   | "steam"
   | "end"
-  | "shutter";
+  | "shutter"
+  | "drum-left"
+  | "drum-right";
 
 /** MC 음성(일레븐랩스로 미리 만든 파일, public/voice). 인터넷 없이 나온다. */
 export const LINES = [
@@ -28,8 +30,6 @@ export const LINES = [
   "clean-cut",
   "gold-fever",
   "runway-fever",
-  "banzai",
-  "rhythm-how",
   "finale",
   "three",
   "two",
@@ -45,6 +45,8 @@ export type Line = (typeof LINES)[number];
 const VOLUME = 0.45;
 /** 음악·효과음 위로 또렷하게. */
 const VOICE_GAIN = 1.8;
+/** 몽글 드럼 곡 크기. 북소리가 곡 위로 들리는 정도는 현장 스피커에서 맞춘다. */
+const TRACK_GAIN = 1.3;
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -58,6 +60,8 @@ export class FashionSound {
   private voices = new Map<Line, AudioBuffer>();
   private voice: AudioBufferSourceNode | null = null;
   private voiceUntil = 0;
+  private track: AudioBuffer | null = null;
+  private trackSrc: AudioBufferSourceNode | null = null;
 
   unlock = (): void => {
     if (!this.ctx) {
@@ -116,6 +120,36 @@ export class FashionSound {
     return this.ctx && this.ctx.state === "running"
       ? this.ctx.currentTime
       : performance.now() / 1000;
+  }
+
+  /** 오디오 시계가 스피커보다 앞서 가는 만큼(초). */
+  latency(): number {
+    return this.running ? (this.ctx?.baseLatency ?? 0) + (this.ctx?.outputLatency ?? 0) : 0;
+  }
+
+  /** 곡을 받아 풀어 둔다. 못 받으면 playTrack이 false를 준다. */
+  loadTrack(url: string): void {
+    if (this.track) return;
+    fetch(url)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => this.ctx!.decodeAudioData(b))
+      .then((buf) => (this.track = buf))
+      .catch(() => {});
+  }
+
+  /** 풀어 둔 곡을 at(오디오 시계 초)부터 튼다. 틀었으면 true. */
+  playTrack(at: number): boolean {
+    this.stopMusic();
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.track || !this.running) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = this.track;
+    const g = ctx.createGain();
+    g.gain.value = TRACK_GAIN;
+    src.connect(g).connect(this.master);
+    src.start(at);
+    this.trackSrc = src;
+    return true;
   }
 
   setMuted(m: boolean): void {
@@ -218,10 +252,19 @@ export class FashionSound {
           this.tone(NOTE(n), t + 0.18 + i * 0.05, 0.5, "sine", 0.16),
         );
         break;
+      case "drum-left":
+      case "drum-right": {
+        // 같은 북 가죽을 치되 오른손이 조금 높다: 몸통 + 배음 + 가죽 때리는 소리
+        const pitch = name === "drum-left" ? 128 : 150;
+        this.tone(pitch, t, 0.34, "sine", 0.6, pitch * 0.42);
+        this.tone(pitch * 1.58, t, 0.17, "sine", 0.14);
+        this.hiss(t, 0.075, 0.22, 1050, 0.7);
+        break;
+      }
     }
   }
 
-  /** 리듬 챌린지 음악. startAt(오디오 시계 초)부터 bars 마디. 4/4, 16분음표 단위로 미리 깔아 둔다. */
+  /** 합성 음악. startAt(오디오 시계 초)부터 bars 마디. 4/4, 16분음표 단위로 미리 깔아 둔다. */
   startMusic(bpm: number, startAt: number, bars: number, style: "dance" | "lofi" = "dance"): void {
     this.stopMusic();
     const ctx = this.ctx;
@@ -314,5 +357,7 @@ export class FashionSound {
   stopMusic(): void {
     if (this.musicTimer) clearInterval(this.musicTimer);
     this.musicTimer = null;
+    this.trackSrc?.stop();
+    this.trackSrc = null;
   }
 }

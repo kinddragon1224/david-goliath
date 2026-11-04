@@ -13,7 +13,7 @@ export const STATIONS: StationInfo[] = [
   { id: "iron", no: "03", title: "다리미 챌린지", line: "바르고 정확하게 주름을 펴요" },
   { id: "scissors", no: "04", title: "가위질 챌린지", line: "가위로 패턴을 잘라요" },
   { id: "sewing", no: "05", title: "바느질 챌린지", line: "바느질로 멋지게 완성해요" },
-  { id: "rhythm", no: "06", title: "리듬 챌린지", line: "음악에 맞춰 신나게 움직여요" },
+  { id: "rhythm", no: "06", title: "몽글 드럼", line: "음악에 맞춰 큰 북을 두드려요" },
 ];
 
 const KEY = "weaveon-station";
