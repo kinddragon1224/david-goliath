@@ -29,6 +29,7 @@ import {
 import { BRANDS, fitGarment, garmentByName, type Body, type Garment, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
+import { StationMenu, setMenuHands } from "./StationMenu";
 import { IronMode } from "./modes/iron";
 import { ScissorsMode } from "./modes/scissors";
 import { SewingMode } from "./modes/sewing";
@@ -208,6 +209,12 @@ export function FashionApp({ station }: { station: FashionStation }) {
       }
       game.update(now);
       const L = layoutRef.current;
+      const hk = L.stage.w / STAGE_W;
+      setMenuHands(
+        game.hands
+          .filter((h) => h.on && !h.ghost)
+          .map((h) => ({ x: L.stage.x + h.x * hk, y: L.stage.y + h.y * hk })),
+      );
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawBackdrop(ctx, window.innerWidth, window.innerHeight, now / 1000);
       const s = (L.stage.w / STAGE_W) * dpr;
@@ -462,15 +469,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             )}
           </>
         )}
-        {(ui.phase === "play" || ui.phase === "countdown") && (
-          <button
-            type="button"
-            onClick={() => g()?.goHome()}
-            className="f-ghost pointer-events-auto absolute top-3 left-3 z-10 bg-black/50 px-4 py-2 text-base"
-          >
-            처음으로
-          </button>
-        )}
+        {ui.phase !== "finale" && <StationMenu current={station} onSame={() => g()?.goHome()} />}
         {ui.homeProgress > 0 && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-[2rem] bg-black/55">
             <div className="relative size-36">

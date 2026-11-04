@@ -9,6 +9,8 @@ import { PoseController } from "./pose";
 import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
 import { isKiosk, isTv, setupKiosk } from "./kiosk";
+import { EDITION_ID } from "./edition";
+import { StationMenu, setMenuHands } from "@/fashion/StationMenu";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
   if (!g) return;
@@ -138,6 +140,15 @@ export function GameApp() {
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
         if (pose.poseReady) game.notePose(frame);
+        // 위브온: '다른 체험' 탭을 손으로 고르게 손 위치(게임 칸 기준)를 넘긴다
+        const wr = wrap.getBoundingClientRect();
+        setMenuHands(
+          pose.poseReady
+            ? frame.reach.flatMap((h) =>
+                h ? [{ x: wr.left + h.x * wr.width, y: wr.top + h.y * wr.height }] : [],
+              )
+            : [],
+        );
         const pip = pipRef.current;
         if (pip) {
           const pctx = pip.getContext("2d");
@@ -373,6 +384,9 @@ export function GameApp() {
           onHome={() => gameRef.current?.goHome()}
           wide={wide}
         />
+        {EDITION_ID === "weaveon" && (
+          <StationMenu current="goliath" onSame={() => gameRef.current?.goHome()} />
+        )}
       </div>
       {wide && (
         <div className="fixed top-1/2 -translate-y-1/2" style={{ right: SIDE_GAP, width: SIDE_W }}>
