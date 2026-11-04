@@ -51,8 +51,8 @@ export interface Fx {
   burst(x: number, y: number, n: number, tone?: Tone): void;
   /** 무대 전체 축하 연출: 빛줄기 + 색종이 + 큰 글자. */
   celebrate(text: string, tone?: Tone): void;
-  /** 효과음. 대기 화면 시범 중에는 조용하다. */
-  sfx(name: Sfx): void;
+  /** 효과음. 대기 화면 시범 중에는 조용하다. step은 반음 단위로 올린다. */
+  sfx(name: Sfx, step?: number): void;
   /** MC 음성. 게임 중에만 말한다. */
   say(line: Line, urgent?: boolean): void;
   sound: FashionSound;
@@ -705,8 +705,8 @@ export class FashionGame implements Fx {
     if (this.confetti.length > 600) this.confetti.splice(0, this.confetti.length - 600);
   }
 
-  sfx(name: Sfx): void {
-    if (this.phase === "play") this.sound.play(name);
+  sfx(name: Sfx, step = 0): void {
+    if (this.phase === "play") this.sound.play(name, step);
   }
 
   say(line: Line, urgent = false): void {
@@ -1074,8 +1074,10 @@ export class FashionGame implements Fx {
       ctx.save();
       ctx.globalAlpha = k > 0.75 ? 1 - (k - 0.75) / 0.25 : 1;
       ctx.translate(cx, cy);
-      ctx.scale(pop, pop);
       ctx.font = `700 110px "Gowun Batang", serif`;
+      // 옷 이름이 길어도 무대 안에 들어오게
+      const fit = Math.min(1, (W * 0.9) / ctx.measureText(this.cele.text).width);
+      ctx.scale(pop * fit, pop * fit);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineJoin = "round";

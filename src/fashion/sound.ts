@@ -199,7 +199,7 @@ export class FashionSound {
     src.stop(at + dur + 0.02);
   }
 
-  play(name: Sfx): void {
+  play(name: Sfx, step = 0): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== "running") return;
     const t = ctx.currentTime + 0.005;
@@ -231,6 +231,8 @@ export class FashionSound {
       case "snip":
         this.hiss(t, 0.05, 0.25, 4500, 3);
         this.tone(2600, t, 0.03, "square", 0.04);
+        // 이어 자를수록 음이 올라간다
+        if (step) this.tone(NOTE(72 + step), t, 0.09, "triangle", 0.12);
         break;
       case "stitch":
         this.tone(NOTE(88), t, 0.07, "sine", 0.2);

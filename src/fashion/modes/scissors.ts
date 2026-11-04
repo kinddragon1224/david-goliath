@@ -1,4 +1,5 @@
 import {
+  drawFlare,
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
@@ -48,6 +49,10 @@ const NICK_GAP = 0.5;
 const NICK_AT = 1.25;
 /** 흠집 내면 가위가 잠깐 걸려 못 자른다(대충 빨리 휘두르는 게 손해가 되게). */
 const JAM = [0, 0.3, 0.4];
+/** 싹둑 사이가 이만큼(초) 벌어지면 연속 컷이 끊긴다. */
+const CHAIN_GAP = 0.7;
+/** 이어 자를 때 올라가는 음(반음). 어떤 순서로 들려도 어울리는 5음계. */
+const LADDER = [2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
 
 export class ScissorsMode implements Mode {
   seconds = 40;
@@ -88,8 +93,12 @@ export class ScissorsMode implements Mode {
     g: Garment;
     box: { x: number; y: number; w: number; h: number };
     color: string;
+    print: (typeof PRINTS)[number];
     t: number;
   } | null = null;
+  private chain = 0;
+  /** 싹둑 순간 날에서 튀는 불꽃 자리. */
+  private sparks: { x: number; y: number; t: number }[] = [];
   private box = { x: 0, y: 0, w: 0, h: 0 };
   private lastSnip = 0;
   private back = 0;
@@ -118,6 +127,8 @@ export class ScissorsMode implements Mode {
     this.cutAt = [-9, -9];
     this.trails = [[], []];
     this.bits = [];
+    this.chain = 0;
+    this.sparks = [];
     this.tol = Math.min(W, H) * TOL[this.level];
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
@@ -167,6 +178,8 @@ export class ScissorsMode implements Mode {
       b.a += b.va * dt;
     }
     this.bits = this.bits.filter((b) => b.life > 0);
+    for (const s of this.sparks) s.t += dt;
+    this.sparks = this.sparks.filter((s) => s.t < 0.14);
     if (this.fall) {
       this.fall.t += dt;
       if (this.fall.t > 1.2) this.fall = null;
@@ -212,6 +225,7 @@ export class ScissorsMode implements Mode {
       this.nickT = NICK_GAP;
       this.jamT = JAM[this.level];
       this.nickCount++;
+      this.chain = 0;
       this.pieceOff += 0.4;
       this.nicks.push({ x: h.x, y: h.y, a: Math.atan2(h.vy, h.vx) });
       fx.score(-pen, h.x, h.y - this.tol, `흠집 -${pen}`, "pink");
@@ -259,8 +273,20 @@ export class ScissorsMode implements Mode {
       }
       this.snipT = 0.18;
       if (t - this.lastSnip > 0.16) {
-        fx.sfx("snip");
+        this.chain = t - this.lastSnip < CHAIN_GAP ? this.chain + 1 : 1;
+        fx.sfx("snip", LADDER[Math.min(this.chain, LADDER.length) - 1]);
         this.lastSnip = t;
+        for (const i of this.activeHands) this.sparks.push({ x: hands[i].x, y: hands[i].y, t: 0 });
+        if (this.chain % 15 === 0) {
+          fx.stamp(
+            `연속 ${this.chain}컷!`,
+            h.x,
+            Math.max(this.H * 0.18, h.y - this.tol * 2),
+            "gold",
+          );
+          fx.burst(h.x, h.y, 16, "gold");
+          fx.shake(0.2);
+        }
       }
     } else if (hands.some((h) => h.on)) {
       this.offLine += dt;
@@ -273,20 +299,21 @@ export class ScissorsMode implements Mode {
       fx.score(
         bonus,
         this.W / 2,
-        this.H * 0.4,
+        this.H * 0.32,
         acc >= 80 ? `깔끔한 재단! +${bonus}` : `보너스 +${bonus}`,
         "mint",
       );
       fx.celebrate(`${fullName(this.garment)} 완성!`, "mint");
       fx.sfx("complete");
-      fx.hitstop(0.09);
-      fx.shake(0.45);
+      fx.hitstop(0.16);
+      fx.shake(0.6);
       if (acc >= 80) fx.say("clean-cut", true);
       this.fall = {
         path: this.outline,
         g: this.garment,
         box: { ...this.box },
         color: this.garment.color,
+        print: PRINTS[this.gi % PRINTS.length],
         t: 0,
       };
       this.finished.push(this.garment);
@@ -314,17 +341,9 @@ export class ScissorsMode implements Mode {
     ctx.fillStyle = this.garment.color;
     ctx.fillRect(f.x, f.y, f.w, f.h);
     ctx.restore();
-    drawPrint(ctx, f.x, f.y, f.w, f.h, PRINTS[this.gi % PRINTS.length], this.garment.shade);
-    // 천의 결 + 위에서 비치는 조명(납작한 색판이 아니라 천처럼)
-    fabricTexture(ctx, f.x, f.y, f.w, f.h, this.garment.shade);
-    const lit = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.4, f.y + f.h);
-    lit.addColorStop(0, "rgba(255,255,255,0.16)");
-    lit.addColorStop(0.6, "rgba(255,255,255,0)");
-    lit.addColorStop(1, "rgba(0,0,0,0.14)");
-    ctx.fillStyle = lit;
-    ctx.fillRect(f.x, f.y, f.w, f.h);
-    // 옷본 조각 안쪽은 살짝 밝게 + 오려 낼 진짜 옷이 비친다
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    drawCloth(ctx, f, this.garment, PRINTS[this.gi % PRINTS.length]);
+    // 어두운 원단 위 옷본만 조명을 받는다(흰 옷도 선이 또렷하게)
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
     ctx.fill(this.outline);
     ctx.save();
     ctx.globalAlpha = 0.85;
@@ -364,10 +383,13 @@ export class ScissorsMode implements Mode {
       }
       ctx.stroke();
     };
-    // 남은 길: 분필 점선
-    ctx.strokeStyle = "rgba(30,24,44,0.8)";
-    ctx.lineWidth = 5;
+    // 남은 길: 분필 점선(옷 색이 밝든 어둡든 보이게 검은 테 + 흰 선)
     ctx.setLineDash([14, 12]);
+    ctx.strokeStyle = "rgba(10,10,18,0.85)";
+    ctx.lineWidth = 9;
+    line(this.cut, end);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
     line(this.cut, end);
     ctx.setLineDash([]);
     // 바로 앞길(양쪽): 밝게 강조
@@ -385,12 +407,20 @@ export class ScissorsMode implements Mode {
     ]) {
       if (to <= from) continue;
       ctx.strokeStyle = "#141020";
-      ctx.lineWidth = 7;
+      ctx.lineWidth = 11;
       line(from, to);
       ctx.strokeStyle = "rgba(168,240,224,0.9)";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       line(from, to);
     }
+    // 방금 자른 자리는 날에 달궈진 듯 빛난다
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 6;
+    ctx.shadowColor = TONE.gold;
+    ctx.shadowBlur = 20;
+    if (this.cut > 0) line(Math.max(0, this.cut - 14), this.cut);
+    if (this.back > 0) line(end, Math.min(n, end + 14));
+    ctx.shadowBlur = 0;
 
     // 흠집: 선 밖으로 삐져나간 가위 자국
     for (const k of this.nicks) {
@@ -452,9 +482,27 @@ export class ScissorsMode implements Mode {
       ctx.fillText("두 손으로 양쪽으로!", cx, cy - this.tol - 20);
     }
 
-    // 다 오린 조각: 들려서 날아간다
+    // 다 오린 조각: 남은 원단은 두 쪽으로 갈라져 떨어지고, 옷은 들려서 날아간다
     if (this.fall) {
       const k = this.fall.t / 1.2;
+      const hole = new Path2D();
+      hole.rect(f.x, f.y, f.w, f.h);
+      hole.addPath(this.fall.path);
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.globalAlpha = 1 - k * k;
+        ctx.translate(this.W / 2 + side * this.W * 0.5 * k * k, this.H / 2 + this.H * 0.9 * k * k);
+        ctx.rotate(side * k * 0.45);
+        ctx.translate(-this.W / 2, -this.H / 2);
+        ctx.beginPath();
+        ctx.rect(side < 0 ? f.x : f.x + f.w / 2, f.y, f.w / 2, f.h);
+        ctx.clip();
+        ctx.clip(hole, "evenodd");
+        ctx.fillStyle = this.fall.color;
+        ctx.fillRect(f.x, f.y, f.w, f.h);
+        drawCloth(ctx, f, this.fall.g, this.fall.print);
+        ctx.restore();
+      }
       ctx.save();
       ctx.globalAlpha = 1 - k;
       ctx.translate(this.W / 2, this.H / 2 - this.H * 0.55 * k * k);
@@ -510,6 +558,25 @@ export class ScissorsMode implements Mode {
     hands.forEach((h, i) =>
       drawScissors(ctx, h, this.tol, this.activeHands.includes(i) ? this.snipT : 0, t),
     );
+    for (const s of this.sparks)
+      drawFlare(ctx, s.x, s.y, this.tol * (1.1 - s.t * 3), "white", 1 - s.t / 0.14, s.t * 9);
+    // 연속 컷 수: 손 곁에 붙어 따라간다
+    const lead = hands[this.activeHands[0]];
+    if (this.chain >= 3 && lead?.on && t - this.lastSnip < 0.5) {
+      const size = 46 + Math.min(30, this.chain);
+      ctx.save();
+      ctx.font = `700 ${size}px "Gowun Batang", serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 12;
+      ctx.strokeStyle = "rgba(10,12,20,0.92)";
+      const y = lead.y + this.tol * (lead.y > this.H * 0.72 ? -1.7 : 1.7);
+      ctx.strokeText(`${this.chain}컷`, lead.x, y);
+      ctx.fillStyle = TONE.gold;
+      ctx.fillText(`${this.chain}컷`, lead.x, y);
+      ctx.restore();
+    }
   }
 
   stats(): Stat[] {
@@ -577,7 +644,27 @@ export class ScissorsMode implements Mode {
   }
 }
 
-/** 재단실: 원단 아래 초록 재단 매트(눈금 + 자 눈금). */
+/** 원단 무늬·결·조명을 깔고 어둡게 눌러 옷본이 돋보이게 한다. */
+function drawCloth(
+  ctx: CanvasRenderingContext2D,
+  f: { x: number; y: number; w: number; h: number },
+  g: Garment,
+  print: (typeof PRINTS)[number],
+): void {
+  drawPrint(ctx, f.x, f.y, f.w, f.h, print, g.shade);
+  // 천의 결 + 위에서 비치는 조명(납작한 색판이 아니라 천처럼)
+  fabricTexture(ctx, f.x, f.y, f.w, f.h, g.shade);
+  const lit = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.4, f.y + f.h);
+  lit.addColorStop(0, "rgba(255,255,255,0.16)");
+  lit.addColorStop(0.6, "rgba(255,255,255,0)");
+  lit.addColorStop(1, "rgba(0,0,0,0.14)");
+  ctx.fillStyle = lit;
+  ctx.fillRect(f.x, f.y, f.w, f.h);
+  ctx.fillStyle = "rgba(12,14,24,0.62)";
+  ctx.fillRect(f.x, f.y, f.w, f.h);
+}
+
+/** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   drawPalace(ctx, W, H, t, ["#1a1626", "#07070c"], "scissors");
   const x = W * 0.12;
@@ -589,8 +676,8 @@ function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number)
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 12;
   const mat = ctx.createLinearGradient(x, y, x + w, y + h);
-  mat.addColorStop(0, "#2a6b5a");
-  mat.addColorStop(1, "#173f35");
+  mat.addColorStop(0, "#232a38");
+  mat.addColorStop(1, "#10141d");
   ctx.fillStyle = mat;
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 18);
