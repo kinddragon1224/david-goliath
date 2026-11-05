@@ -51,13 +51,18 @@ for (const f of [
   cpSync(join(root, "public", f), join(app, f), { recursive: true });
 }
 writeFileSync(join(app, "version.txt"), `${version}\n`);
-// 위브온 웹(Vercel): TV 리모컨으로 치기 쉬운 짧은 주소 /a(/tv도 유지) → 지금 버전 APK
+// 위브온 웹(Vercel): 치기 쉬운 짧은 주소 /a(/tv도 유지) → 지금 버전 APK, /pc → 지금 버전 윈도우 zip
 if (editionArg === "weaveon") {
-  const apk = `https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v${version}.apk`;
+  const release = "https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon";
+  const apk = `${release}/DavidGoliath-weaveon-tv-v${version}.apk`;
+  const zip = `${release}/DavidGoliath-weaveon-v${version}.zip`;
   writeFileSync(
     join(app, "vercel.json"),
     JSON.stringify({
-      redirects: ["/a", "/tv"].map((source) => ({ source, destination: apk, permanent: false })),
+      redirects: [
+        ...["/a", "/tv"].map((source) => ({ source, destination: apk, permanent: false })),
+        { source: "/pc", destination: zip, permanent: false },
+      ],
     }),
   );
 }
