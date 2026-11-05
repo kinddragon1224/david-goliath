@@ -14,6 +14,7 @@
   - `modes/*.ts` 체험별 규칙·그림. `FashionApp.tsx` 화면(피팅룸 거울, 진행 줄, 결과 컬렉션)
 - 오프라인 윈도우판: `npm run build:offline:weaveon` → `dist-offline/`
 - 구글 TV APK: `android/` + `.github/workflows/android-tv.yml`(main 푸시 시 릴리스 `tv-weaveon`에 apk·zip 자동 업로드)
+- TV를 세워 쓸 때: 앱을 켜고 리모컨 오른쪽 버튼 3번(1.5초 안에)이면 시계 방향 90도, 왼쪽 3번이면 반대로 90도. 기기에 저장된다. 윈도우 PC는 디스플레이 설정에서 세로로 돌린다
 
 ## 확인·실행
 - `npm ci` → `npm test`(전부 통과해야 함) → `npx tsc --noEmit`

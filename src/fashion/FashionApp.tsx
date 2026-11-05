@@ -122,7 +122,7 @@ function computeLayout(W: number, H: number): Layout {
     return { landscape, mirror, side, hud, stage };
   }
   const pad = W * 0.03;
-  const mh = H * 0.21;
+  const mh = H * 0.25;
   const mirror = { x: pad, y: pad, w: mh * 0.75, h: mh };
   const side = { x: mirror.x + mirror.w + pad, y: pad, w: 0, h: mh };
   side.w = W - side.x - pad;
@@ -445,6 +445,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             station={station}
             ui={ui}
             ready={ready}
+            compact={!layout.landscape}
             onStart={() => g()?.pressStart()}
             onLevel={(l) => g()?.setLevel(l)}
           />
@@ -1090,12 +1091,14 @@ function AttractOverlay({
   station,
   ui,
   ready,
+  compact,
   onStart,
   onLevel,
 }: {
   station: FashionStation;
   ui: FashionUi;
   ready: boolean;
+  compact: boolean;
   onStart: () => void;
   onLevel: (l: Level) => void;
 }) {
@@ -1118,7 +1121,9 @@ function AttractOverlay({
   // 오락실 대기 화면처럼: 아무도 없으면 글자를 잠깐 치우고 시범 플레이를 보여 준다
   const fade = `transition-opacity duration-500 ${ui.demo && ti % 4 === 3 ? "opacity-0" : ""}`;
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-[3%]">
+    <div
+      className={`absolute inset-0 flex flex-col items-center overflow-hidden rounded-[2rem] p-[3%] ${compact ? "justify-start gap-3" : "justify-between"}`}
+    >
       {/* 무대 조명 빛줄기 + 반짝이 */}
       <div className="pointer-events-none absolute inset-0">
         {[8, 30, 52, 74].map((l, i) => (
@@ -1162,8 +1167,14 @@ function AttractOverlay({
           창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
         </p>
       </div>
-      <div key={ti} className={`f-card animate-pop relative px-8 py-3 ${fade}`}>
-        <p className="f-serif f-pearl text-center text-5xl leading-tight">
+      {/* 세로 화면: 난이도 버튼을 가리지 않게 글자를 줄여 제목 바로 아래에 둔다 */}
+      <div
+        key={ti}
+        className={`f-card animate-pop relative py-3 ${compact ? "px-5" : "px-8"} ${fade}`}
+      >
+        <p
+          className={`f-serif f-pearl text-center leading-tight ${compact ? "text-4xl" : "text-5xl"}`}
+        >
           {teasers[ti % teasers.length]}
         </p>
         {ti % teasers.length === 2 && (
@@ -1224,7 +1235,7 @@ function AttractOverlay({
           </button>
         );
       })}
-      <div className="relative w-full max-w-[56rem]">
+      <div className={`relative w-full max-w-[56rem] ${compact ? "mt-auto" : ""}`}>
         <div className="flex items-center gap-4">
           <HandsUpFigure />
           <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#0a0d14]/90 px-5 py-2.5 text-center text-2xl">

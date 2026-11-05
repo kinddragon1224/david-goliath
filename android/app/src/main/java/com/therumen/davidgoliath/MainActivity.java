@@ -6,8 +6,10 @@ import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.RenderProcessGoneDetail;
@@ -17,6 +19,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.webkit.WebViewAssetLoader;
@@ -30,12 +33,20 @@ public class MainActivity extends Activity {
     /** https 주소라야 브라우저가 카메라를 허락한다. kiosk=1 자동 시작, tv=1 가로 TV 배치. */
     private static final String START_URL = "https://" + HOST + "/index.html?kiosk=1&tv=1";
     private static final int REQ_CAMERA = 1;
+    private static final String PREF_ROTATION = "rotation";
+    /** 리모컨 방향 버튼을 이 시간(ms) 안에 3번 눌러야 화면이 돈다. 한두 번은 평소 조작. */
+    private static final long TURN_WINDOW_MS = 1500;
 
+    private FrameLayout root;
     private WebView web;
     private WebViewAssetLoader loader;
     private PermissionRequest pendingWebPermission;
     private long lastBackAt;
     private boolean askingCamera;
+    private int rotation;
+    private int turnKey;
+    private int turnPresses;
+    private long turnStartedAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,8 +57,15 @@ public class MainActivity extends Activity {
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
+        rotation = getPreferences(MODE_PRIVATE).getInt(PREF_ROTATION, 0);
         web = buildWebView();
-        setContentView(web);
+        root = new FrameLayout(this);
+        root.addView(web, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        root.addOnLayoutChangeListener((v, l, t, r, b, oldL, oldT, oldR, oldB) -> {
+            if (r - l != oldR - oldL || b - t != oldB - oldT) v.post(this::applyRotation);
+        });
+        setContentView(root);
         hideSystemUi();
 
         // 처음 켤 때 카메라 권한을 먼저 묻는다(리모컨으로 '허용')
@@ -151,9 +169,39 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 구글 TV는 세워도 화면을 가로로 내보낸다. WebView째 돌려서 게임이 세로 화면으로 알게 한다. */
+    private void applyRotation() {
+        if (web == null) return;
+        boolean sideways = rotation % 180 != 0;
+        int w = root.getWidth();
+        int h = root.getHeight();
+        web.setLayoutParams(new FrameLayout.LayoutParams(sideways ? h : w, sideways ? w : h, Gravity.CENTER));
+        web.setRotation(rotation);
+    }
+
+    /** 오른쪽 3번: 시계 방향으로 90도, 왼쪽 3번: 반대로 90도. 기기에 저장돼 다음에 켜도 유지된다. */
+    private void countTurnKey(int keyCode) {
+        long now = SystemClock.elapsedRealtime();
+        if (keyCode != turnKey || now - turnStartedAt > TURN_WINDOW_MS) {
+            turnKey = keyCode;
+            turnPresses = 0;
+            turnStartedAt = now;
+        }
+        if (++turnPresses < 3) return;
+        turnPresses = 0;
+        rotation = (rotation + (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 90 : 270)) % 360;
+        getPreferences(MODE_PRIVATE).edit().putInt(PREF_ROTATION, rotation).apply();
+        applyRotation();
+    }
+
     /** 뒤로 버튼은 2초 안에 두 번 눌러야 종료(아이들이 실수로 끄지 않게). */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        int key = event.getKeyCode();
+        if ((key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_DPAD_LEFT)
+                && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            countTurnKey(key);
+        }
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
                 long now = SystemClock.elapsedRealtime();

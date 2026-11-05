@@ -31,7 +31,7 @@ export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = EDITION.scoresKey;
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.8.4";
+export const APP_VERSION = "1.8.5";
 
 export const GAME_TITLE = "다윗과 골리앗";
 
