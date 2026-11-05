@@ -16,6 +16,12 @@ const FIRST_FRAME_MS = 45000;
 /** 영상이 이만큼 끊기면 빠진 것으로 본다. */
 const LOST_MS = 5000;
 
+let source: HTMLCanvasElement | null = null;
+/** USB 웹캠 영상이 그려지는 캔버스. 인식은 video를 거치지 않고 여기서 바로 읽는다. */
+export function uvcCanvas(): HTMLCanvasElement | null {
+  return source;
+}
+
 function bridge(): Bridge | null {
   if (typeof window === "undefined") return null;
   return (window as unknown as { UvcBridge?: Bridge }).UvcBridge ?? null;
@@ -76,10 +82,15 @@ export async function openUvc(id: string | null): Promise<MediaStream> {
 
   const stream = canvas.captureStream(30);
   const track = stream.getVideoTracks()[0];
+  source = canvas;
+  const nextFrame = () => fetch(FRAME_URL, { cache: "no-store" }).catch(() => null);
   void (async () => {
     let lastFrame = performance.now();
+    let pending = nextFrame();
     while (track.readyState === "live") {
-      const res = await fetch(FRAME_URL, { cache: "no-store" }).catch(() => null);
+      const res = await pending;
+      // 이 프레임을 푸는 동안 다음 프레임을 미리 부른다
+      pending = nextFrame();
       if (res?.status === 200) {
         await draw(res).catch(() => {});
         lastFrame = performance.now();
@@ -87,6 +98,7 @@ export async function openUvc(id: string | null): Promise<MediaStream> {
         track.stop();
       }
     }
+    if (source === canvas) source = null;
     b.close();
   })();
   return stream;

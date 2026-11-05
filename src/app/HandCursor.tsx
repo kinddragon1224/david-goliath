@@ -11,8 +11,8 @@ export function setMenuHands(pts: Pt[]): void {
 
 /** 손을 이만큼(초) 올려 두면 누른다. */
 const HOLD = 1.2;
-/** 손 인식이 떨려도 커서는 부드럽게. */
-const SMOOTH = 0.35;
+/** 손 인식이 떨려도 커서는 부드럽게(초당 따라붙는 빠르기). 화면이 뜸해도 같은 시간에 따라붙는다. */
+const SMOOTH = 14;
 const CLICKABLE = "button:not([disabled]):not([data-no-hand])";
 
 function buttonAt(p: Pt): HTMLElement | null {
@@ -33,11 +33,12 @@ export function HandCursor() {
       // TV가 느려 프레임이 뜸해도 머무는 시간은 같게
       const dt = Math.min(0.3, (now - last) / 1000);
       last = now;
+      const follow = 1 - Math.exp(-SMOOTH * dt);
       shown = [0, 1].map((i) => {
         const h = hands[i];
         const s = shown[i];
         if (!h) return null;
-        return s ? { x: s.x + (h.x - s.x) * SMOOTH, y: s.y + (h.y - s.y) * SMOOTH } : h;
+        return s ? { x: s.x + (h.x - s.x) * follow, y: s.y + (h.y - s.y) * follow } : h;
       });
       const on = shown.filter((p): p is Pt => !!p);
       const hits = on.map(buttonAt);

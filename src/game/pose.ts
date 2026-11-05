@@ -1,6 +1,6 @@
 import { isTv, preferredCameraId } from "./kiosk";
 import { reachHands, type ReachHand } from "./reach";
-import { isUvcId, openUvc, uvcDevices } from "./uvc";
+import { isUvcId, openUvc, tvToast, uvcCanvas, uvcDevices } from "./uvc";
 import {
   MotionTracker,
   pickPlayer,
@@ -53,6 +53,11 @@ type RawPoint = { x: number; y: number; z?: number; visibility?: number };
 const INFER_MS = 30;
 /** 추론용으로 줄인 영상의 긴 변. 멀리 서거나 작은 아이의 손목까지 보이게. */
 const INFER_LONG = 640;
+/** TV는 칩이 약해 작게 읽는다. 모델 입력이 256이라 이보다 커도 인식은 나아지지 않는다. */
+const TV_INFER_LONG = 320;
+/** TV 속도를 이 간격(ms)으로 화면에 알려 준다. 현장엔 로그를 볼 방법이 없다. */
+const STATS_MS = 10000;
+const STATS_TIMES = 6;
 /** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
 const CAMERA_SHAPE = {
   width: { ideal: 1280 },
@@ -84,6 +89,18 @@ export class PoseController {
   private lastTs = 0;
   private lastInfer = 0;
   private inferCanvas: HTMLCanvasElement | null = null;
+  /** TV: 인식을 화면과 따로 돌리는 작업자. 못 띄우면 null이고 예전처럼 화면 줄에서 돈다. */
+  private worker: Worker | null = null;
+  private workerBusy = false;
+  private workerOut: {
+    landmarks: RawPoint[][];
+    world: { x: number; y: number; z: number }[][];
+    at: number;
+    aspect: number;
+  } | null = null;
+  private tvCanvas: OffscreenCanvas | null = null;
+  private delegate = "";
+  private stats = { at: 0, ticks: 0, infers: 0, ms: 0, told: 0 };
   present = false;
   lastFrame: PoseFrame = EMPTY;
 
@@ -137,25 +154,34 @@ export class PoseController {
     this.modelError = null;
     this.landmarker?.close?.();
     this.landmarker = null;
+    this.stopWorker();
+    const opts = {
+      baseOptions: {
+        modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
+        delegate: "GPU" as const,
+      },
+      runningMode: "VIDEO" as const,
+      // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다.
+      // TV는 1명만: 찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다
+      numPoses: isTv() ? 1 : 2,
+      // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
+      minPoseDetectionConfidence: 0.4,
+      minPosePresenceConfidence: 0.4,
+      minTrackingConfidence: 0.4,
+    };
+    if (isTv() && (await this.startWorker(opts))) {
+      this.poseReady = true;
+      this.modelError = null;
+      return;
+    }
     try {
       const vision = await import("@mediapipe/tasks-vision");
       const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      const opts = {
-        baseOptions: {
-          modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
-          delegate: "GPU" as const,
-        },
-        runningMode: "VIDEO" as const,
-        // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다
-        numPoses: 2,
-        // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
-        minPoseDetectionConfidence: 0.4,
-        minPosePresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
-      };
+      this.delegate = "GPU·화면줄";
       try {
         this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, opts);
       } catch {
+        this.delegate = "CPU·화면줄";
         this.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
           ...opts,
           baseOptions: { ...opts.baseOptions, delegate: "CPU" },
@@ -169,6 +195,55 @@ export class PoseController {
       this.modelError =
         "카메라는 켜졌지만 모션을 준비하지 못했습니다. 아래 다시 시도를 눌러 주세요.";
     }
+  }
+
+  /** 작업자를 띄운다. 모델까지 준비되면 true, 안 되면 false(화면 줄에서 돈다). */
+  private startWorker(opts: unknown): Promise<boolean> {
+    return new Promise((resolve) => {
+      let w: Worker;
+      try {
+        w = new Worker(new URL("./pose.worker.ts", import.meta.url));
+      } catch {
+        resolve(false);
+        return;
+      }
+      const giveUp = (why: string) => {
+        window.clearTimeout(timer);
+        w.terminate();
+        if (this.worker === w) {
+          this.worker = null;
+          this.poseReady = false;
+        }
+        tvToast(`인식 작업자 실패: ${why}`);
+        resolve(false);
+      };
+      const timer = window.setTimeout(() => giveUp("시간 초과"), 30000);
+      w.onerror = (e) => giveUp(e.message || "오류");
+      w.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "ready") {
+          window.clearTimeout(timer);
+          this.worker = w;
+          this.delegate = m.delegate;
+          resolve(true);
+        } else if (m.type === "fail") {
+          giveUp(m.message);
+        } else {
+          this.workerBusy = false;
+          this.workerOut = m;
+          this.stats.infers += 1;
+          this.stats.ms += m.ms;
+        }
+      };
+      w.postMessage({ type: "init", opts });
+    });
+  }
+
+  private stopWorker(): void {
+    this.worker?.terminate();
+    this.worker = null;
+    this.workerBusy = false;
+    this.workerOut = null;
   }
 
   private async openCamera(video: HTMLVideoElement): Promise<void> {
@@ -250,6 +325,7 @@ export class PoseController {
   stop(): void {
     this.landmarker?.close?.();
     this.landmarker = null;
+    this.stopWorker();
     this.stopStream();
     this.status = "off";
     this.poseReady = false;
@@ -258,12 +334,14 @@ export class PoseController {
 
   tick(now: number): PoseFrame {
     const video = this.video;
-    if (!video || video.readyState < 2 || !this.landmarker) {
+    if (!video || video.readyState < 2 || (!this.landmarker && !this.worker)) {
       this.motion.reset();
       this.present = false;
       this.lastFrame = EMPTY;
       return this.lastFrame;
     }
+    this.reportSpeed(now);
+    if (this.worker) return this.tickWorker(this.worker, video, now);
     if (now - this.lastInfer < INFER_MS && this.lastFrame.skeleton) {
       return { ...this.lastFrame, throwEvent: null };
     }
@@ -275,15 +353,82 @@ export class PoseController {
     const aspect = source.width && source.height ? source.width / source.height : 4 / 3;
     let poses: RawPoint[][] = [];
     let worlds: { x: number; y: number; z: number }[][] = [];
+    const started = performance.now();
     try {
-      const result = this.landmarker.detectForVideo(source, ts);
+      const result = this.landmarker!.detectForVideo(source, ts);
       poses = result.landmarks ?? [];
       worlds = result.worldLandmarks ?? [];
     } catch {
       this.lastFrame = { ...EMPTY, present: this.present };
       return this.lastFrame;
     }
+    this.stats.infers += 1;
+    this.stats.ms += performance.now() - started;
+    return this.readPoses(poses, worlds, aspect, now);
+  }
 
+  /** 작업자에 최신 영상을 넘기고, 끝난 결과가 있으면 읽는다. 화면은 기다리지 않는다. */
+  private tickWorker(worker: Worker, video: HTMLVideoElement, now: number): PoseFrame {
+    if (!this.workerBusy && now - this.lastInfer >= INFER_MS) {
+      const shot = this.grabFrame(video);
+      if (shot) {
+        this.lastInfer = now;
+        const ts = now <= this.lastTs ? this.lastTs + 1 : now;
+        this.lastTs = ts;
+        this.workerBusy = true;
+        worker.postMessage({ type: "frame", ts, at: now, ...shot }, [shot.bitmap]);
+      }
+    }
+    const out = this.workerOut;
+    if (!out) return { ...this.lastFrame, throwEvent: null };
+    this.workerOut = null;
+    return this.readPoses(out.landmarks, out.world, out.aspect, out.at);
+  }
+
+  private grabFrame(video: HTMLVideoElement): { bitmap: ImageBitmap; aspect: number } | null {
+    const src = uvcCanvas() ?? video;
+    const vw = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
+    const vh = src instanceof HTMLVideoElement ? src.videoHeight : src.height;
+    if (vw < 2 || vh < 2) return null;
+    const k = Math.min(1, TV_INFER_LONG / Math.max(vw, vh));
+    const w = Math.round(vw * k);
+    const h = Math.round(vh * k);
+    if (!this.tvCanvas || this.tvCanvas.width !== w || this.tvCanvas.height !== h) {
+      this.tvCanvas = new OffscreenCanvas(w, h);
+    }
+    const ctx = this.tvCanvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(src, 0, 0, w, h);
+    return { bitmap: this.tvCanvas.transferToImageBitmap(), aspect: w / h };
+  }
+
+  private reportSpeed(now: number): void {
+    if (!isTv()) return;
+    const s = this.stats;
+    s.ticks += 1;
+    if (!s.at) s.at = now;
+    if (now - s.at < STATS_MS) return;
+    const sec = (now - s.at) / 1000;
+    if (s.told < STATS_TIMES) {
+      s.told += 1;
+      tvToast(
+        `화면 ${Math.round(s.ticks / sec)}장/초 · 인식 ${Math.round(s.infers / sec)}회/초 ` +
+          `(${Math.round(s.ms / Math.max(1, s.infers))}ms, ${this.delegate})`,
+      );
+    }
+    (window as unknown as { __poseStats: unknown }).__poseStats = { ...s, sec, d: this.delegate };
+    s.at = now;
+    s.ticks = 0;
+    s.infers = 0;
+    s.ms = 0;
+  }
+
+  private readPoses(
+    poses: RawPoint[][],
+    worlds: { x: number; y: number; z: number }[][],
+    aspect: number,
+    now: number,
+  ): PoseFrame {
     const pick = pickPlayer(poses, aspect, this.lastCenter);
     this.lastCenter =
       pick >= 0 ? ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2 : null;
@@ -322,8 +467,7 @@ export class PoseController {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     if (vw < 2 || vh < 2) return video;
-    // TV는 칩이 약해 조금 작게 읽는다
-    const k = Math.min(1, (isTv() ? 480 : INFER_LONG) / Math.max(vw, vh));
+    const k = Math.min(1, (isTv() ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
     const w = Math.round(vw * k);
     const h = Math.round(vh * k);
     if (!this.inferCanvas) this.inferCanvas = document.createElement("canvas");

@@ -3,10 +3,12 @@ package com.therumen.davidgoliath;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.Gravity;
@@ -57,6 +59,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prepareSound();
+        tellHardware();
 
         loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -77,6 +80,20 @@ public class MainActivity extends Activity {
         // 처음 켤 때 카메라 권한을 먼저 묻는다(리모컨으로 '허용')
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) askCamera();
         web.loadUrl(START_URL);
+    }
+
+    /** 기기마다 성능을 비교할 수 있게 칩·메모리를 화면에 잠깐 띄운다. */
+    private void tellHardware() {
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        if (am != null) am.getMemoryInfo(memory);
+        String soc = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? Build.SOC_MANUFACTURER + " " + Build.SOC_MODEL
+                : Build.HARDWARE;
+        Toast.makeText(this, Build.MANUFACTURER + " " + Build.MODEL + " · 칩 " + soc
+                + " · 코어 " + Runtime.getRuntime().availableProcessors()
+                + " · 메모리 " + Math.round(memory.totalMem / 1e8) / 10.0 + "GB",
+                Toast.LENGTH_LONG).show();
     }
 
     /** 리모컨 음량이 게임 소리에 먹게 하고, 소리 권한(오디오 포커스)을 잡는다. 음량이 0이면 알려 준다. */
