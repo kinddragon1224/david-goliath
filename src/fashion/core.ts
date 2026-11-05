@@ -1,6 +1,6 @@
 import { OneEuro } from "@/game/motion";
 import type { PoseFrame } from "@/game/pose";
-import { BRANDS, ECO, LAYOVER, pickOutfit, type Garment, type Pt } from "./garments";
+import { BRANDS, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
@@ -99,10 +99,7 @@ export interface Mode {
   begin?(fx: Fx): void;
 }
 
-export type Phase = "boot" | "attract" | "countdown" | "play" | "finale" | "result";
-
-/** 피팅 피날레 시간표(초): 런웨이 포즈 → 3·2·1 → 찰칵 → 잠깐 멈춘 사진 → 결과. */
-export const FINALE = { count: 3, shot: 6, end: 8.2 };
+export type Phase = "boot" | "attract" | "countdown" | "play" | "result";
 
 export type ScoreRow = { s: number; at: number };
 
@@ -138,8 +135,6 @@ export type FashionUi = {
   toTop: number;
   toGrade: number;
   homeProgress: number;
-  /** 피팅 피날레: 3·2·1 숫자(0이면 안 셈), 찰칵 했는지, 입힌 옷 이름. */
-  finale: { count: number; shot: boolean; outfit: string[] } | null;
 };
 
 export const GRADE_NAMES = ["수석 디자이너", "디자이너", "어시스턴트", "인턴 디자이너"];
@@ -301,16 +296,7 @@ export class FashionGame implements Fx {
   private demoOn = false;
   private collected: Item[] = [];
   private finalStats: Stat[] = [];
-  finaleT = 0;
-  private gradeSaid = false;
   private helloAt = -99;
-  /** 피날레에 입힐 옷(그리는 순서: 하의 → 상의). */
-  outfit: Garment[] = [];
-
-  get finaleShot(): boolean {
-    return this.phase === "finale" && this.finaleT >= FINALE.shot;
-  }
-
   constructor(
     readonly station: StationId,
     readonly mode: Mode,
@@ -448,32 +434,13 @@ export class FashionGame implements Fx {
     this.grade = base >= g[0] ? 0 : base >= g[1] ? 1 : base >= g[2] ? 2 : 3;
     this.toTop = this.rank !== 1 && today[0] ? today[0].s - row.s + 1 : 0;
     this.toGrade = this.grade > 0 ? Math.ceil(g[this.grade - 1] - base) : 0;
-    // 거울 앞에 사람이 있으면 완성한 옷을 입혀 보는 피날레, 없으면 바로 결과
-    if (this.present && this.camera === "live") this.goFinale();
-    else this.goResult();
-  }
-
-  private goFinale(): void {
-    this.phase = "finale";
-    this.finaleT = 0;
-    this.lastTick = 99;
-    this.outfit = pickOutfit(
-      this.collected.map((c) => c.label),
-      this.station === "rhythm" ? ECO : LAYOVER,
-    );
-    this.gradeSaid = false;
-    this.sound.play("complete");
-    this.sound.say("finale", true);
-    this.sound.startMusic(124, this.sound.now() + 0.3, 4, "dance");
-    this.emit(true);
+    this.goResult();
   }
 
   private goResult(): void {
     this.sound.stopMusic();
     this.sound.play("end");
-    // 피날레에서 등급을 이미 말했으면 마무리 인사, 아니면 등급 발표
-    this.sound.say(this.gradeSaid ? "end" : (`grade${this.grade}` as Line), true);
-    this.gradeSaid = false;
+    this.sound.say(`grade${this.grade}` as Line, true);
     this.phase = "result";
     this.resultT = RESULT_SECONDS;
     this.lastTick = 99;
@@ -772,27 +739,6 @@ export class FashionGame implements Fx {
         this.offTargetT = near > this.W * 0.14 ? this.offTargetT + dt : 0;
       } else this.offTargetT = 0;
       if (this.timeLeft <= 0 || this.mode.done?.() || this.absentT > ABSENT_END) this.finish();
-    } else if (this.phase === "finale") {
-      const was = this.finaleT;
-      this.finaleT += dt;
-      const n = FINALE.shot - Math.floor(this.finaleT);
-      if (this.finaleT >= FINALE.count && this.finaleT < FINALE.shot && n < this.lastTick) {
-        this.sound.play("tick");
-        this.sound.say((["one", "two", "three"] as const)[n - 1] ?? "one", true);
-        this.lastTick = n;
-      }
-      if (was < FINALE.shot && this.finaleT >= FINALE.shot) {
-        this.sound.play("shutter");
-        this.sound.say("shot", true);
-        this.rain(260);
-        this.emit(true);
-      }
-      // 찰칵 뒤 화면에 "OO 탄생!"이 뜰 때 MC도 발표
-      if (!this.gradeSaid && this.finaleT >= FINALE.shot + 0.8) {
-        this.gradeSaid = true;
-        this.sound.say(`grade${this.grade}` as Line, true);
-      }
-      if (this.finaleT >= FINALE.end) this.goResult();
     } else if (this.phase === "result") {
       this.resultT -= dt;
       const left = Math.ceil(this.resultT);
@@ -1095,17 +1041,6 @@ export class FashionGame implements Fx {
       toTop: this.toTop,
       toGrade: this.toGrade,
       homeProgress: this.homeProgress,
-      finale:
-        this.phase === "finale"
-          ? {
-              count:
-                this.finaleT >= FINALE.count && this.finaleT < FINALE.shot
-                  ? FINALE.shot - Math.floor(this.finaleT)
-                  : 0,
-              shot: this.finaleShot,
-              outfit: this.outfit.map((g) => g.name),
-            }
-          : null,
     });
   }
 }

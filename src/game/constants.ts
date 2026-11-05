@@ -3,8 +3,8 @@ import { EDITION } from "./edition";
 export const WORLD_W = 1080;
 export const WORLD_H = 1920;
 
-/** 현장 요청(2026-10-08)으로 30초 → 20초. */
-export const ROUND_SECONDS = 20;
+/** 교회판은 현장 요청(2026-10-08)으로 20초. 위브온판은 너무 빨리 끝난다는 피드백으로 35초. */
+export const ROUND_SECONDS = EDITION.id === "weaveon" ? 35 : 20;
 /** 남은 시간이 이만큼이면 시계가 빨개지고 초읽기 소리가 난다. */
 export const URGENT_SECONDS = 5;
 export const THROW_COOLDOWN = 0.7;
@@ -31,7 +31,7 @@ export const LEADERBOARD_SHOW = 5;
 export const SCORES_KEY = EDITION.scoresKey;
 
 /** 패치할 때마다 올린다. 운영자 화면에 보인다. */
-export const APP_VERSION = "1.8.11";
+export const APP_VERSION = "1.9.0";
 
 export const GAME_TITLE = "다윗과 골리앗";
 

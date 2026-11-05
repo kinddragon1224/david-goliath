@@ -2,18 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reachHands } from "../game/reach.ts";
 import {
-  BRANDS,
-  DRESS,
-  JACKET,
-  PANTS,
   SHIRT,
-  SEOLBAEK,
   SKIRT,
-  TAILORED,
-  fitGarment,
+  SEOLBAEK,
   fullName,
   inside,
-  pickOutfit,
   place,
   resample,
   toWorld,
@@ -56,46 +49,9 @@ test("내려치기: 올렸다 빠르게 줄을 지나야 한 번, 들지 않거�
   assert.equal(gap.update(0, p(0.75), 700, 0.65, 0.48), null);
 });
 
-test("피날레 옷: 마지막 상의 + 마지막 하의, 원피스는 혼자, 없으면 기본 옷", () => {
-  assert.deepEqual(pickOutfit(["티셔츠", "치마", "바지", "재킷"]), [PANTS, JACKET]);
-  assert.deepEqual(pickOutfit(["바지", "원피스"]), [DRESS]);
-  assert.deepEqual(pickOutfit(["치마"]), [SKIRT]);
-  assert.deepEqual(pickOutfit([]), [SHIRT]);
-  assert.deepEqual(pickOutfit(["도입"], JACKET), [JACKET]);
-});
-
-test("시그니처 옷: 한 벌이라 혼자 입고, 마지막에 만든 것, 이름은 '브랜드 옷'", () => {
-  assert.deepEqual(pickOutfit(["바지", "청록 두루마기 한복"]), [SEOLBAEK]);
-  assert.deepEqual(pickOutfit(["청록 두루마기 한복", "베이지 수트"]), [TAILORED]);
+test("시그니처 옷 이름은 '브랜드 옷'", () => {
   assert.equal(fullName(SEOLBAEK), "설백 청록 두루마기 한복");
   assert.equal(fullName(SHIRT), "티셔츠");
-});
-
-test("사진 옷은 몸에 맞출 때 사진 비율을 지키고, 윤곽은 사진 상자 안에 있다", () => {
-  for (const g of BRANDS) {
-    const f = fitGarment(g, { ls: [400, 300], rs: [600, 300], lh: [430, 600], rh: [570, 600] });
-    assert.ok(Math.abs(f.w / f.h - g.aspect) < 1e-9, g.name);
-    assert.ok(f.y < 300, g.name);
-    assert.ok(g.pts.length > 10 && g.pts.every(([x, y]) => x >= 0 && x <= 1 && y >= 0 && y <= 1));
-  }
-  assert.equal(BRANDS.length, 6);
-});
-
-test("옷을 몸에 맞추면 상의는 어깨에, 하의는 골반에 걸리고 몸이 기울면 같이 기운다", () => {
-  const b = { ls: [400, 300], rs: [600, 300], lh: [430, 600], rh: [570, 600] } as const;
-  const shirt = fitGarment(SHIRT, { ls: [...b.ls], rs: [...b.rs], lh: [...b.lh], rh: [...b.rh] });
-  assert.equal(shirt.cx, 500);
-  assert.ok(shirt.y < 300 && shirt.y + shirt.h > 600, `${shirt.y} ${shirt.h}`);
-  assert.ok(shirt.w > 200);
-  const pants = fitGarment(PANTS, { ls: [...b.ls], rs: [...b.rs], lh: [...b.lh], rh: [...b.rh] });
-  assert.ok(pants.y < 600 && pants.y > 500);
-  const tilt = fitGarment(SHIRT, {
-    ls: [400, 300],
-    rs: [600, 340],
-    lh: [430, 600],
-    rh: [570, 640],
-  });
-  assert.ok(tilt.angle > 0.1);
 });
 
 const body = (lw: [number, number], rw: [number, number]) => {

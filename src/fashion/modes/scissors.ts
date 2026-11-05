@@ -1,9 +1,7 @@
 import {
   drawFlare,
-  drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
-  fabricTexture,
   propImage,
   TONE,
   type DemoHand,
@@ -16,642 +14,417 @@ import {
   type QueueItem,
   type Stat,
 } from "../core";
-import {
-  ECO,
-  LAYOVER,
-  RESTITCH,
-  SEOLBAEK,
-  SILUA,
-  TAILORED,
-  fullName,
-  pathOf,
-  place,
-  resample,
-  toWorld,
-  type Garment,
-  type Pt,
-} from "../garments";
 
 /** 04 가위질 챌린지
- * 손이 가위. 재단 매트 위 원단에 분필로 그린 옷본 선을 따라 한 바퀴 오린다.
- * 빛나는 점(지금 자를 곳)에 손을 대고 화살표 쪽으로 천천히 움직이면 잘려 나간다. */
+ * 손이 가위. 줄에 걸린 천의 점선을 쓱 지나가면 싹둑 잘린다.
+ * 잘린 천 조각이 아래 조각보 칸으로 날아가 붙고, 칸을 다 채우면 조각보 한 장 완성.
+ * 선을 정확히 따라가지 않아도 되고 틀려도 감점이 없다. 금빛 천은 점수 3배. */
 
-const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LAYOVER, SILUA];
-const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
-const PIECE_BONUS = 600;
-/** 선 허용 폭(화면 짧은 쪽 비율). */
-const TOL = 0.07;
-/** 가위 자리 가까이서 선을 벗어나면 원단에 흠집 + 감점. */
-const NICK_PENALTY = 80;
-const NICK_GAP = 0.5;
-/** 선에서 이만큼(허용 폭 배수) 벗어나야 흠집. 웹캠 손 떨림은 봐준다. */
-const NICK_AT = 1.25;
-/** 흠집 내면 가위가 잠깐 걸려 못 자른다(대충 빨리 휘두르는 게 손해가 되게). */
-const JAM = 0.3;
-/** 싹둑 사이가 이만큼(초) 벌어지면 연속 컷이 끊긴다. */
-const CHAIN_GAP = 0.7;
-/** 이어 자를 때 올라가는 음(반음). 어떤 순서로 들려도 어울리는 5음계. */
+const LANES = 5;
+const COLS = 6;
+const ROWS = 3;
+const CELLS = COLS * ROWS;
+const COLORS = ["#e8505b", "#2f6fb5", "#e0a91f", "#2e8b57", "#d9539a", "#7a55c7", "#f0824a"];
+const PRINTS = ["dots", "stripes", "check"] as const;
+type Print = (typeof PRINTS)[number];
+const QUILT_BONUS = 1000;
+/** 손이 이만큼 빠르면(초당 무대 폭 비율) 가위질로 친다. 천천히 대기만 해선 안 잘린다. */
+const CUT_SPEED = 0.14;
+const CHAIN_GAP = 1.6;
+const FLY_T = 0.6;
+/** 이어 자를 때 올라가는 음(반음). */
 const LADDER = [2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
 
+type Ribbon = {
+  color: string;
+  print: Print;
+  gold: boolean;
+  /** 위에서 내려오는 정도 0~1. */
+  drop: number;
+  cutAt: number | null;
+};
+type Patch = { color: string; print: Print; gold: boolean };
+type Piece = Patch & { x: number; y: number; w: number; h: number; cell: number; t: number };
+
 export class ScissorsMode implements Mode {
-  seconds = 40;
-  hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
-  tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
-  // 봇 기준: 양손 깔끔 31k, 손 떨림 27k, 한 손 16k, 선 밖으로 휘두르기 16~17k
-  grades: [number, number, number] = [15000, 7500, 3000];
+  seconds = 35;
+  hint = "손을 휘둘러 점선을 싹둑! 천 조각으로 조각보를 채워요";
+  tip = "가위 손으로 점선을 쓱 지나가요!";
+  grades: [number, number, number] = [12000, 7000, 3000];
   music = "lofi" as const;
-  private nicks: { x: number; y: number; a: number }[] = [];
-  private nickT = 0;
-  private nickCount = 0;
-  private cutAt = [-9, -9];
-  private jamT = 0;
   private W = 1400;
   private H = 860;
-  private gi = 0;
-  private garment: Garment = RESTITCH;
-  private pts: Pt[] = [];
-  private outline = new Path2D();
-  private path: Pt[] = [];
-  private cut = 0;
-  private tol = 70;
-  private step = 12;
-  private finished: Garment[] = [];
-  private onLine = 0;
-  private offLine = 0;
-  private pieceOn = 0;
-  private pieceOff = 0;
-  private snipT = 0;
-  private fall: {
-    path: Path2D;
-    g: Garment;
-    box: { x: number; y: number; w: number; h: number };
-    color: string;
-    print: (typeof PRINTS)[number];
-    t: number;
-  } | null = null;
+  private ribbons: Ribbon[] = [];
+  private patches: Patch[] = [];
+  private pieces: Piece[] = [];
+  private quilts: Patch[][] = [];
+  private cuts = 0;
   private chain = 0;
-  /** 싹둑 순간 날에서 튀는 불꽃 자리. */
-  private sparks: { x: number; y: number; t: number }[] = [];
-  private box = { x: 0, y: 0, w: 0, h: 0 };
-  private lastSnip = 0;
-  private back = 0;
-  private activeHands: number[] = [];
-  private pair = false;
-  private pairT = 0;
-  private fabric = { x: 0, y: 0, w: 0, h: 0 };
-  /** 손마다 최근 위치(칼날 궤적). */
-  private trails: { x: number; y: number; t: number }[][] = [[], []];
-  /** 자를 때 튀는 실밥·천 부스러기. */
-  private bits: { x: number; y: number; vx: number; vy: number; a: number; va: number; life: number; c: string }[] = [];
+  private maxChain = 0;
+  private lastCut = -10;
+  private lastHand = -1;
+  private hit = [-10, -10];
+  private snip = [0, 0];
+  private seed = 1;
+  private bits: { x: number; y: number; vx: number; vy: number; a: number; life: number; c: string }[] = [];
+
+  private rand(): number {
+    this.seed = (this.seed * 16807) % 2147483647;
+    return this.seed / 2147483647;
+  }
+
+  private newRibbon(): Ribbon {
+    return {
+      color: COLORS[Math.floor(this.rand() * COLORS.length)],
+      print: PRINTS[Math.floor(this.rand() * PRINTS.length)],
+      gold: this.rand() < 0.14,
+      drop: 0,
+      cutAt: null,
+    };
+  }
 
   reset(W: number, H: number): void {
     this.W = W;
     this.H = H;
-    this.gi = 0;
-    this.finished = [];
-    this.onLine = 0;
-    this.offLine = 0;
-    this.fall = null;
-    this.pair = false;
-    this.pairT = 0;
-    this.nickCount = 0;
-    this.nickT = 0;
-    this.jamT = 0;
-    this.cutAt = [-9, -9];
-    this.trails = [[], []];
-    this.bits = [];
+    this.seed = 20261120;
+    this.ribbons = Array.from({ length: LANES }, () => ({ ...this.newRibbon(), drop: 1 }));
+    this.patches = [];
+    this.pieces = [];
+    this.quilts = [];
+    this.cuts = 0;
     this.chain = 0;
-    this.sparks = [];
-    this.tol = Math.min(W, H) * TOL;
-    this.step = Math.min(W, H) * 0.014;
-    this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
-    this.load();
+    this.maxChain = 0;
+    this.lastCut = -10;
+    this.lastHand = -1;
+    this.hit = [-10, -10];
+    this.snip = [0, 0];
+    this.bits = [];
   }
 
-  private load(): void {
-    this.garment = ORDER[this.gi % ORDER.length];
-    this.nicks = [];
-    const p = place(this.garment, this.W / 2, this.H * 0.5, this.W * 0.5, this.H * 0.7);
-    this.box = p;
-    this.pts = toWorld(this.garment, p);
-    this.outline = pathOf(this.pts);
-    this.path = resample(this.pts, this.step);
-    this.cut = 0;
-    this.back = 0;
-    this.pieceOn = 0;
-    this.pieceOff = 0;
-    this.activeHands = [];
+  private laneX(i: number): number {
+    return this.W * (0.14 + (0.72 * i) / (LANES - 1));
   }
-
-  private pct(): number {
-    return Math.floor(((this.cut + this.back) / this.path.length) * 100);
+  private ribbonW(): number {
+    return this.W * 0.14;
   }
-
-  /** 가위 자리 두 곳: 앞쪽(cut, 시계 방향)과 뒤쪽(back, 반대 방향). 둘이 만나면 완성. */
-  private front(side: 0 | 1): number {
-    const n = this.path.length;
-    return side === 0 ? this.cut % n : (n - this.back) % n;
+  private railY(): number {
+    return this.H * 0.06;
+  }
+  private cutY(): number {
+    return this.H * 0.36;
+  }
+  private endY(): number {
+    return this.H * 0.54;
+  }
+  private quilt() {
+    const x = this.W * 0.1;
+    const y = this.H * 0.6;
+    const w = this.W * 0.8;
+    const h = this.H * 0.28;
+    return { x, y, w, h, cw: w / COLS, ch: h / ROWS };
+  }
+  private cellBox(i: number) {
+    const q = this.quilt();
+    return { x: q.x + (i % COLS) * q.cw, y: q.y + Math.floor(i / COLS) * q.ch, w: q.cw, h: q.ch };
   }
 
   update(dt: number, t: number, hands: Hand[], fx: Fx): void {
-    this.snipT = Math.max(0, this.snipT - dt);
-    hands.forEach((h, i) => {
-      const tr = (this.trails[i] ??= []);
-      if (h.on) tr.push({ x: h.x, y: h.y, t });
-      while (tr.length && (t - tr[0].t > 0.16 || tr.length > 12)) tr.shift();
-    });
+    this.snip = this.snip.map((s) => Math.max(0, s - dt));
+    if (this.chain > 0 && t - this.lastCut > CHAIN_GAP) this.chain = 0;
     for (const b of this.bits) {
       b.life -= dt;
       b.vy += 1400 * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      b.a += b.va * dt;
+      b.a += dt * 9;
     }
     this.bits = this.bits.filter((b) => b.life > 0);
-    for (const s of this.sparks) s.t += dt;
-    this.sparks = this.sparks.filter((s) => s.t < 0.14);
-    if (this.fall) {
-      this.fall.t += dt;
-      if (this.fall.t > 1.2) this.fall = null;
-    }
-    const n = this.path.length;
-    const look = Math.ceil((this.tol * 2.2) / this.step);
-    // 두 가위 자리를 따로 민다: 한 손이면 한쪽씩, 두 손이면 양쪽에서 동시에
-    const best = [this.cut, this.back];
-    const by = [-1, -1];
-    // 가위 자리 근처 손이 선에서 얼마나 떨어졌나(흠집 판정)
-    const stray: { h: Hand; d: number }[] = [];
-    hands.forEach((h, hi) => {
-      if (!h.on) return;
-      let near = false;
-      let minD = Infinity;
-      for (const side of [0, 1] as const) {
-        // 지금 자를 곳 근처에 손이 있어야 앞으로 나간다
-        const [cx, cy] = this.path[this.front(side)];
-        if (Math.hypot(cx - h.x, cy - h.y) > this.tol * 1.6) continue;
-        near = true;
-        minD = Math.min(minD, Math.hypot(cx - h.x, cy - h.y));
-        const done = side === 0 ? this.cut : this.back;
-        const other = side === 0 ? this.back : this.cut;
-        for (let k = 1; k <= look && done + k + other <= n; k++) {
-          const i = side === 0 ? this.cut + k : n - this.back - k;
-          const [x, y] = this.path[((i % n) + n) % n];
-          minD = Math.min(minD, Math.hypot(x - h.x, y - h.y));
-          if (Math.hypot(x - h.x, y - h.y) <= this.tol && done + k > best[side]) {
-            best[side] = done + k;
-            by[side] = hi;
-          }
-        }
-      }
-      // 막 자르던 손이 선을 벗어날 때만(멀리서 다가오는 손은 봐준다)
-      if (near && minD > this.tol * NICK_AT && h.speed > this.W * 0.1 && t - this.cutAt[hi] < 0.5)
-        stray.push({ h, d: minD });
+
+    this.ribbons.forEach((r, i) => {
+      if (r.cutAt !== null && t - r.cutAt > 0.55) this.ribbons[i] = this.newRibbon();
+      else if (r.drop < 1) r.drop = Math.min(1, r.drop + dt * 3);
     });
-    // 선을 벗어나 가위질하면 흠집
-    this.nickT = Math.max(0, this.nickT - dt);
-    if (stray.length && this.nickT <= 0) {
-      const { h } = stray[0];
-      const pen = NICK_PENALTY;
-      this.nickT = NICK_GAP;
-      this.jamT = JAM;
-      this.nickCount++;
-      this.chain = 0;
-      this.pieceOff += 0.4;
-      this.nicks.push({ x: h.x, y: h.y, a: Math.atan2(h.vy, h.vx) });
-      fx.score(-pen, h.x, h.y - this.tol, `흠집 -${pen}`, "pink");
-      fx.stamp("삐뚤!", h.x, h.y - this.tol * 2, "pink");
-      fx.shake(0.3);
-      fx.sfx("miss");
-    }
-    if (best[0] + best[1] > n) best[1] = n - best[0];
-    this.jamT = Math.max(0, this.jamT - dt);
-    const adv = this.jamT > 0 ? 0 : best[0] - this.cut + Math.max(0, best[1] - this.back);
-    // 두 손이 양쪽을 동시에 자르면 '양손 가위'(점수 2배). 잠깐 멈춰도 0.6초는 이어진다.
-    const both = by[0] >= 0 && by[1] >= 0 && by[0] !== by[1];
-    this.pairT = both ? 0.6 : Math.max(0, this.pairT - dt);
-    const pair = this.pairT > 0;
-    if (pair && !this.pair) {
-      fx.score(0, this.W / 2, this.H * 0.16, "양손 가위! 점수 2배", "gold");
-      fx.sfx("perfect");
-      fx.say("scissors-pair", true);
-    }
-    this.pair = pair;
-    if (adv > 0) {
-      this.cut = best[0];
-      this.back = Math.max(this.back, best[1]);
-      this.activeHands = by.filter((i) => i >= 0);
-      for (const i of this.activeHands) this.cutAt[i] = t;
-      this.onLine += dt;
-      this.pieceOn += dt;
-      const h = hands[this.activeHands[0]];
-      fx.score(adv * 4 * (pair ? 2 : 1), h.x, h.y);
-      // 싹둑할 때마다 자른 자리에서 실밥이 튄다(천 색 + 안감 색)
-      for (const side of [0, 1] as const) {
-        if (t - this.lastSnip <= 0.16 || (side === 1 && best[1] <= 0)) continue;
-        const [px, py] = this.path[this.front(side)];
-        for (let k = 0; k < 5 && this.bits.length < 60; k++)
-          this.bits.push({
-            x: px,
-            y: py,
-            vx: (Math.random() - 0.5) * 420,
-            vy: -120 - Math.random() * 260,
-            a: Math.random() * Math.PI,
-            va: (Math.random() - 0.5) * 18,
-            life: 0.5 + Math.random() * 0.4,
-            c: Math.random() < 0.6 ? this.garment.color : this.garment.shade,
-          });
-      }
-      this.snipT = 0.18;
-      if (t - this.lastSnip > 0.16) {
-        this.chain = t - this.lastSnip < CHAIN_GAP ? this.chain + 1 : 1;
-        fx.sfx("snip", LADDER[Math.min(this.chain, LADDER.length) - 1]);
-        this.lastSnip = t;
-        for (const i of this.activeHands) this.sparks.push({ x: hands[i].x, y: hands[i].y, t: 0 });
-        if (this.chain % 15 === 0) {
-          fx.stamp(
-            `연속 ${this.chain}컷!`,
-            h.x,
-            Math.max(this.H * 0.18, h.y - this.tol * 2),
-            "gold",
-          );
-          fx.burst(h.x, h.y, 16, "gold");
-          fx.shake(0.2);
-        }
-      }
-    } else if (hands.some((h) => h.on)) {
-      this.offLine += dt;
-      this.pieceOff += dt;
-    }
 
-    if (this.cut + this.back >= n) {
-      const acc = this.pieceAcc();
-      const bonus = PIECE_BONUS + (acc >= 80 ? 200 : 0);
-      fx.score(
-        bonus,
-        this.W / 2,
-        this.H * 0.32,
-        acc >= 80 ? `깔끔한 재단! +${bonus}` : `보너스 +${bonus}`,
-        "mint",
+    hands.forEach((h, hi) => {
+      if (!h.on || h.speed < this.W * CUT_SPEED || t - this.hit[hi] < 0.12) return;
+      if (Math.abs(h.y - this.cutY()) > this.H * 0.09) return;
+      const i = this.ribbons.findIndex(
+        (r, k) =>
+          r.cutAt === null &&
+          r.drop >= 1 &&
+          Math.abs(h.x - this.laneX(k)) < this.ribbonW() * 0.68,
       );
-      fx.celebrate(`${fullName(this.garment)} 완성!`, "mint");
-      fx.sfx("complete");
-      fx.hitstop(0.16);
-      fx.shake(0.6);
-      if (acc >= 80) fx.say("clean-cut", true);
-      this.fall = {
-        path: this.outline,
-        g: this.garment,
-        box: { ...this.box },
-        color: this.garment.color,
-        print: PRINTS[this.gi % PRINTS.length],
-        t: 0,
-      };
-      this.finished.push(this.garment);
-      this.gi++;
-      this.load();
-    }
-    this.hint = pair
-      ? `양손 가위! 점수 2배 · ${this.pct()}%`
-      : `${this.garment.name} 오리기 ${this.pct()}% · 두 손으로 양쪽에서 오리면 2배!`;
+      if (i >= 0) this.cut(i, hi, t, fx);
+    });
+
+    for (const p of this.pieces) p.t += dt;
+    for (const p of this.pieces.filter((q) => q.t >= FLY_T)) this.land(p, fx);
+    this.pieces = this.pieces.filter((p) => p.t < FLY_T);
+
+    this.hint =
+      this.chain >= 3
+        ? `${this.chain}연속 싹둑! 계속 휘둘러요`
+        : `점선을 가위 손으로 쓱! 조각보 ${this.patches.length + this.pieces.length}/${CELLS}칸`;
   }
 
-  private pieceAcc(): number {
-    const tot = this.pieceOn + this.pieceOff;
-    return tot > 0 ? Math.round((this.pieceOn / tot) * 100) : 100;
+  private cut(i: number, hi: number, t: number, fx: Fx): void {
+    const r = this.ribbons[i];
+    r.cutAt = t;
+    this.hit[hi] = t;
+    this.snip[hi] = 0.18;
+    this.cuts++;
+    this.chain = t - this.lastCut < CHAIN_GAP ? this.chain + 1 : 1;
+    this.maxChain = Math.max(this.maxChain, this.chain);
+    const x = this.laneX(i);
+    const y = this.cutY();
+    const pair = hi !== this.lastHand && this.lastHand >= 0 && t - this.lastCut < 0.5;
+    this.lastCut = t;
+    this.lastHand = hi;
+    const pts = (150 + Math.min(this.chain, 10) * 25 + (pair ? 100 : 0)) * (r.gold ? 3 : 1);
+    fx.score(pts, x, y - 40, r.gold ? `금빛 천 +${pts}` : `+${pts}`, r.gold ? "gold" : "white");
+    fx.stamp(pair ? "양손 싹둑!" : "싹둑!", x, y + 70, r.gold ? "gold" : "mint");
+    fx.sfx("snip", LADDER[Math.min(this.chain, LADDER.length) - 1]);
+    fx.burst(x, y, r.gold ? 22 : 10, r.gold ? "gold" : "white");
+    fx.shake(r.gold ? 0.25 : 0.1);
+    if (pair) fx.say("scissors-pair");
+    for (let k = 0; k < 7 && this.bits.length < 60; k++)
+      this.bits.push({
+        x: x + (this.rand() - 0.5) * this.ribbonW(),
+        y,
+        vx: (this.rand() - 0.5) * 420,
+        vy: -120 - this.rand() * 260,
+        a: this.rand() * 3,
+        life: 0.5 + this.rand() * 0.4,
+        c: r.gold ? "#ffd34d" : r.color,
+      });
+    const w = this.ribbonW();
+    this.pieces.push({
+      color: r.gold ? "#ffd34d" : r.color,
+      print: r.print,
+      gold: r.gold,
+      x: x - w / 2,
+      y,
+      w,
+      h: this.endY() - y,
+      cell: (this.patches.length + this.pieces.length) % CELLS,
+      t: 0,
+    });
   }
 
-  draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
+  private land(p: Piece, fx: Fx): void {
+    this.patches.push({ color: p.color, print: p.print, gold: p.gold });
+    const c = this.cellBox(p.cell);
+    fx.burst(c.x + c.w / 2, c.y + c.h / 2, 5, "white");
+    if (this.patches.length < CELLS) return;
+    this.quilts.push(this.patches);
+    this.patches = [];
+    fx.score(QUILT_BONUS, this.W / 2, this.H * 0.5, `조각보 완성 +${QUILT_BONUS}`, "pink");
+    fx.celebrate("조각보 한 장 완성!", "pink");
+    fx.sfx("complete");
+    fx.say("clean-cut", true);
+    fx.shake(0.5);
+  }
+
+  draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     drawMat(ctx, this.W, this.H, t);
-    const f = this.fabric;
-    // 원단
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.4)";
-    ctx.shadowBlur = 20;
-    ctx.shadowOffsetY = 8;
-    ctx.fillStyle = this.garment.color;
-    ctx.fillRect(f.x, f.y, f.w, f.h);
-    ctx.restore();
-    drawCloth(ctx, f, this.garment, PRINTS[this.gi % PRINTS.length]);
-    // 어두운 원단 위 옷본만 조명을 받는다(흰 옷도 선이 또렷하게)
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.fill(this.outline);
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    const b = this.box;
-    drawGarmentPhoto(ctx, this.garment, b.x, b.y, b.w, b.h);
-    ctx.restore();
-    // 시침핀
-    for (const [px, py] of [
-      [f.x + 24, f.y + 24],
-      [f.x + f.w - 24, f.y + 24],
-      [f.x + 24, f.y + f.h - 24],
-      [f.x + f.w - 24, f.y + f.h - 24],
-    ]) {
-      ctx.strokeStyle = "#cfd4de";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(px - 14, py + 14);
-      ctx.lineTo(px + 10, py - 10);
-      ctx.stroke();
-      ctx.fillStyle = "#ff6fa8";
-      ctx.beginPath();
-      ctx.arc(px + 12, py - 12, 7, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const n = this.path.length;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const end = n - this.back;
-    const line = (from: number, to: number) => {
-      ctx.beginPath();
-      const s = from <= to ? 1 : -1;
-      for (let i = from; s > 0 ? i <= to : i >= to; i += s) {
-        const [x, y] = this.path[((i % n) + n) % n];
-        if (i === from) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    };
-    // 남은 길: 분필 점선(옷 색이 밝든 어둡든 보이게 검은 테 + 흰 선)
-    ctx.setLineDash([14, 12]);
-    ctx.strokeStyle = "rgba(10,10,18,0.85)";
-    ctx.lineWidth = 9;
-    line(this.cut, end);
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 4;
-    line(this.cut, end);
-    ctx.setLineDash([]);
-    // 바로 앞길(양쪽): 밝게 강조
-    ctx.strokeStyle = "rgba(255,244,214,0.95)";
-    ctx.lineWidth = 9;
-    ctx.shadowColor = TONE.gold;
-    ctx.shadowBlur = 14;
-    line(this.cut, Math.min(end, this.cut + 30));
-    line(end, Math.max(this.cut, end - 30));
-    ctx.shadowBlur = 0;
-    // 자른 길: 원단이 벌어진 틈
-    for (const [from, to] of [
-      [0, this.cut],
-      [end, n],
-    ]) {
-      if (to <= from) continue;
-      ctx.strokeStyle = "#141020";
-      ctx.lineWidth = 11;
-      line(from, to);
-      ctx.strokeStyle = "rgba(168,240,224,0.9)";
-      ctx.lineWidth = 3;
-      line(from, to);
-    }
-    // 방금 자른 자리는 날에 달궈진 듯 빛난다
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 6;
-    ctx.shadowColor = TONE.gold;
-    ctx.shadowBlur = 20;
-    if (this.cut > 0) line(Math.max(0, this.cut - 14), this.cut);
-    if (this.back > 0) line(end, Math.min(n, end + 14));
-    ctx.shadowBlur = 0;
-
-    // 흠집: 선 밖으로 삐져나간 가위 자국
-    for (const k of this.nicks) {
+    this.drawRail(ctx);
+    this.ribbons.forEach((r, i) => this.drawRibbon(ctx, r, this.laneX(i), t));
+    this.drawQuilt(ctx);
+    for (const p of this.pieces) {
+      const k = Math.min(1, p.t / FLY_T);
+      const e = k * k * (3 - 2 * k);
+      const c = this.cellBox(p.cell);
+      const x = p.x + (c.x - p.x) * e;
+      const y = p.y + (c.y - p.y) * e;
+      const w = p.w + (c.w - p.w) * e;
+      const h = p.h + (c.h - p.h) * e;
       ctx.save();
-      ctx.lineCap = "round";
-      ctx.translate(k.x, k.y);
-      ctx.rotate(k.a);
-      ctx.strokeStyle = "#141020";
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.moveTo(-26, -4);
-      ctx.lineTo(-8, 5);
-      ctx.lineTo(8, -5);
-      ctx.lineTo(26, 4);
-      ctx.stroke();
-      ctx.strokeStyle = "#ff6f8a";
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(Math.sin(k * Math.PI) * 0.5);
+      drawCloth(ctx, -w / 2, -h / 2, w, h, p.color, p.print);
       ctx.restore();
     }
-
-    // 지금 자를 곳 두 군데: 고리 + 화살표(서로 반대 방향)
-    const pulse = 1 + Math.sin(t * 6) * 0.12;
-    const m = Math.ceil(this.tol / this.step);
-    for (const side of [0, 1] as const) {
-      const at = side === 0 ? this.cut : end;
-      const [cx, cy] = this.path[((at % n) + n) % n];
-      const nx = this.path[(((side === 0 ? at + m : at - m) % n) + n) % n];
-      ctx.fillStyle = side === 0 ? "rgba(159,243,255,0.22)" : "rgba(168,240,224,0.22)";
-      ctx.beginPath();
-      ctx.arc(cx, cy, this.tol * pulse, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = side === 0 ? TONE.gold : TONE.mint;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-      ctx.fill();
-      // 처음엔 두 점이 겹쳐 있으니 화살표를 옆으로 벌린다
-      const a = Math.atan2(nx[1] - cy, nx[0] - cx);
-      ctx.save();
-      ctx.translate(cx + Math.cos(a) * this.tol * 1.25, cy + Math.sin(a) * this.tol * 1.25);
-      ctx.rotate(a);
-      ctx.fillStyle = side === 0 ? "#ffffff" : TONE.mint;
-      ctx.beginPath();
-      ctx.moveTo(24, 0);
-      ctx.lineTo(-10, -18);
-      ctx.lineTo(-10, 18);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-    if (this.cut === 0 && this.back === 0 && phase !== "result") {
-      const [cx, cy] = this.path[0];
-      ctx.font = `700 34px "Gowun Batang", serif`;
-      ctx.textAlign = "center";
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = "rgba(20,14,30,0.85)";
-      ctx.strokeText("두 손으로 양쪽으로!", cx, cy - this.tol - 20);
-      ctx.fillStyle = TONE.gold;
-      ctx.fillText("두 손으로 양쪽으로!", cx, cy - this.tol - 20);
-    }
-
-    // 다 오린 조각: 남은 원단은 두 쪽으로 갈라져 떨어지고, 옷은 들려서 날아간다
-    if (this.fall) {
-      const k = this.fall.t / 1.2;
-      const hole = new Path2D();
-      hole.rect(f.x, f.y, f.w, f.h);
-      hole.addPath(this.fall.path);
-      for (const side of [-1, 1]) {
-        ctx.save();
-        ctx.globalAlpha = 1 - k * k;
-        ctx.translate(this.W / 2 + side * this.W * 0.5 * k * k, this.H / 2 + this.H * 0.9 * k * k);
-        ctx.rotate(side * k * 0.45);
-        ctx.translate(-this.W / 2, -this.H / 2);
-        ctx.beginPath();
-        ctx.rect(side < 0 ? f.x : f.x + f.w / 2, f.y, f.w / 2, f.h);
-        ctx.clip();
-        ctx.clip(hole, "evenodd");
-        ctx.fillStyle = this.fall.color;
-        ctx.fillRect(f.x, f.y, f.w, f.h);
-        drawCloth(ctx, f, this.fall.g, this.fall.print);
-        ctx.restore();
-      }
-      ctx.save();
-      ctx.globalAlpha = 1 - k;
-      ctx.translate(this.W / 2, this.H / 2 - this.H * 0.55 * k * k);
-      ctx.rotate(k * 0.3);
-      ctx.scale(1 + k * 0.1 - k * k * 0.6, 1 + k * 0.1 - k * k * 0.6);
-      ctx.translate(-this.W / 2, -this.H / 2);
-      ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.shadowBlur = 30;
-      ctx.shadowOffsetY = 20;
-      const fb = this.fall.box;
-      if (!drawGarmentPhoto(ctx, this.fall.g, fb.x, fb.y, fb.w, fb.h)) {
-        ctx.fillStyle = this.fall.color;
-        ctx.fill(this.fall.path);
-      }
-      ctx.restore();
-    }
-
-    // 실밥
     for (const b of this.bits) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, b.life * 2.5);
       ctx.translate(b.x, b.y);
       ctx.rotate(b.a);
       ctx.fillStyle = b.c;
-      ctx.fillRect(-7, -2, 14, 4);
-      ctx.strokeStyle = "rgba(20,14,30,0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(-7, -2, 14, 4);
+      ctx.fillRect(-8, -3, 16, 6);
       ctx.restore();
     }
-    // 칼날 궤적: 자르는 중이면 밝은 민트, 아니면 은은하게
-    this.trails.forEach((tr, i) => {
-      if (tr.length < 2) return;
-      const hot = this.activeHands.includes(i) && this.snipT > 0;
-      // 밝은 천 위에서도 보이게: 짙은 청록 테 + 흰 심
+    const R = Math.min(this.W, this.H) * 0.085;
+    hands.forEach((h, i) => drawScissors(ctx, h, R, this.snip[i] ?? 0, t));
+    if (this.chain >= 3 && t - this.lastCut < 0.7) {
       ctx.save();
-      ctx.lineCap = "round";
-      for (const [col, wid] of hot
-        ? ([["32,150,140", 18], ["255,255,255", 7]] as const)
-        : ([["255,255,255", 8]] as const))
-        for (let k = 1; k < tr.length; k++) {
-          const f = k / tr.length;
-          ctx.strokeStyle = `rgba(${col},${(hot ? 0.85 : 0.3) * f})`;
-          ctx.lineWidth = wid * f;
-          ctx.beginPath();
-          ctx.moveTo(tr[k - 1].x, tr[k - 1].y);
-          ctx.lineTo(tr[k].x, tr[k].y);
-          ctx.stroke();
-        }
-      ctx.restore();
-    });
-
-    hands.forEach((h, i) =>
-      drawScissors(ctx, h, this.tol, this.activeHands.includes(i) ? this.snipT : 0, t),
-    );
-    for (const s of this.sparks)
-      drawFlare(ctx, s.x, s.y, this.tol * (1.1 - s.t * 3), "white", 1 - s.t / 0.14, s.t * 9);
-    // 연속 컷 수: 손 곁에 붙어 따라간다
-    const lead = hands[this.activeHands[0]];
-    if (this.chain >= 3 && lead?.on && t - this.lastSnip < 0.5) {
-      const size = 46 + Math.min(30, this.chain);
-      ctx.save();
-      ctx.font = `700 ${size}px "Gowun Batang", serif`;
+      ctx.font = `700 ${70 + Math.min(40, this.chain * 2)}px "Gowun Batang", serif`;
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
       ctx.lineJoin = "round";
       ctx.lineWidth = 12;
       ctx.strokeStyle = "rgba(10,12,20,0.92)";
-      const y = lead.y + this.tol * (lead.y > this.H * 0.72 ? -1.7 : 1.7);
-      ctx.strokeText(`${this.chain}컷`, lead.x, y);
+      ctx.strokeText(`${this.chain}연속`, this.W / 2, this.H * 0.47);
       ctx.fillStyle = TONE.gold;
-      ctx.fillText(`${this.chain}컷`, lead.x, y);
+      ctx.fillText(`${this.chain}연속`, this.W / 2, this.H * 0.47);
       ctx.restore();
     }
   }
 
+  private drawRail(ctx: CanvasRenderingContext2D): void {
+    const y = this.railY();
+    const g = ctx.createLinearGradient(0, y - 12, 0, y + 12);
+    g.addColorStop(0, "#e2b57a");
+    g.addColorStop(1, "#8a5a2e");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.roundRect(this.W * 0.04, y - 12, this.W * 0.92, 24, 12);
+    ctx.fill();
+  }
+
+  private drawRibbon(ctx: CanvasRenderingContext2D, r: Ribbon, x: number, t: number): void {
+    const w = this.ribbonW();
+    const top = this.railY();
+    const cutY = this.cutY();
+    const full = this.endY();
+    const end = r.cutAt !== null ? cutY : top + (full - top) * r.drop;
+    const color = r.gold ? "#ffd34d" : r.color;
+    const sway = Math.sin(t * 1.6 + x) * 5;
+    ctx.save();
+    ctx.translate(sway, 0);
+    if (r.gold) {
+      ctx.shadowColor = "#ffd34d";
+      ctx.shadowBlur = 30;
+    }
+    drawCloth(ctx, x - w / 2, top, w, end - top, color, r.print);
+    ctx.shadowBlur = 0;
+    // 집게
+    ctx.fillStyle = "#f4e6c8";
+    for (const dx of [-w * 0.3, w * 0.3]) ctx.fillRect(x + dx - 8, top - 18, 16, 36);
+    if (r.cutAt === null && r.drop >= 1) {
+      const pulse = 0.65 + Math.sin(t * 7) * 0.35;
+      ctx.fillStyle = `rgba(255,255,255,${0.16 * pulse})`;
+      ctx.fillRect(x - w / 2, cutY - 26, w, 52);
+      ctx.setLineDash([16, 12]);
+      ctx.lineWidth = 11;
+      ctx.strokeStyle = "rgba(10,10,18,0.9)";
+      ctx.beginPath();
+      ctx.moveTo(x - w / 2 - 12, cutY);
+      ctx.lineTo(x + w / 2 + 12, cutY);
+      ctx.stroke();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  private drawQuilt(ctx: CanvasRenderingContext2D): void {
+    const q = this.quilt();
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = "#2b1d14";
+    ctx.beginPath();
+    ctx.roundRect(q.x - 14, q.y - 14, q.w + 28, q.h + 28, 12);
+    ctx.fill();
+    ctx.restore();
+    for (let i = 0; i < CELLS; i++) {
+      const c = this.cellBox(i);
+      const p = this.patches[i];
+      if (p) drawCloth(ctx, c.x + 2, c.y + 2, c.w - 4, c.h - 4, p.color, p.print);
+      else {
+        ctx.fillStyle = "rgba(255,240,215,0.08)";
+        ctx.fillRect(c.x + 2, c.y + 2, c.w - 4, c.h - 4);
+        ctx.strokeStyle = "rgba(255,240,215,0.28)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 8]);
+        ctx.strokeRect(c.x + 5, c.y + 5, c.w - 10, c.h - 10);
+        ctx.setLineDash([]);
+      }
+    }
+    if (this.patches.length === 0 && this.pieces.length === 0) {
+      ctx.font = `700 ${Math.round(q.ch * 0.5)}px "Gowun Batang", serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255,240,215,0.72)";
+      ctx.fillText("잘라낸 천으로 조각보를 채워요", q.x + q.w / 2, q.y + q.h / 2);
+    }
+    drawFlare(ctx, q.x, q.y, 0, "white", 0);
+  }
+
   stats(): Stat[] {
-    const total = this.onLine + this.offLine;
-    const acc = total > 0 ? Math.round((this.onLine / total) * 100) : 0;
     return [
-      { label: "완성한 옷본", value: `${this.finished.length}개` },
-      { label: "선 따라가기", value: `${Math.min(100, acc)}%` },
-      { label: "마지막 옷본", value: `${this.pct()}%` },
-      { label: "흠집", value: `${this.nickCount}개` },
+      { label: "자른 천", value: `${this.cuts}장` },
+      { label: "완성한 조각보", value: `${this.quilts.length}장` },
+      { label: "최고 연속", value: `${this.maxChain}번` },
     ];
   }
 
   queue(): QueueItem[] {
     const out: QueueItem[] = [];
-    const n = Math.max(ORDER.length, this.gi + 1);
-    for (let i = 0; i < n; i++) {
-      const g = ORDER[i % ORDER.length];
+    const now = this.quilts.length;
+    for (let i = Math.max(0, now - 1); i < now + 3; i++)
       out.push({
-        label: g.name,
-        state: i < this.gi ? "done" : i === this.gi ? "now" : "next",
-        pct: i === this.gi ? this.pct() : undefined,
-        shape: g.pts,
-        aspect: g.aspect,
-        color: g.color,
+        label: `조각보 ${i + 1}`,
+        state: i < now ? "done" : i === now ? "now" : "next",
+        pct: i === now ? Math.round((this.patches.length / CELLS) * 100) : undefined,
+        color: COLORS[i % COLORS.length],
       });
-    }
-    return out.slice(Math.max(0, this.gi - 2), Math.max(0, this.gi - 2) + 5);
+    return out;
   }
 
   meter(): Meter {
-    const acc = this.pieceAcc();
     return {
-      label: "선 정확도",
-      value: acc / 100,
-      text: acc >= 80 ? "깔끔해요! 보너스 +200" : "빛나는 길 위로!",
-      hot: acc >= 80,
+      label: "연속 싹둑",
+      value: Math.min(1, this.chain / 10),
+      text: this.chain ? `${this.chain}연속 · 이어 자르면 점수 쑥쑥` : "쉬지 않고 이어 잘라요",
+      hot: this.chain >= 5,
     };
   }
 
   collection(): Item[] {
-    return this.finished.map((g) => ({
-      label: g.name,
-      note: g.brand,
-      shape: g.pts,
-      aspect: g.aspect,
-      color: g.color,
+    const items: Item[] = this.quilts.map((q, i) => ({
+      label: `조각보 ${i + 1}`,
+      color: q[0].color,
+      note: `${CELLS}조각`,
     }));
+    if (this.patches.length)
+      items.push({
+        label: "만들던 조각보",
+        color: this.patches[0].color,
+        note: `${this.patches.length}조각`,
+      });
+    return items;
   }
 
   demo(t: number): DemoHand[] {
-    // 시범도 두 손으로 양쪽에서
-    const n = this.path.length;
-    const [x, y] = this.path[(this.cut + 4) % n];
-    const [bx, by] = this.path[(((n - this.back - 4) % n) + n) % n];
-    return [
-      { x: x + Math.sin(t * 5) * 8, y: y + Math.cos(t * 4) * 8 },
-      { x: bx + Math.cos(t * 5) * 8, y: by + Math.sin(t * 4) * 8 },
-    ];
+    return [{ x: this.W * (0.5 + 0.42 * Math.sin(t * 1.5)), y: this.cutY() + Math.sin(t * 5) * 18 }];
   }
 
-  target(): DemoHand {
-    const [x, y] = this.path[this.cut % this.path.length];
-    return { x, y };
+  target(): DemoHand | null {
+    const i = this.ribbons.findIndex((r) => r.cutAt === null && r.drop >= 1);
+    return i >= 0 ? { x: this.laneX(i), y: this.cutY() } : null;
   }
 }
 
-/** 원단 무늬·결·조명을 깔고 어둡게 눌러 옷본이 돋보이게 한다. */
+/** 천 한 장: 바탕색 + 무늬 + 위에서 비치는 빛. */
 function drawCloth(
   ctx: CanvasRenderingContext2D,
-  f: { x: number; y: number; w: number; h: number },
-  g: Garment,
-  print: (typeof PRINTS)[number],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  print: Print,
 ): void {
-  drawPrint(ctx, f.x, f.y, f.w, f.h, print, g.shade);
-  // 천의 결 + 위에서 비치는 조명(납작한 색판이 아니라 천처럼)
-  fabricTexture(ctx, f.x, f.y, f.w, f.h, g.shade);
-  const lit = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.4, f.y + f.h);
-  lit.addColorStop(0, "rgba(255,255,255,0.16)");
-  lit.addColorStop(0.6, "rgba(255,255,255,0)");
-  lit.addColorStop(1, "rgba(0,0,0,0.14)");
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
+  drawPrint(ctx, x, y, w, h, print, "#ffffff");
+  const lit = ctx.createLinearGradient(x, y, x + w, y + h);
+  lit.addColorStop(0, "rgba(255,255,255,0.2)");
+  lit.addColorStop(1, "rgba(0,0,0,0.18)");
   ctx.fillStyle = lit;
-  ctx.fillRect(f.x, f.y, f.w, f.h);
-  ctx.fillStyle = "rgba(12,14,24,0.62)";
-  ctx.fillRect(f.x, f.y, f.w, f.h);
+  ctx.fillRect(x, y, w, h);
 }
 
 /** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). */

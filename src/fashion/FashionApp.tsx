@@ -22,7 +22,7 @@ import {
   type Mode,
   type QueueItem,
 } from "./core";
-import { BRANDS, fitGarment, garmentByName, type Body, type Garment, type Pt } from "./garments";
+import { BRANDS, garmentByName, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
 import { setMenuHands } from "@/app/HandCursor";
@@ -46,18 +46,18 @@ function makeMode(id: FashionStation): Mode {
 const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   iron: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "iron", text: "두 손으로 쓱쓱! 점수 2배" },
-    { icon: "rack", text: "주름을 다 펴면 다음 옷" },
+    { icon: "iron", text: "손이 다리미! 옷 위를 쓱쓱 문질러요" },
+    { icon: "rack", text: "구김이를 잡고 손님 옷을 완성해요" },
   ],
   scissors: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "scissors", text: "빛나는 점 두 곳에 두 손을" },
-    { icon: "path", text: "양쪽으로 오려 가운데서 만나요" },
+    { icon: "scissors", text: "손이 가위! 점선을 쓱 지나가요" },
+    { icon: "path", text: "잘라낸 천으로 조각보를 채워요" },
   ],
   sewing: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "needle", text: "번호 구멍을 차례로 콕" },
-    { icon: "combo", text: "빨리 이으면 황금실 피버" },
+    { icon: "needle", text: "손이 바늘! 빛나는 구멍을 콕콕" },
+    { icon: "combo", text: "한 바퀴 돌면 자수가 피어나요" },
   ],
   rhythm: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
@@ -96,7 +96,6 @@ const initialUi: FashionUi = {
   toTop: 0,
   toGrade: 0,
   homeProgress: 0,
-  finale: null,
 };
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -135,7 +134,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mirrorRef = useRef<HTMLCanvasElement>(null);
-  const finaleRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<FashionGame | null>(null);
   const poseRef = useRef<PoseController | null>(null);
   const startingRef = useRef(false);
@@ -182,8 +180,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
     resize();
     window.addEventListener("resize", resize);
 
-    const mirrorState: MirrorState = { cx: 0.5, body: null };
-    const finaleState: MirrorState = { cx: 0.5, body: null };
+    const mirrorState: MirrorState = { cx: 0.5 };
     let raf = 0;
     // 한 장면이 터져도 다음 장면은 그린다. 계속 터지면(무인 운영) 대기 화면일 때 새로고침.
     let fails = 0;
@@ -225,27 +222,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
       game.render(ctx);
       const m = mirrorRef.current?.getContext("2d");
       if (m) drawMirror(m, video, pose.status === "live" ? frame : null, mirrorState, now / 1000);
-      // 피날레: 큰 사진 틀에 옷을 입혀 그린다. 찰칵 뒤에는 그리지 않아 그 순간이 멈춰 보인다.
-      const fc = finaleRef.current;
-      if (fc && game.phase === "finale" && !game.finaleShot) {
-        const fw = Math.max(1, Math.round(fc.clientWidth * dpr));
-        const fh = Math.max(1, Math.round(fc.clientHeight * dpr));
-        if (fc.width !== fw || fc.height !== fh) {
-          fc.width = fw;
-          fc.height = fh;
-        }
-        const f = fc.getContext("2d");
-        if (f) {
-          drawMirror(
-            f,
-            video,
-            pose.status === "live" ? frame : null,
-            finaleState,
-            now / 1000,
-            game.outfit,
-          );
-        }
-      } else if (game.phase !== "finale") finaleState.body = null;
     };
     raf = requestAnimationFrame(loop);
 
@@ -403,7 +379,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
       <div className="absolute z-10 overflow-hidden" style={box(layout.side)}>
         {ui.phase === "play" || ui.phase === "countdown" ? (
           <MeterCard ui={ui} landscape={layout.landscape} step={STEPS[station][1]} />
-        ) : ui.phase === "result" || ui.phase === "finale" ? (
+        ) : ui.phase === "result" ? (
           <Ranking ui={ui} highlight={ui.lastAt} compact={!layout.landscape} />
         ) : (
           <AttractSide station={station} ui={ui} compact={!layout.landscape} />
@@ -420,7 +396,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
         </div>
         {ui.phase === "play" ||
         ui.phase === "countdown" ||
-        ui.phase === "finale" ||
         ui.phase === "result" ? (
           <div className="flex shrink-0 items-center gap-3">
             <div className="text-right">
@@ -477,7 +452,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             )}
           </>
         )}
-        {ui.phase !== "finale" && <StationMenu current={station} onSame={() => g()?.goHome()} />}
+        <StationMenu current={station} onSame={() => g()?.goHome()} />
         {ui.homeProgress > 0 && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-[2rem] bg-black/55">
             <div className="relative size-36">
@@ -511,7 +486,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
             <p className="mt-1 text-lg text-[var(--f-muted)]">계속하려면 손을 내리세요</p>
           </div>
         )}
-        <FinaleOverlay ui={ui} canvasRef={finaleRef} />
         {ui.phase === "result" && (
           <ResultOverlay
             ui={ui}
@@ -551,17 +525,15 @@ export function FashionApp({ station }: { station: FashionStation }) {
 
 /* ───────── 거울 ───────── */
 
-type MirrorState = { cx: number; body: Body | null };
+type MirrorState = { cx: number };
 
-/** 카메라 영상을 거울처럼(좌우 반전) 세로로 잘라 사람을 따라가며 그린다. 손에는 빛 고리.
- * outfit을 주면 손 고리 대신 그 옷을 몸에 입혀 그린다(피팅 피날레). */
+/** 카메라 영상을 거울처럼(좌우 반전) 세로로 잘라 사람을 따라가며 그린다. 손에는 빛 고리. */
 function drawMirror(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement | null,
   frame: PoseFrame | null,
   st: MirrorState,
   t: number,
-  outfit?: Garment[],
 ): void {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
@@ -609,34 +581,6 @@ function drawMirror(
     x: ((p.x * vw - msx) / cw) * w,
     y: ((p.y * vh - sy) / ch) * h,
   });
-  if (outfit) {
-    const ls = sk[1];
-    const rs = sk[2];
-    if (!ls || !rs || ls.v < 0.3 || rs.v < 0.3) return;
-    const A = P(ls);
-    const B = P(rs);
-    const pt = (p: { x: number; y: number }): Pt => [p.x, p.y];
-    // 골반이 화면 밖이면 어깨 폭으로 어림한다(카메라에 가까이 선 아이)
-    const span = Math.hypot(B.x - A.x, B.y - A.y);
-    const hip = (s: { x: number; y: number }, raw: (typeof sk)[number]): Pt =>
-      raw && raw.v >= 0.3
-        ? pt(P(raw))
-        : [s.x + (B.x - A.x) * 0.1 * (s === A ? 1 : -1), s.y + span * 1.5];
-    const next: Body = { ls: pt(A), rs: pt(B), lh: hip(A, sk[7]), rh: hip(B, sk[8]) };
-    // 떨림을 줄이려고 조금씩 따라간다
-    const prev = st.body;
-    const lerp = (p: Pt, q: Pt): Pt => [p[0] + (q[0] - p[0]) * 0.35, p[1] + (q[1] - p[1]) * 0.35];
-    st.body = prev
-      ? {
-          ls: lerp(prev.ls, next.ls),
-          rs: lerp(prev.rs, next.rs),
-          lh: lerp(prev.lh, next.lh),
-          rh: lerp(prev.rh, next.rh),
-        }
-      : next;
-    for (const g of outfit) drawWorn(ctx, g, st.body, t);
-    return;
-  }
   // 팔 선
   ctx.lineCap = "round";
   ctx.lineWidth = Math.max(3, w * 0.012);
@@ -669,90 +613,6 @@ function drawMirror(
     ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
     ctx.stroke();
   });
-}
-
-const WORN = new Map<string, HTMLCanvasElement>();
-
-/** 몸에 입힐 사진: 같이 찍힌 마네킹 목·받침을 부드럽게 지운다(아이 목 위에 나무 받침이 얹히지 않게). */
-function wornPhoto(g: Garment): CanvasImageSource | null {
-  const img = garmentPhoto(g);
-  if (!img || !g.neck) return img;
-  const done = WORN.get(g.name);
-  if (done) return done;
-  const c = document.createElement("canvas");
-  c.width = img.naturalWidth;
-  c.height = img.naturalHeight;
-  const x = c.getContext("2d");
-  if (!x) return img;
-  x.drawImage(img, 0, 0);
-  x.globalCompositeOperation = "destination-out";
-  x.translate(c.width / 2, 0);
-  x.scale(g.neck[0] * c.width, g.neck[1] * c.height);
-  const gr = x.createRadialGradient(0, 0, 0, 0, 0, 1);
-  gr.addColorStop(0, "rgba(0,0,0,1)");
-  gr.addColorStop(0.75, "rgba(0,0,0,1)");
-  gr.addColorStop(1, "rgba(0,0,0,0)");
-  x.fillStyle = gr;
-  x.fillRect(-1, -1, 2, 2);
-  WORN.set(g.name, c);
-  return c;
-}
-
-/** 몸에 입힌 옷 한 벌: 원단 그라디언트 + 지나가는 광택 + 테두리 반짝이. */
-function drawWorn(ctx: CanvasRenderingContext2D, g: Garment, body: Body, t: number): void {
-  const f = fitGarment(g, body);
-  ctx.save();
-  ctx.translate(f.cx, f.y);
-  ctx.rotate(f.angle);
-  const path = new Path2D();
-  g.pts.forEach(([x, y], i) => {
-    const px = (x - 0.5) * f.w;
-    const py = y * f.h;
-    if (i) path.lineTo(px, py);
-    else path.moveTo(px, py);
-  });
-  path.closePath();
-  ctx.shadowColor = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = f.w * 0.06;
-  // 시그니처 옷은 진짜 사진을 입힌다(못 불렀으면 색 천)
-  const img = wornPhoto(g);
-  if (img) ctx.drawImage(img, -f.w / 2, 0, f.w, f.h);
-  const photo = !!img;
-  if (!photo) {
-    const fill = ctx.createLinearGradient(-f.w / 2, 0, f.w / 2, f.h);
-    fill.addColorStop(0, g.color);
-    fill.addColorStop(1, g.shade);
-    ctx.globalAlpha = 0.94;
-    ctx.fillStyle = fill;
-    ctx.fill(path);
-  }
-  ctx.shadowBlur = 0;
-  // 비단 광택이 사선으로 지나간다
-  ctx.save();
-  ctx.clip(path);
-  const k = ((t * 0.45) % 1.6) - 0.3;
-  const sx = -f.w / 2 + k * f.w * 1.4;
-  const shine = ctx.createLinearGradient(sx - f.w * 0.2, 0, sx + f.w * 0.2, f.h * 0.4);
-  shine.addColorStop(0, "rgba(255,255,255,0)");
-  shine.addColorStop(0.5, "rgba(255,255,255,0.45)");
-  shine.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = shine;
-  ctx.fillRect(-f.w / 2, 0, f.w, f.h);
-  ctx.restore();
-  ctx.globalAlpha = 1;
-  if (!photo) {
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(2, f.w * 0.015);
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
-    ctx.stroke(path);
-  }
-  // 테두리를 따라 반짝이
-  g.pts.forEach(([x, y], i) => {
-    const tw = (Math.sin(t * 5 + i * 1.7) + 1) / 2;
-    if (tw < 0.6) return;
-    drawFlare(ctx, (x - 0.5) * f.w, y * f.h, f.w * 0.08 * tw, "white", (tw - 0.6) * 2.5);
-  });
-  ctx.restore();
 }
 
 /* ───────── 조각들 ───────── */
@@ -1106,10 +966,7 @@ function AttractOverlay({
   const top = ui.todayTop[0]?.s;
   const teasers = [
     TEASER[station],
-    // 몽글 드럼은 옷을 만들지 않는다
-    ...(station === "rhythm"
-      ? []
-      : ["완성한 옷을 거울 속 내 몸에 입혀 줘요!", "창작자×예술인 콜라보 6팀의 옷을 만들어요"]),
+    ...(station === "iron" ? ["창작자×예술인 콜라보 6팀의 옷을 다려요"] : []),
     ...(top ? [`오늘 최고 ${top.toLocaleString("ko-KR")}점 · 도전!`] : []),
   ];
   const [ti, setTi] = useState(0);
@@ -1176,7 +1033,7 @@ function AttractOverlay({
         >
           {teasers[ti % teasers.length]}
         </p>
-        {ti % teasers.length === 2 && (
+        {station === "iron" && ti % teasers.length === 1 && (
           // 6팀 룩북 사진을 부채처럼
           <div className="mt-3 flex justify-center gap-2">
             {BRANDS.map((g, i) => (
@@ -1220,9 +1077,9 @@ function AttractOverlay({
 }
 
 const TEASER: Record<FashionStation, string> = {
-  iron: "두 손으로 다리면 점수 2배!",
-  scissors: "두 손으로 양쪽에서 오리면 2배 빨라요!",
-  sewing: "빨리 이어 꿰매면 황금실 피버!",
+  iron: "세탁소 손님 옷의 주름을 쫙 펴 주세요!",
+  scissors: "천을 싹둑! 나만의 조각보를 만들어요",
+  sewing: "하트·별·꽃을 수놓아요!",
   rhythm: "두 손으로 큰 북을 쿵쿵! 10콤보면 피버!",
 };
 
@@ -1257,77 +1114,6 @@ function HandsUpFigure() {
         fill={arm}
       />
     </svg>
-  );
-}
-
-/** 피팅 피날레: 사진 틀 속 내 모습에 완성한 옷 → 3·2·1 → 찰칵. 사진은 화면에만, 저장하지 않는다. */
-function FinaleOverlay({
-  ui,
-  canvasRef,
-}: {
-  ui: FashionUi;
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-}) {
-  const f = ui.finale;
-  // 캔버스는 늘 붙여 두고 숨긴다(그리기 고리가 ref를 계속 잡도록)
-  return (
-    <div
-      className={`absolute inset-0 flex items-center justify-center gap-[3%] overflow-hidden rounded-[2rem] p-[2.5%] ${f ? "" : "invisible"}`}
-      style={{
-        background:
-          "radial-gradient(ellipse 45% 70% at 50% 45%, rgba(200,245,255,0.3), transparent 70%), linear-gradient(rgba(5,7,11,0.72), rgba(5,7,11,0.82)), url(/art/rhythm.webp) center/cover, #0c0a14",
-      }}
-    >
-      <div className="flex w-[24%] flex-col items-end gap-3 text-right">
-        <p className="text-sm tracking-[0.35em] text-[var(--f-muted)]">FITTING FINALE</p>
-        <p className="f-serif f-pearl text-5xl leading-tight">
-          {f?.shot ? `${GRADE_NAMES[ui.grade]} 탄생!` : "런웨이 데뷔!"}
-        </p>
-        <p className="f-serif text-xl text-[var(--f-muted)]">
-          {f?.shot ? GRADE_LINES[ui.grade] : "내가 만든 옷을 입어 봐요"}
-        </p>
-        {/* 입혀 준 옷의 진짜 룩북 사진 */}
-        {f?.outfit.map((name) => {
-          const g = garmentByName(name);
-          return g?.photo ? (
-            <div key={name} className="mt-2 w-[70%] rounded-2xl bg-[#fffaf0] p-2 pb-1 shadow-lg">
-              <img
-                src={`/brand/${g.photo}.webp`}
-                alt=""
-                className="aspect-[3/4] w-full rounded-xl object-contain"
-              />
-              <p className="f-serif mt-1 text-center text-sm text-[#1b1526]">진짜 옷 · {g.brand}</p>
-            </div>
-          ) : null;
-        })}
-      </div>
-      <div className="relative h-full">
-        <div className="h-full rounded-[1.4rem] bg-[#fffaf0] p-[0.9rem] pb-[3.6rem] shadow-[0_0_4rem_rgba(159,243,255,0.45)]">
-          <canvas ref={canvasRef} className="aspect-[3/4] h-full rounded-[0.8rem] bg-[#1b1526]" />
-          <p className="f-serif absolute inset-x-0 bottom-3 text-center text-2xl text-[#1b1526]">
-            WEAVE ON ·{" "}
-            {f?.outfit
-              .map((n) => [garmentByName(n)?.brand, n].filter(Boolean).join(" "))
-              .join(" + ")}
-          </p>
-        </div>
-        {f && f.count > 0 && (
-          <p
-            key={f.count}
-            className="f-serif f-pearl animate-pop absolute inset-0 flex items-center justify-center text-[11rem] leading-none drop-shadow-[0_0_2rem_rgba(0,0,0,0.8)]"
-          >
-            {f.count}
-          </p>
-        )}
-        {f?.shot && <div className="animate-flash absolute inset-0 rounded-[1.4rem] bg-white" />}
-      </div>
-      <div className="flex w-[24%] flex-col gap-3">
-        <p className="f-serif rounded-full bg-black/55 px-5 py-2.5 text-center text-xl">
-          {f?.shot ? "찰칵! 멋져요" : f && f.count > 0 ? "그대로 멈춰요!" : "팔을 내리고 똑바로 서요"}
-        </p>
-        <p className="text-center text-sm text-[var(--f-muted)]">사진은 저장되지 않아요</p>
-      </div>
-    </div>
   );
 }
 

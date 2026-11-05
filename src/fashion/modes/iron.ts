@@ -24,7 +24,6 @@ import {
   SEOLBAEK,
   SILUA,
   TAILORED,
-  fullName,
   inside,
   pathOf,
   place,
@@ -34,8 +33,9 @@ import {
 } from "../garments";
 
 /** 03 다리미 챌린지
- * 손이 다리미. 칙칙하게 구겨진 옷을 쓱쓱 문지르면 지나간 자리만 산뜻한 진짜 옷이 드러난다.
- * 다 펴면 옷이 개켜져 옷걸이로 가고 다음 옷.
+ * 세탁소 손님이 맡긴 구겨진 옷을 손 다리미로 쓱쓱 문질러 펴면 지나간 자리만 산뜻해진다.
+ * 옷 위를 돌아다니는 구김이를 다리미로 누르면 펑! 터지며 주변 주름이 한 번에 펴진다.
+ * 다 펴면 손님이 고마워하고 다음 손님 옷. 감점은 없다.
  * 쉬지 않고 다리면 스팀 게이지가 차고, 가득 차면 4초 동안 '스팀 부스트'(다리미가 커지고 점수 1.5배). */
 
 const ORDER: Garment[] = [LAYOVER, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
@@ -46,11 +46,13 @@ const DONE_AT = 0.9;
 const GARMENT_POINTS = 1000;
 const GARMENT_BONUS = 500;
 const BOOST_SECONDS = 4;
-/** 옷 위에 다리미를 이만큼(초) 가만히 대고 있으면 눌음 자국. */
-const SCORCH_AFTER = 1.4;
-const SCORCH_PENALTY = 200;
 /** 주름이 펴지는 빠르기. */
-const PRESS = 0.85;
+const PRESS = 1.15;
+/** 옷마다 맡긴 손님. */
+const CUSTOMERS = ["할머니", "꼬마", "신랑", "학생", "사장님", "이웃집"];
+const CRITTERS_MAX = 3;
+const CRITTER_EVERY = 2;
+const CRITTER_POINTS = 300;
 
 /** 옷을 가로 2 × 세로 3 구역으로 나눈다. 구역 주름이 이만큼만 남으면 '띵' 하고 싹 펴진다. */
 const ZONE_COLS = 2;
@@ -79,15 +81,15 @@ type Zone = { w0: number; done: boolean; flash: number; x: number; y: number; w:
 type Trail = { x: number; y: number; t: number; r: number };
 
 export class IronMode implements Mode {
-  seconds = 30;
-  hint = "두 손으로 옷 위를 쓱쓱! 양손이면 점수 2배";
-  tip = "두 손 모두 다리미! 옷 위를 크게 쓱쓱 문질러요";
-  // 봇 기준: 양손 36~38k, 한 손(반짝이 따라) 11k, 1.6초씩 멈칫(눌음 16개) 9.5k
-  grades: [number, number, number] = [13000, 6500, 2200];
+  seconds = 35;
+  hint = "옷 위를 쓱쓱 문질러 주름을 펴요";
+  tip = "손이 다리미! 옷 위를 크게 쓱쓱, 구김이는 눌러 잡아요";
+  grades: [number, number, number] = [15000, 7500, 2500];
   music = "lofi" as const;
-  private heat = [0, 0];
-  private scorches: { x: number; y: number; a: number }[] = [];
-  private scorchCount = 0;
+  private critters: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
+  private caught = 0;
+  private spawnT = 1;
+  private thanks: { text: string; t: number } | null = null;
   private W = 1400;
   private H = 860;
   private gi = 0;
@@ -138,8 +140,8 @@ export class IronMode implements Mode {
     this.pair = false;
     this.pairT = 0;
     this.rand = rng(7);
-    this.heat = [0, 0];
-    this.scorchCount = 0;
+    this.caught = 0;
+    this.thanks = null;
     this.dir = [0, 0];
     this.strokeAt = [0, 0];
     this.strokes = 0;
@@ -194,7 +196,8 @@ export class IronMode implements Mode {
       });
     }
     this.bakeWrinkles(g);
-    this.scorches = [];
+    this.critters = [];
+    this.spawnT = 1;
     this.earned = 0;
     this.hot = null;
     this.hotT = 0;
@@ -325,21 +328,6 @@ export class IronMode implements Mode {
     this.pair = pair;
     let ironing = false;
     hands.forEach((h, hi) => {
-      // 옷 위에서 멈춰 있으면 열이 쌓여 눌는다
-      // 웹캠 손 떨림(초당 수십 px)은 '멈춤'으로 친다
-      const still = h.on && this.onCloth(h) && h.speed < this.W * 0.08;
-      this.heat[hi] = still ? this.heat[hi] + dt : Math.max(0, this.heat[hi] - dt * 3);
-      if (this.heat[hi] >= SCORCH_AFTER) {
-        // 한 번 눌면 그 자리에서 곧바로 또 눌지 않게 한 번 더 기다려 준다
-        this.heat[hi] = -SCORCH_AFTER;
-        this.scorchCount++;
-        this.scorches.push({ x: h.x, y: h.y, a: this.rand() * Math.PI });
-        const pen = SCORCH_PENALTY;
-        fx.score(-pen, h.x, h.y - this.ironR, `-${pen}`, "pink");
-        fx.stamp("앗, 눌었어요!", h.x, h.y - this.ironR * 1.8, "pink");
-        fx.shake(0.4);
-        fx.sfx("miss");
-      }
       // 크게 오가다 방향을 틀 때마다 '쓱!' 하고 김이 뿜어진다
       const v = Math.abs(h.vx) > Math.abs(h.vy) ? h.vx : h.vy;
       if (h.on && this.onCloth(h) && Math.abs(v) > this.W * STROKE_SPEED) {
@@ -398,6 +386,11 @@ export class IronMode implements Mode {
       }
     }
     if (this.trail.length > 160) this.trail.splice(0, this.trail.length - 160);
+    this.stepCritters(dt, hands, R, fx);
+    if (this.thanks) {
+      this.thanks.t -= dt;
+      if (this.thanks.t <= 0) this.thanks = null;
+    }
 
     // 구역 완료: 거의 다 편 구역은 '띵' 하고 남은 주름까지 싹 펴진다
     this.zones.forEach((z, k) => {
@@ -459,7 +452,8 @@ export class IronMode implements Mode {
         `보너스 +${GARMENT_BONUS}`,
         "pink",
       );
-      fx.celebrate(`${fullName(g)} 완성!`, "pink");
+      fx.celebrate(`${this.customer()} 손님 옷 완성!`, "pink");
+      this.thanks = { text: `${this.customer()} 손님: 고마워요!`, t: 1.8 };
       fx.sfx("complete");
       fx.hitstop(0.16);
       fx.shake(0.6);
@@ -487,9 +481,55 @@ export class IronMode implements Mode {
         ? `스팀 부스트! 다리미가 커졌어요 · ${p}%`
         : pair
           ? `양손 다림질! 점수 2배 · ${p}%`
-          : p >= 75
-            ? `${this.garment().name} ${p}% · 반짝이는 남은 주름을 찾아요!`
-            : `${this.garment().name} 주름 펴기 ${p}% · 두 손으로 다리면 2배!`;
+          : this.critters.length
+            ? `구김이다! 다리미로 눌러 잡아요 · ${p}%`
+            : p >= 75
+              ? `반짝이는 곳에 주름이 남았어요 · ${p}%`
+              : `옷 위를 쓱쓱 문질러요 · ${p}%`;
+  }
+
+  private customer(): string {
+    return CUSTOMERS[this.gi % CUSTOMERS.length];
+  }
+
+  /** 구김이: 남은 주름 위에 나타나 옷 위를 돌아다닌다. 다리미에 닿으면 주변 주름과 함께 펑! */
+  private stepCritters(dt: number, hands: Hand[], R: number, fx: Fx): void {
+    const b = this.box;
+    this.spawnT -= dt;
+    if (this.spawnT <= 0 && this.critters.length < CRITTERS_MAX) {
+      this.spawnT = CRITTER_EVERY;
+      const left = this.cells.filter((c) => c.w > 0.2);
+      const c = left[Math.floor(this.rand() * left.length)];
+      if (c) {
+        const a = this.rand() * Math.PI * 2;
+        const v = this.W * 0.07;
+        this.critters.push({ x: c.x, y: c.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0 });
+      }
+    }
+    this.critters = this.critters.filter((k) => {
+      k.t += dt;
+      k.x += k.vx * dt;
+      k.y += k.vy * dt;
+      if (k.x < b.x + b.w * 0.12 || k.x > b.x + b.w * 0.88) k.vx *= -1;
+      if (k.y < b.y + b.h * 0.1 || k.y > b.y + b.h * 0.9) k.vy *= -1;
+      if (!hands.some((h) => h.on && Math.hypot(h.x - k.x, h.y - k.y) < R + this.ironR * 0.45))
+        return true;
+      const area = this.ironR * 1.2;
+      for (const c of this.cells) if (Math.hypot(c.x - k.x, c.y - k.y) < area) c.w = 0;
+      this.caught++;
+      fx.score(CRITTER_POINTS, k.x, k.y - this.ironR, `구김이 잡았다! +${CRITTER_POINTS}`, "gold");
+      fx.burst(k.x, k.y, 26, "gold");
+      fx.shake(0.2);
+      fx.sfx("perfect");
+      for (let i = 0; i < 6; i++)
+        this.steamPuffs.push({
+          x: k.x + (this.rand() - 0.5) * area,
+          y: k.y,
+          t: 0,
+          vx: (this.rand() - 0.5) * 140,
+        });
+      return false;
+    });
   }
 
   private onCloth(h: Hand): boolean {
@@ -548,24 +588,6 @@ export class IronMode implements Mode {
     shine.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = shine;
     ctx.fill(this.path);
-    // 눌음 자국: 다리미 바닥 모양으로 갈색으로 탄 자리
-    for (const s of this.scorches) {
-      ctx.save();
-      ctx.translate(s.x, s.y);
-      ctx.rotate(s.a * 0.2);
-      const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, this.ironR * 0.9);
-      sg.addColorStop(0, "rgba(70,34,12,0.85)");
-      sg.addColorStop(0.6, "rgba(120,62,20,0.55)");
-      sg.addColorStop(1, "rgba(160,90,30,0)");
-      ctx.fillStyle = sg;
-      ctx.beginPath();
-      ctx.moveTo(-this.ironR * 0.85, this.ironR * 0.3);
-      ctx.quadraticCurveTo(-this.ironR * 0.75, -this.ironR * 0.25, 0, -this.ironR * 0.45);
-      ctx.quadraticCurveTo(this.ironR * 0.75, -this.ironR * 0.5, this.ironR, this.ironR * 0.3);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
     ctx.restore();
 
     // 남은 주름이 적어지면 어디 남았는지 반짝
@@ -582,7 +604,16 @@ export class IronMode implements Mode {
       ctx.restore();
     }
 
+    for (const k of this.critters) drawCritter(ctx, k.x, k.y, this.ironR * 0.62, t + k.t);
     drawProgress(ctx, this.W * 0.87, this.H * 0.5, this.H * 0.095, this.pct());
+    drawOrder(
+      ctx,
+      this.W / 2,
+      this.H * 0.055,
+      this.H * 0.034,
+      this.thanks?.text ?? `${this.customer()} 손님 옷의 주름을 펴 주세요`,
+      !!this.thanks,
+    );
 
     // 완성된 옷: 개켜지며 위로 날아간다
     if (this.fly) {
@@ -623,20 +654,7 @@ export class IronMode implements Mode {
       ctx.stroke();
       ctx.restore();
     }
-    hands.forEach((h, hi) => {
-      // 눌기 직전: 다리미 밑이 빨갛게 달아오른다
-      const warm = h.on ? Math.max(0, this.heat[hi] / SCORCH_AFTER - 0.35) / 0.65 : 0;
-      if (warm > 0) {
-        const wg = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, R * 1.3);
-        wg.addColorStop(0, `rgba(255,90,60,${0.55 * warm})`);
-        wg.addColorStop(1, "rgba(255,90,60,0)");
-        ctx.fillStyle = wg;
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, R * 1.3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      drawIron(ctx, h, R, t, this.boost > 0 || this.pair);
-    });
+    for (const h of hands) drawIron(ctx, h, R, t, this.boost > 0 || this.pair);
   }
 
   stats(): Stat[] {
@@ -644,7 +662,7 @@ export class IronMode implements Mode {
       { label: "완성한 옷", value: `${this.finished.length}벌` },
       { label: "마지막 옷", value: `${this.pct()}%` },
       { label: "쓱쓱", value: `${this.strokes}번` },
-      { label: "눌음 자국", value: `${this.scorchCount}개` },
+      { label: "잡은 구김이", value: `${this.caught}마리` },
     ];
   }
 
@@ -695,8 +713,88 @@ export class IronMode implements Mode {
   }
 
   target(): DemoHand | null {
-    return this.hot;
+    return this.critters[0] ?? this.hot;
   }
+}
+
+/** 구김이: 구겨진 천 뭉치 얼굴. */
+function drawCritter(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  t: number,
+): void {
+  const bob = Math.sin(t * 9) * r * 0.1;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#8f97ad";
+  ctx.strokeStyle = "#2a2f42";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const rr = r * (i % 2 ? 0.86 : 1.08 + Math.sin(t * 6 + i) * 0.05);
+    if (i) ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    else ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(42,47,66,0.45)";
+  ctx.lineWidth = 3;
+  for (const dx of [-0.5, 0.45]) {
+    ctx.beginPath();
+    ctx.moveTo(r * dx, -r * 0.72);
+    ctx.lineTo(r * (dx + 0.14), -r * 0.42);
+    ctx.stroke();
+  }
+  for (const dx of [-0.32, 0.32]) {
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(r * dx, -r * 0.08, r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1b1526";
+    ctx.beginPath();
+    ctx.arc(r * dx, -r * 0.05, r * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "#1b1526";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, r * 0.28, r * 0.24, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 위쪽 손님 주문표. */
+function drawOrder(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  text: string,
+  happy: boolean,
+): void {
+  ctx.save();
+  ctx.font = `700 ${Math.round(size)}px "Gowun Batang", serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width + size * 2;
+  ctx.fillStyle = happy ? "#ffd34d" : "#fff9ec";
+  ctx.strokeStyle = "#2a2238";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, y - size * 0.95, w, size * 1.9, size * 0.9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#2a2238";
+  ctx.fillText(text, x, y + 2);
+  ctx.restore();
 }
 
 /** 지금 옷을 얼마나 폈는지 큰 고리. */

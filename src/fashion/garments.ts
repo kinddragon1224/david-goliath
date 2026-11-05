@@ -472,69 +472,6 @@ const ALL = [SHIRT, DRESS, PANTS, SKIRT, JACKET, TAILORED, SILUA, RESTITCH, ECO,
 /** 위브온 중촌 6팀 시그니처 옷(제품 사진이 있는 것). */
 export const BRANDS = ALL.filter((g) => g.photo);
 
-/** 피날레에 입힐 옷: 완성한 옷 중 마지막 상의(원피스 포함) + 마지막 하의. 하나도 없으면 기본 한 벌. */
-export function pickOutfit(names: string[], fallback: Garment = SHIRT): Garment[] {
-  const made = names.map((n) => ALL.find((g) => g.name === n)).filter((g): g is Garment => !!g);
-  const isBottom = (g: Garment) => g.kind === "bottom" || g === PANTS || g === SKIRT;
-  // 한 벌 옷(드레스·한복)을 하나라도 만들었으면 그게 피날레에 더 화려하다
-  const whole = made.filter((g) => g.kind === "whole").at(-1);
-  if (whole) return [whole];
-  const top = made.filter((g) => !isBottom(g)).at(-1);
-  const bottom = made.filter(isBottom).at(-1);
-  const out = [bottom, top].filter((g): g is Garment => !!g);
-  return out.length ? out : [fallback];
-}
-
-/** 몸에 맞출 때 어깨(하의는 골반) 폭·몸통 길이에 곱하는 수. top은 기준선 위로 올리는 비율.
- *  사진 옷은 폭을 사진 비율로 정하므로 sw는 안 쓰고, top은 사진 속 어깨 높이. */
-const FIT: Record<string, { anchor: "shoulder" | "hip"; sw: number; th: number; top: number }> = {
-  [SHIRT.name]: { anchor: "shoulder", sw: 1.5, th: 1.2, top: 0.08 },
-  [JACKET.name]: { anchor: "shoulder", sw: 1.55, th: 1.25, top: 0.07 },
-  [DRESS.name]: { anchor: "shoulder", sw: 1.9, th: 2.1, top: 0.05 },
-  [PANTS.name]: { anchor: "hip", sw: 2.4, th: 1.7, top: 0.04 },
-  [SKIRT.name]: { anchor: "hip", sw: 3.0, th: 0.95, top: 0.1 },
-  [TAILORED.name]: { anchor: "shoulder", sw: 0, th: 2.9, top: 0.08 },
-  [SILUA.name]: { anchor: "shoulder", sw: 0, th: 2.7, top: 0.09 },
-  [RESTITCH.name]: { anchor: "shoulder", sw: 0, th: 2.8, top: 0.1 },
-  [ECO.name]: { anchor: "shoulder", sw: 0, th: 1.75, top: 0.1 },
-  [SEOLBAEK.name]: { anchor: "shoulder", sw: 0, th: 3.0, top: 0.13 },
-  [LAYOVER.name]: { anchor: "shoulder", sw: 0, th: 2.4, top: 0.06 },
-};
-
-export type Body = { ls: Pt; rs: Pt; lh: Pt; rh: Pt };
-
-/** 옷을 몸 위 어디에 얼마나 크게, 몇 도로 그릴지. 좌표는 몸 좌표 그대로(픽셀). */
-export function fitGarment(
-  g: Garment,
-  b: Body,
-): { cx: number; y: number; w: number; h: number; angle: number } {
-  const f = FIT[g.name] ?? FIT[SHIRT.name];
-  const mid = (p: Pt, q: Pt): Pt => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-  const sm = mid(b.ls, b.rs);
-  const hm = mid(b.lh, b.rh);
-  const torso = Math.max(1, Math.hypot(hm[0] - sm[0], hm[1] - sm[1]));
-  const [p, q] = f.anchor === "shoulder" ? [b.ls, b.rs] : [b.lh, b.rh];
-  // 골반 점은 실제 골반보다 안쪽이라 어깨 폭과 섞어 너무 좁아지지 않게
-  const span =
-    f.anchor === "shoulder"
-      ? Math.hypot(q[0] - p[0], q[1] - p[1])
-      : Math.max(
-          Math.hypot(q[0] - p[0], q[1] - p[1]),
-          Math.hypot(b.rs[0] - b.ls[0], b.rs[1] - b.ls[1]) * 0.55,
-        );
-  const base = f.anchor === "shoulder" ? sm : hm;
-  const h = torso * f.th;
-  // 사진은 찌그러지면 티가 나서 비율을 지킨다
-  const w = g.photo ? h * g.aspect : span * f.sw;
-  return {
-    cx: base[0],
-    y: base[1] - h * f.top,
-    w,
-    h,
-    angle: Math.atan2(q[1] - p[1], q[0] - p[0]),
-  };
-}
-
 export type Placed = { x: number; y: number; w: number; h: number };
 
 /** 화면 상자 안에 옷을 가운데 맞춰 놓는다. */

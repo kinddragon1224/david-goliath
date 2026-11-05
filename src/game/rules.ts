@@ -1,5 +1,5 @@
 import { davidSlingWorld, GOLIATH_LOCAL, type DavidPose } from "./art";
-import { GRAVITY, WORLD_W } from "./constants";
+import { GRAVITY, ROUND_SECONDS, WORLD_W } from "./constants";
 
 export const RULESET_VERSION = 2;
 export const STONE_R = 14;
@@ -34,8 +34,9 @@ export type CombatBand = {
   open: number;
 };
 
-export function combatBand(elapsed: number): CombatBand {
+export function combatBand(seconds: number): CombatBand {
   // 20초 판 기준: 0~5초 보통, 5~13초 어려움, 그 뒤 더 어려움. 막기·피하기가 자주 나와 빗나가는 돌이 생긴다.
+  const elapsed = (seconds * 20) / ROUND_SECONDS;
   if (elapsed < 5)
     return { idle: 0.25, guard: 0.4, dodge: 0.35, tell: 0.45, dodgeDist: 220, open: 0.95 };
   if (elapsed < 13)

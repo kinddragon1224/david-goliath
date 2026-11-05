@@ -34,11 +34,11 @@ import { EDITION } from "./edition";
 import {
   DAVID_SHIFT_MAX,
   DODGE_BONUS,
-  GOLIATH_HP,
+  GOLIATH_HP as BASE_HP,
   KO_HOLD,
   KO_LAND,
   KO_SECONDS,
-  SPEAR_AT,
+  SPEAR_AT as BASE_SPEARS,
   SPEAR_FLIGHT,
   SPEAR_TELL,
   STUN_SECONDS,
@@ -77,6 +77,9 @@ const HOME_SECONDS = 2.5;
 /** 결과 화면을 보여 주는 시간(초). */
 /** 이름을 묻지 않는 판은 점수만 잠깐 보여 주고 대기 화면으로 간다. */
 const RESULT_SECONDS = EDITION.nameTag ? 18 : 6;
+/** 위브온판 골리앗은 판이 길고 튼튼하다. 잘하는 사람이 막판에 겨우 쓰러뜨리는 정도. */
+const GOLIATH_HP = EDITION.id === "weaveon" ? 420 : BASE_HP;
+const SPEAR_AT = EDITION.id === "weaveon" ? [6, 12, 18, 24, 29] : BASE_SPEARS;
 /** 마지막 일격에서 화면을 당기는 정도. */
 const KO_ZOOM = 0.45;
 

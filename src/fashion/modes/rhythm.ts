@@ -370,7 +370,7 @@ export class RhythmMode implements Mode {
       );
     }
 
-    for (const h of hands) drawStick(ctx, h, H, W);
+    for (const h of hands) drawStick(ctx, h, H, W, lineY);
   }
 
   private drawRail(ctx: CanvasRenderingContext2D, now: number, t: number, pump: number): void {
@@ -690,21 +690,30 @@ function drawDrummer(
   });
 }
 
-/** 손 = 북채. 머리 쪽이 줄을 내려친다. */
-function drawStick(ctx: CanvasRenderingContext2D, h: Hand, H: number, W: number): void {
+/** 손 = 북채. 손이 더 내려가도 채는 북 가죽 위에서 멈추고, 북 폭 밖으로 나가지 않는다. */
+function drawStick(
+  ctx: CanvasRenderingContext2D,
+  h: Hand,
+  H: number,
+  W: number,
+  skinY: number,
+): void {
   if (!h.on) return;
   const left = h.x < W / 2;
   const r = H * 0.035;
-  drawHandGlow(ctx, h, r * 2.6, left ? "pink" : "gold");
+  const half = Math.min(W, H) * 0.56 * 0.42;
+  const x = Math.max(W / 2 - half, Math.min(W / 2 + half, h.x));
+  const y = Math.min(h.y, skinY);
+  drawHandGlow(ctx, { ...h, x, y }, r * 2.6, left ? "pink" : "gold");
   ctx.save();
   ctx.globalAlpha = h.ghost ? 0.85 : 1;
   ctx.lineCap = "round";
-  const sx = h.x + (left ? -1 : 1) * r * 2.2;
-  const sy = h.y - r * 2.6;
+  const sx = x + (left ? -1 : 1) * r * 2.2;
+  const sy = y - r * 2.6;
   ctx.strokeStyle = "#65483c";
   ctx.lineWidth = r * 0.7;
   ctx.beginPath();
-  ctx.moveTo(h.x, h.y);
+  ctx.moveTo(x, y);
   ctx.lineTo(sx, sy);
   ctx.stroke();
   ctx.strokeStyle = "#f5ce83";
@@ -714,7 +723,7 @@ function drawStick(ctx: CanvasRenderingContext2D, h: Hand, H: number, W: number)
   ctx.strokeStyle = "#fffdf4";
   ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
