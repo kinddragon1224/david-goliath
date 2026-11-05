@@ -1,4 +1,5 @@
 import { BEAT_BPM } from "./constants";
+import { isTv } from "./kiosk";
 
 type SfxName =
   | "throw"
@@ -41,12 +42,13 @@ export class GameAudio {
       const Ctx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new Ctx({ latencyHint: "interactive" });
+      // TV 오디오는 저지연 경로가 없는 기종이 있다
+      this.ctx = new Ctx({ latencyHint: isTv() ? "playback" : "interactive" });
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
   };
 
   setMuted(next: boolean): void {

@@ -4,6 +4,9 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.Gravity;
@@ -53,6 +56,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        prepareSound();
 
         loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -73,6 +77,22 @@ public class MainActivity extends Activity {
         // 처음 켤 때 카메라 권한을 먼저 묻는다(리모컨으로 '허용')
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) askCamera();
         web.loadUrl(START_URL);
+    }
+
+    /** 리모컨 음량이 게임 소리에 먹게 하고, 소리 권한(오디오 포커스)을 잡는다. 음량이 0이면 알려 준다. */
+    private void prepareSound() {
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audio == null) return;
+        audio.requestAudioFocus(new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build())
+                .build());
+        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) {
+            Toast.makeText(this, "TV 음량이 0이에요. 리모컨으로 올려 주세요", Toast.LENGTH_LONG).show();
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

@@ -6,6 +6,7 @@ type Bridge = {
   open(id: string): void;
   close(): void;
   state(): string;
+  toast(text: string): void;
 };
 
 const PREFIX = "uvc:";
@@ -18,6 +19,11 @@ const LOST_MS = 5000;
 function bridge(): Bridge | null {
   if (typeof window === "undefined") return null;
   return (window as unknown as { UvcBridge?: Bridge }).UvcBridge ?? null;
+}
+
+/** TV 앱 화면에 짧은 알림. 현장엔 로그를 볼 방법이 없다. */
+export function tvToast(text: string): void {
+  bridge()?.toast(text);
 }
 
 export function isUvcId(id: string | null): boolean {

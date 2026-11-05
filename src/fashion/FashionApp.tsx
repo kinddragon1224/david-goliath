@@ -26,6 +26,7 @@ import { BRANDS, fitGarment, garmentByName, type Body, type Garment, type Pt } f
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
 import { setMenuHands } from "@/app/HandCursor";
+import { keepAudioAwake } from "@/game/tvAudio";
 import { StationMenu } from "./StationMenu";
 import { IronMode } from "./modes/iron";
 import { ScissorsMode } from "./modes/scissors";
@@ -276,8 +277,10 @@ export function FashionApp({ station }: { station: FashionStation }) {
     const wake = () => sound.unlock();
     window.addEventListener("pointerdown", wake, { capture: true });
     window.addEventListener("keydown", wake, { capture: true });
+    const stopAwake = keepAudioAwake(sound.unlock, () => sound.ctx?.state ?? "none");
 
     return () => {
+      stopAwake();
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       canvas.removeEventListener("pointerdown", onDown);

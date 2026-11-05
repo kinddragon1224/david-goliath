@@ -113,6 +113,11 @@ public class UvcCamera implements ICameraHelper.StateCallback {
     }
 
     @JavascriptInterface
+    public void toast(String text) {
+        tell(text);
+    }
+
+    @JavascriptInterface
     public void open(String id) {
         activity.runOnUiThread(() -> {
             wanted = true;

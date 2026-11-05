@@ -11,6 +11,7 @@ import { VERSES } from "./verses";
 import { isKiosk, isTv, setupKiosk } from "./kiosk";
 import { EDITION_ID } from "./edition";
 import { setMenuHands } from "@/app/HandCursor";
+import { keepAudioAwake } from "./tvAudio";
 import { StationMenu } from "@/fashion/StationMenu";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
@@ -213,8 +214,10 @@ export function GameApp() {
     };
     window.addEventListener("pointerdown", wake, { capture: true });
     window.addEventListener("keydown", wake, { capture: true });
+    const stopAwake = keepAudioAwake(audio.unlock, () => audio.state);
 
     return () => {
+      stopAwake();
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onDown);

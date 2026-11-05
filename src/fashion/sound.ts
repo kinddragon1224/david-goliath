@@ -1,3 +1,5 @@
+import { isTv } from "@/game/kiosk";
+
 /** 패션 체험 효과음과 음악. 몽글 드럼 곡만 파일이고 나머지는 Web Audio로 만든다(오프라인·TV 대응). */
 
 export type Sfx =
@@ -69,7 +71,8 @@ export class FashionSound {
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
-      this.ctx = new Ctx({ latencyHint: "interactive" });
+      // TV 오디오는 저지연 경로가 없는 기종이 있다. 리듬 판정은 latency()로 지연을 빼 준다
+      this.ctx = new Ctx({ latencyHint: isTv() ? "playback" : "interactive" });
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
@@ -79,7 +82,7 @@ export class FashionSound {
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       this.loadVoices();
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
   };
 
   /** MC 음성을 미리 받아 풀어 둔다. 없는 파일은 조용히 건너뛴다. */
