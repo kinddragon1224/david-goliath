@@ -1,3 +1,4 @@
+import { EDITION } from "./edition";
 import { isTv, preferredCameraId } from "./kiosk";
 import { reachHands, type ReachHand } from "./reach";
 import { isUvcId, openUvc, tvToast, uvcCanvas, uvcDevices } from "./uvc";
@@ -169,7 +170,8 @@ export class PoseController {
       minPosePresenceConfidence: 0.4,
       minTrackingConfidence: 0.4,
     };
-    if (isTv() && (await this.startWorker(opts))) {
+    // 위브온판은 PC도 작업자에서: 화면 줄에서 돌면 인식할 때마다 음표가 멈칫한다
+    if ((isTv() || EDITION.id === "weaveon") && (await this.startWorker(opts))) {
       this.poseReady = true;
       this.modelError = null;
       return;
@@ -390,7 +392,7 @@ export class PoseController {
     const vw = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
     const vh = src instanceof HTMLVideoElement ? src.videoHeight : src.height;
     if (vw < 2 || vh < 2) return null;
-    const k = Math.min(1, TV_INFER_LONG / Math.max(vw, vh));
+    const k = Math.min(1, (isTv() ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
     const w = Math.round(vw * k);
     const h = Math.round(vh * k);
     if (!this.tvCanvas || this.tvCanvas.width !== w || this.tvCanvas.height !== h) {

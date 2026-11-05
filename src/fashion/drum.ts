@@ -21,6 +21,14 @@ export function chart(lastBeat: number): { beat: number; lane: Lane; both?: bool
   return out;
 }
 
+/** 화면용 시계. 오디오 시계는 약 10ms씩 계단으로 가서 그대로 그리면 음표가 떨린다.
+ * 프레임 시간으로 흐르다 오디오 쪽으로 조금씩 당기고, 크게 어긋나면 바로 맞춘다. 판정은 오디오 시계 그대로. */
+export function smoothClock(view: number, audio: number, dt: number): number {
+  const next = view + dt;
+  const gap = audio - next;
+  return Math.abs(gap) > 0.12 ? audio : next + gap * Math.min(1, dt * 3);
+}
+
 type Track = { y: number; time: number; armed: boolean; lastHit: number };
 
 /** 내려치기 찾기: 손을 줄 위로 올렸다가, 충분히 빠르게 줄을 지나 내려오면 한 번. 좌표는 0~1. */

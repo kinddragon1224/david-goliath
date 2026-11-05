@@ -11,7 +11,21 @@ import {
   resample,
   toWorld,
 } from "./garments.ts";
-import { chart, StrikeDetector } from "./drum.ts";
+import { chart, smoothClock, StrikeDetector } from "./drum.ts";
+
+test("화면 시계: 오디오 시계의 10ms 계단을 펴고, 크게 어긋나면 바로 맞춘다", () => {
+  const dt = 1 / 60;
+  let view = 5;
+  let prev = view;
+  for (let i = 1; i <= 600; i++) {
+    const audio = 5 + Math.floor((i * dt) / 0.01) * 0.01;
+    view = smoothClock(view, audio, dt);
+    assert.ok(Math.abs(view - prev - dt) < 0.001, `frame ${i} step ${view - prev}`);
+    assert.ok(Math.abs(view - audio) < 0.02);
+    prev = view;
+  }
+  assert.equal(smoothClock(0, 9, dt), 9);
+});
 
 test("몽글 드럼 채보: 박 순서대로, 두 손 다 쓰고, 반 박 연타가 낀다", () => {
   const c = chart(54);

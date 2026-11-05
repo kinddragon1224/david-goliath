@@ -1,6 +1,6 @@
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 
-/** TV 전용: 손 인식을 화면 그리기와 따로 돌린다. 약한 칩에서 인식이 화면을 멈추지 않게. */
+/** TV와 위브온판 PC: 손 인식을 화면 그리기와 따로 돌린다. 인식이 화면을 멈추지 않게. */
 type Init = { type: "init"; opts: Parameters<typeof PoseLandmarker.createFromOptions>[1] };
 type Frame = { type: "frame"; bitmap: ImageBitmap; ts: number; at: number; aspect: number };
 

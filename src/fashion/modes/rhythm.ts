@@ -1,4 +1,4 @@
-import { chart, StrikeDetector, type Lane } from "../drum";
+import { chart, smoothClock, StrikeDetector, type Lane } from "../drum";
 import {
   artImage,
   drawArt,
@@ -81,6 +81,8 @@ export class RhythmMode implements Mode {
   private t0 = 0;
   private started = false;
   private now = 0;
+  /** 그리기용 시계(smoothClock). 판정은 now. */
+  private view = 0;
   private perfect = 0;
   private good = 0;
   private miss = 0;
@@ -167,6 +169,7 @@ export class RhythmMode implements Mode {
     // 귀에 들리는 시각으로 판정한다(오디오 시계는 스피커보다 앞서 간다)
     this.now = this.started ? fx.sound.now() - fx.sound.latency() : t;
     const now = this.now;
+    this.view = this.started ? smoothClock(this.view, now, dt) : now;
     if (!this.rollOn && this.rolling(now)) {
       this.rollOn = true;
       fx.stamp("마음껏 두드려요!", this.W / 2, this.H * 0.44, "gold");
@@ -293,7 +296,7 @@ export class RhythmMode implements Mode {
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], _phase: Phase): void {
     const W = this.W;
     const H = this.H;
-    const now = this.now || t;
+    const now = this.view || t;
     const beatPhase = this.started ? ((((now - this.t0) / BEAT) % 1) + 1) % 1 : (t / 0.8) % 1;
     const pump = Math.pow(1 - beatPhase, 3);
     const lineY = H * LINE;
