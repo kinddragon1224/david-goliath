@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { HandCursor } from "@/app/HandCursor";
+import { RemoteFocus } from "@/app/RemoteFocus";
 import { PRODUCER } from "@/game/constants";
 import { GameApp } from "@/game/GameApp";
 import { EDITION_ID } from "@/game/edition";
@@ -28,6 +29,7 @@ export function Root() {
       )}
       <ProducerMark />
       <HandCursor />
+      <RemoteFocus />
     </>
   );
 }
