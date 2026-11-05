@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView web;
     private WebViewAssetLoader loader;
+    private UvcCamera uvc;
     private PermissionRequest pendingWebPermission;
     private long lastBackAt;
     private boolean askingCamera;
@@ -58,6 +59,7 @@ public class MainActivity extends Activity {
                 .build();
 
         rotation = getPreferences(MODE_PRIVATE).getInt(PREF_ROTATION, 0);
+        uvc = new UvcCamera(this);
         web = buildWebView();
         root = new FrameLayout(this);
         root.addView(web, new FrameLayout.LayoutParams(
@@ -93,10 +95,12 @@ public class MainActivity extends Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
+        w.addJavascriptInterface(uvc, "UvcBridge");
 
         w.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                if (UvcCamera.FRAME_PATH.equals(request.getUrl().getPath())) return uvc.frameResponse();
                 WebResourceResponse res = loader.shouldInterceptRequest(request.getUrl());
                 if (res != null) {
                     String path = request.getUrl().getPath();
@@ -252,6 +256,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        uvc.release();
         if (web != null) {
             web.stopLoading();
             web.destroy();

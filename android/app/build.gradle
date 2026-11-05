@@ -53,4 +53,6 @@ android {
 
 dependencies {
     implementation "androidx.webkit:webkit:1.12.1"
+    // 안드로이드 카메라로 안 잡히는 USB 웹캠을 직접 읽는다
+    implementation "com.herohan:UVCAndroid:1.0.13"
 }

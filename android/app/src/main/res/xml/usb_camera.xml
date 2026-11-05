@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB 웹캠을 꽂으면 이 앱을 고를 수 있게 한다. "항상"을 고르면 켤 때마다 묻지 않는다. -->
+<resources>
+    <usb-device class="239" subclass="2" />
+    <usb-device class="14" />
+</resources>

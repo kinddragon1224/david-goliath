@@ -10,7 +10,8 @@ import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
 import { isKiosk, isTv, setupKiosk } from "./kiosk";
 import { EDITION_ID } from "./edition";
-import { StationMenu, setMenuHands } from "@/fashion/StationMenu";
+import { setMenuHands } from "@/app/HandCursor";
+import { StationMenu } from "@/fashion/StationMenu";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
   if (!g) return;
@@ -138,13 +139,16 @@ export function GameApp() {
       if (pose.takeDisconnect()) {
         game.setReadiness("off", null, "off", null);
       }
+      setMenuHands([]);
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
         if (pose.poseReady) game.notePose(frame);
-        // 위브온: '다른 체험' 탭을 손으로 고르게 손 위치(게임 칸 기준)를 넘긴다
+        // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
         const wr = wrap.getBoundingClientRect();
+        const waiting =
+          game.phase === "attract" || game.phase === "start" || game.phase === "result";
         setMenuHands(
-          pose.poseReady
+          pose.poseReady && waiting && !frame.handsUp
             ? frame.reach.flatMap((h) =>
                 h ? [{ x: wr.left + h.x * wr.width, y: wr.top + h.y * wr.height }] : [],
               )

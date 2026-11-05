@@ -1,3 +1,5 @@
+import { uvcDevices } from "./uvc";
+
 /** 무인 키오스크 운영용 도우미. 주소에 ?kiosk=1 이 있으면 켜진다(오프라인 설치판의 start.bat이 붙인다). */
 
 export const CAMERA_KEY = "david-goliath-camera-id";
@@ -34,11 +36,14 @@ export function setPreferredCamera(id: string | null): void {
 export async function listCameras(): Promise<{ id: string; label: string }[]> {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices
-      .filter((d) => d.kind === "videoinput")
-      .map((d, i) => ({ id: d.deviceId, label: d.label || `카메라 ${i + 1}` }));
+    return [
+      ...devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d, i) => ({ id: d.deviceId, label: d.label || `카메라 ${i + 1}` })),
+      ...uvcDevices(),
+    ];
   } catch {
-    return [];
+    return uvcDevices();
   }
 }
 

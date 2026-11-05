@@ -25,7 +25,8 @@ import {
 import { BRANDS, fitGarment, garmentByName, type Body, type Garment, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
-import { StationMenu, setMenuHands } from "./StationMenu";
+import { setMenuHands } from "@/app/HandCursor";
+import { StationMenu } from "./StationMenu";
 import { IronMode } from "./modes/iron";
 import { ScissorsMode } from "./modes/scissors";
 import { SewingMode } from "./modes/sewing";
@@ -207,10 +208,14 @@ export function FashionApp({ station }: { station: FashionStation }) {
       game.update(now);
       const L = layoutRef.current;
       const hk = L.stage.w / STAGE_W;
+      // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
+      const pointing = (game.phase === "attract" || game.phase === "result") && !frame?.handsUp;
       setMenuHands(
-        game.hands
-          .filter((h) => h.on && !h.ghost)
-          .map((h) => ({ x: L.stage.x + h.x * hk, y: L.stage.y + h.y * hk })),
+        pointing
+          ? game.hands
+              .filter((h) => h.on && !h.ghost)
+              .map((h) => ({ x: L.stage.x + h.x * hk, y: L.stage.y + h.y * hk }))
+          : [],
       );
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawBackdrop(ctx, window.innerWidth, window.innerHeight, now / 1000);

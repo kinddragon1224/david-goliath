@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HandCursor } from "@/app/HandCursor";
 import { PRODUCER } from "@/game/constants";
 import { GameApp } from "@/game/GameApp";
 import { EDITION_ID } from "@/game/edition";
@@ -26,6 +27,7 @@ export function Root() {
         <FashionApp station={station} />
       )}
       <ProducerMark />
+      <HandCursor />
     </>
   );
 }

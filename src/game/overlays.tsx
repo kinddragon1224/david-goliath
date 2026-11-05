@@ -119,6 +119,7 @@ export function Overlays({
     <div className="pointer-events-none absolute inset-0 flex flex-col text-fg">
       <button
         type="button"
+        data-no-hand
         onClick={onMute}
         className={`t-btn pointer-events-auto absolute top-3 right-3 z-20 flex size-12 items-center justify-center ${ui.sound === "blocked" && !ui.muted ? "animate-throb bg-don text-cream" : "bg-cream text-ink"}`}
         aria-label={

@@ -1,5 +1,6 @@
 import { isTv, preferredCameraId } from "./kiosk";
 import { reachHands, type ReachHand } from "./reach";
+import { isUvcId, openUvc, uvcDevices } from "./uvc";
 import {
   MotionTracker,
   pickPlayer,
@@ -182,6 +183,23 @@ export class PoseController {
     video.playsInline = true;
 
     const chosen = preferredCameraId();
+    const useStream = async (stream: MediaStream) => {
+      this.stream = stream;
+      video.srcObject = stream;
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          this.disconnected = true;
+        };
+      });
+      await playVideo(video);
+    };
+    // TV가 안드로이드 카메라로 못 잡는 웹캠은 USB로 직접 읽는다
+    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+    const noNative = !devices.some((d) => d.kind === "videoinput");
+    if ((isUvcId(chosen) || noNative) && uvcDevices().length) {
+      await useStream(await openUvc(chosen));
+      return;
+    }
     const tries: MediaStreamConstraints[] = [
       ...(chosen
         ? [{ audio: false, video: { deviceId: { exact: chosen }, ...CAMERA_SHAPE } }]
@@ -197,15 +215,9 @@ export class PoseController {
     let lastErr: unknown = null;
     for (const constraints of tries) {
       try {
-        const stream = await withTimeout(navigator.mediaDevices.getUserMedia(constraints), 12000);
-        this.stream = stream;
-        video.srcObject = stream;
-        stream.getVideoTracks().forEach((track) => {
-          track.onended = () => {
-            this.disconnected = true;
-          };
-        });
-        await playVideo(video);
+        await useStream(
+          await withTimeout(navigator.mediaDevices.getUserMedia(constraints), 12000),
+        );
         return;
       } catch (err) {
         lastErr = err;
@@ -218,6 +230,10 @@ export class PoseController {
           throw err;
         }
       }
+    }
+    if (uvcDevices().length) {
+      await useStream(await openUvc(chosen));
+      return;
     }
     throw lastErr ?? Object.assign(new Error("camera"), { name: "NotFoundError" });
   }
