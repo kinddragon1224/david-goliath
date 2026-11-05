@@ -42,7 +42,7 @@ export const EDITION: Edition =
   EDITION_ID === "weaveon"
     ? {
         id: "weaveon",
-        appName: "다윗과 골리앗 · 위브온페스티벌",
+        appName: "중촌",
         venueName: "위브온페스티벌",
         venueLogo: null,
         showVerses: false,

@@ -20,7 +20,7 @@ const editionArg = process.argv.find((a) => a.startsWith("--edition="))?.split("
 const EDITIONS = {
   church: { title: "다윗과 골리앗 · 모두애침례교회", assets: ["logo-alllove.jpg"] },
   general: { title: "다윗과 골리앗 · 모션 돌 던지기", assets: [] },
-  weaveon: { title: "다윗과 골리앗 · 위브온페스티벌", assets: [] },
+  weaveon: { title: "중촌", assets: [] },
 };
 const edition = EDITIONS[editionArg];
 if (!edition) throw new Error(`알 수 없는 판: ${editionArg} (church | general | weaveon)`);

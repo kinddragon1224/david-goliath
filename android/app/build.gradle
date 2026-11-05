@@ -17,7 +17,7 @@ android {
         targetSdk 35
         versionCode appVersionCode
         versionName appVersionName
-        resValue "string", "app_name", edition == "church" ? "다윗과 골리앗 · 교회" : "다윗과 골리앗"
+        resValue "string", "app_name", edition == "church" ? "다윗과 골리앗 · 교회" : edition == "weaveon" ? "중촌" : "다윗과 골리앗"
     }
 
     // 사이드로드 전용 고정 키. 업데이트 설치 때 기존 앱(점수 기록)을 그대로 이어 쓰려면 키가 매번 같아야 한다.
