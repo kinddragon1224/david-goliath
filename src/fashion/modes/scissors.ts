@@ -10,7 +10,6 @@ import {
   type Fx,
   type Hand,
   type Item,
-  type Level,
   type Meter,
   type Mode,
   type Phase,
@@ -40,15 +39,15 @@ import {
 const ORDER: Garment[] = [RESTITCH, TAILORED, SEOLBAEK, ECO, LAYOVER, SILUA];
 const PRINTS = ["dots", "stripes", "check", "dots", "stripes"] as const;
 const PIECE_BONUS = 600;
-/** 선 허용 폭(화면 짧은 쪽 비율). 하드는 옷마다 조금씩 더 좁아진다. */
-const TOL = [0.085, 0.07, 0.06];
-/** 노멀·하드: 가위 자리 가까이서 선을 벗어나면 원단에 흠집 + 감점. */
-const NICK_PENALTY = [0, 80, 150];
+/** 선 허용 폭(화면 짧은 쪽 비율). */
+const TOL = 0.07;
+/** 가위 자리 가까이서 선을 벗어나면 원단에 흠집 + 감점. */
+const NICK_PENALTY = 80;
 const NICK_GAP = 0.5;
 /** 선에서 이만큼(허용 폭 배수) 벗어나야 흠집. 웹캠 손 떨림은 봐준다. */
 const NICK_AT = 1.25;
 /** 흠집 내면 가위가 잠깐 걸려 못 자른다(대충 빨리 휘두르는 게 손해가 되게). */
-const JAM = [0, 0.3, 0.4];
+const JAM = 0.3;
 /** 싹둑 사이가 이만큼(초) 벌어지면 연속 컷이 끊긴다. */
 const CHAIN_GAP = 0.7;
 /** 이어 자를 때 올라가는 음(반음). 어떤 순서로 들려도 어울리는 5음계. */
@@ -58,14 +57,8 @@ export class ScissorsMode implements Mode {
   seconds = 40;
   hint = "두 손이 가위! 빛나는 점 두 곳에서 양쪽으로 오려요";
   tip = "두 손을 빛나는 점에 대고, 화살표 쪽으로 천천히!";
-  // 봇 기준. 이지: 양손 깔끔 20~34k, 한 손 12~21k, 대충 10~15k
-  // 노멀: 양손 깔끔 31k, 손 떨림 27k, 한 손 16k, 선 밖으로 휘두르기 16~17k / 하드: 29k, 25k, 16k, 2.5~5.5k
-  grades: [number, number, number][] = [
-    [16000, 8000, 3500],
-    [15000, 7500, 3000],
-    [13000, 6500, 2500],
-  ];
-  level: Level = 1;
+  // 봇 기준: 양손 깔끔 31k, 손 떨림 27k, 한 손 16k, 선 밖으로 휘두르기 16~17k
+  grades: [number, number, number] = [15000, 7500, 3000];
   music = "lofi" as const;
   private nicks: { x: number; y: number; a: number }[] = [];
   private nickT = 0;
@@ -129,7 +122,7 @@ export class ScissorsMode implements Mode {
     this.bits = [];
     this.chain = 0;
     this.sparks = [];
-    this.tol = Math.min(W, H) * TOL[this.level];
+    this.tol = Math.min(W, H) * TOL;
     this.step = Math.min(W, H) * 0.014;
     this.fabric = { x: W * 0.17, y: H * 0.07, w: W * 0.66, h: H * 0.86 };
     this.load();
@@ -138,9 +131,6 @@ export class ScissorsMode implements Mode {
   private load(): void {
     this.garment = ORDER[this.gi % ORDER.length];
     this.nicks = [];
-    // 하드: 옷마다 4%씩 좁아진다(최대 5벌째까지)
-    if (this.level === 2)
-      this.tol = Math.min(this.W, this.H) * TOL[2] * (1 - Math.min(4, this.gi) * 0.04);
     const p = place(this.garment, this.W / 2, this.H * 0.5, this.W * 0.5, this.H * 0.7);
     this.box = p;
     this.pts = toWorld(this.garment, p);
@@ -217,13 +207,13 @@ export class ScissorsMode implements Mode {
       if (near && minD > this.tol * NICK_AT && h.speed > this.W * 0.1 && t - this.cutAt[hi] < 0.5)
         stray.push({ h, d: minD });
     });
-    // 노멀·하드: 선을 벗어나 가위질하면 흠집
+    // 선을 벗어나 가위질하면 흠집
     this.nickT = Math.max(0, this.nickT - dt);
-    if (NICK_PENALTY[this.level] && stray.length && this.nickT <= 0) {
+    if (stray.length && this.nickT <= 0) {
       const { h } = stray[0];
-      const pen = NICK_PENALTY[this.level];
+      const pen = NICK_PENALTY;
       this.nickT = NICK_GAP;
-      this.jamT = JAM[this.level];
+      this.jamT = JAM;
       this.nickCount++;
       this.chain = 0;
       this.pieceOff += 0.4;
@@ -586,7 +576,7 @@ export class ScissorsMode implements Mode {
       { label: "완성한 옷본", value: `${this.finished.length}개` },
       { label: "선 따라가기", value: `${Math.min(100, acc)}%` },
       { label: "마지막 옷본", value: `${this.pct()}%` },
-      ...(NICK_PENALTY[this.level] ? [{ label: "흠집", value: `${this.nickCount}개` }] : []),
+      { label: "흠집", value: `${this.nickCount}개` },
     ];
   }
 

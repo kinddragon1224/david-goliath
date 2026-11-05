@@ -20,15 +20,14 @@ import {
 } from "./garments.ts";
 import { chart, StrikeDetector } from "./drum.ts";
 
-test("몽글 드럼 채보: 박 순서대로, 두 손 다 쓰고, 어려울수록 빽빽하다", () => {
-  const [easy, normal, hard] = ([0, 1, 2] as const).map((l) => chart(54, l));
-  assert.ok(easy.length < normal.length && normal.length < hard.length);
-  assert.deepEqual(new Set(easy.map((n) => n.lane)), new Set([0, 1]));
-  for (const c of [easy, normal, hard])
-    c.forEach((n, i) => assert.ok(i === 0 || c[i - 1].beat <= n.beat));
-  assert.equal(easy[0].beat, 4);
+test("몽글 드럼 채보: 박 순서대로, 두 손 다 쓰고, 반 박 연타가 낀다", () => {
+  const c = chart(54);
+  assert.ok(c.some((n) => n.beat % 1 === 0.5));
+  assert.deepEqual(new Set(c.map((n) => n.lane)), new Set([0, 1]));
+  c.forEach((n, i) => assert.ok(i === 0 || c[i - 1].beat <= n.beat));
+  assert.equal(c[0].beat, 4);
   assert.deepEqual(
-    easy.filter((n) => n.both).map((n) => [n.beat, n.lane]),
+    c.filter((n) => n.both).map((n) => [n.beat, n.lane]),
     [[15, 0], [15, 1], [31, 0], [31, 1], [47, 0], [47, 1]],
   );
 });

@@ -16,13 +16,9 @@ import {
   FashionGame,
   GRADE_LINES,
   GRADE_NAMES,
-  LEVEL_BOXES,
-  LEVEL_LINES,
-  LEVEL_NAMES,
   STAGE_W,
   type FashionUi,
   type Item,
-  type Level,
   type Mode,
   type QueueItem,
 } from "./core";
@@ -98,8 +94,6 @@ const initialUi: FashionUi = {
   toTop: 0,
   toGrade: 0,
   homeProgress: 0,
-  level: 1,
-  levelHover: null,
   finale: null,
 };
 
@@ -447,7 +441,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
             ready={ready}
             compact={!layout.landscape}
             onStart={() => g()?.pressStart()}
-            onLevel={(l) => g()?.setLevel(l)}
           />
         )}
         {ui.phase === "countdown" && (
@@ -966,7 +959,7 @@ function MeterCard({
       )}
       {best > 0 && (
         <div className="rounded-2xl border border-white/15 px-4 py-2">
-          <p className="text-xs text-[var(--f-muted)]">오늘 1등 점수 · {LEVEL_NAMES[ui.level]}</p>
+          <p className="text-xs text-[var(--f-muted)]">오늘 1등 점수</p>
           <p className="f-serif text-2xl tabular-nums">
             {best.toLocaleString("ko-KR")}
             {ui.score > best && (
@@ -991,7 +984,7 @@ function Ranking({
   return (
     <div className={`f-card h-full ${compact ? "p-3" : "p-5"}`}>
       <div className="flex items-baseline justify-between">
-        <h2 className="f-serif text-2xl">오늘의 디자이너 · {LEVEL_NAMES[ui.level]}</h2>
+        <h2 className="f-serif text-2xl">오늘의 디자이너</h2>
         <span className="text-sm text-[var(--f-muted)]">{ui.todayCount}명</span>
       </div>
       <ol className="mt-3 space-y-1.5">
@@ -1063,7 +1056,7 @@ function AttractSide({
       {!compact && (
         <div className="mt-auto border-t border-white/15 pt-3">
           <div className="flex items-baseline justify-between">
-            <p className="f-serif text-lg">오늘의 디자이너 · {LEVEL_NAMES[ui.level]}</p>
+            <p className="f-serif text-lg">오늘의 디자이너</p>
             <span className="text-sm text-[var(--f-muted)]">{ui.todayCount}명</span>
           </div>
           {ui.todayTop.length === 0 && (
@@ -1093,14 +1086,12 @@ function AttractOverlay({
   ready,
   compact,
   onStart,
-  onLevel,
 }: {
   station: FashionStation;
   ui: FashionUi;
   ready: boolean;
   compact: boolean;
   onStart: () => void;
-  onLevel: (l: Level) => void;
 }) {
   const info = stationInfo(station);
   // 지나가는 사람을 끌어당기는 문구: 3.5초마다 바뀐다
@@ -1167,7 +1158,7 @@ function AttractOverlay({
           창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
         </p>
       </div>
-      {/* 세로 화면: 난이도 버튼을 가리지 않게 글자를 줄여 제목 바로 아래에 둔다 */}
+      {/* 세로 화면: 글자를 줄여 제목 바로 아래에 둔다 */}
       <div
         key={ti}
         className={`f-card animate-pop relative py-3 ${compact ? "px-5" : "px-8"} ${fade}`}
@@ -1195,46 +1186,6 @@ function AttractOverlay({
           </div>
         )}
       </div>
-      {/* 현장엔 마우스·키보드가 없다: 손을 버튼에 1초 대거나 터치로 고른다(자리는 core LEVEL_BOXES) */}
-      <p
-        className={`f-serif absolute inset-x-0 text-center text-xl text-[var(--f-ink)] [text-shadow:0_2px_8px_#000] ${fade}`}
-        style={{ top: `calc(${LEVEL_BOXES[0].y * 100}% - 2.2rem)` }}
-      >
-        난이도 · 버튼에 손을 1초 대거나 터치하세요
-      </p>
-      {LEVEL_BOXES.map((b, i) => {
-        const on = ui.level === i;
-        const k = ui.levelHover?.i === i ? ui.levelHover.k : 0;
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onLevel(i as Level)}
-            className={`pointer-events-auto absolute overflow-hidden rounded-3xl border-[0.2rem] text-center ${fade} ${
-              on
-                ? "scale-105 border-[var(--f-gold)] bg-[#0a0d14]/90 shadow-[0_0_2rem_rgba(159,243,255,0.55)]"
-                : "border-white/30 bg-[#0a0d14]/70"
-            }`}
-            style={{
-              left: `${b.x * 100}%`,
-              top: `${b.y * 100}%`,
-              width: `${b.w * 100}%`,
-              height: `${b.h * 100}%`,
-            }}
-          >
-            <span
-              className="absolute inset-y-0 left-0 bg-[var(--f-gold)]/30"
-              style={{ width: `${k * 100}%` }}
-            />
-            <span className={`f-serif relative block text-4xl leading-none ${on ? "f-pearl" : ""}`}>
-              {LEVEL_NAMES[i]}
-            </span>
-            <span className="relative mt-1 block text-sm text-[var(--f-muted)]">
-              {LEVEL_LINES[i]}
-            </span>
-          </button>
-        );
-      })}
       <div className={`relative w-full max-w-[56rem] ${compact ? "mt-auto" : ""}`}>
         <div className="flex items-center gap-4">
           <HandsUpFigure />

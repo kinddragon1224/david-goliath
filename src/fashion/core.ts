@@ -26,20 +26,6 @@ export const STAGE_W = 1400;
 
 export type Tone = "gold" | "pink" | "mint" | "white";
 
-/** 난이도: 0 이지, 1 노멀, 2 하드. */
-export type Level = 0 | 1 | 2;
-export const LEVEL_NAMES = ["이지", "노멀", "하드"] as const;
-export const LEVEL_LINES = ["누구나 성공!", "실수하면 감점", "판정이 빡빡해요"] as const;
-/** 대기 화면 난이도 버튼 자리(무대 0~1 좌표). 손을 올려 두면 고른다. */
-export const LEVEL_BOXES = [0.28, 0.5, 0.72].map((cx) => ({
-  x: cx - 0.095,
-  y: 0.66,
-  w: 0.19,
-  h: 0.13,
-}));
-/** 가슴 높이라 옷매무새 고치다 잘못 골리지 않게 1초. */
-const LEVEL_HOLD = 1.0;
-
 export interface Fx {
   score(points: number, x: number, y: number, label?: string, tone?: Tone): void;
   /** 큰 판정 도장(퍼펙트·놓침 같은 한 마디). */
@@ -86,10 +72,8 @@ export interface Mode {
   hint: string;
   /** 카운트다운 동안 보여 줄 요령. */
   tip: string;
-  /** 난이도별 등급 기준 점수 [수석 디자이너, 디자이너, 어시스턴트]. */
-  grades: [number, number, number][];
-  /** 지금 난이도. 판마다 reset 전에 게임이 넣어 준다. */
-  level: Level;
+  /** 등급 기준 점수 [수석 디자이너, 디자이너, 어시스턴트]. */
+  grades: [number, number, number];
   /** 판 동안 깔리는 잔잔한 음악. 리듬은 자체 음악. */
   music: "lofi" | null;
   /** 막판 점수 2배가 시작되는 남은 시간(초). 없으면 10초. */
@@ -154,9 +138,6 @@ export type FashionUi = {
   toTop: number;
   toGrade: number;
   homeProgress: number;
-  level: Level;
-  /** 대기 화면에서 손이 올라가 있는 난이도 버튼과 채워진 정도. */
-  levelHover: { i: number; k: number } | null;
   /** 피팅 피날레: 3·2·1 숫자(0이면 안 셈), 찰칵 했는지, 입힌 옷 이름. */
   finale: { count: number; shot: boolean; outfit: string[] } | null;
 };
@@ -284,13 +265,9 @@ export class FashionGame implements Fx {
   private homeArmed = false;
   private needRelease = false;
   homeProgress = 0;
-  /** 걸어온 사람은 노멀로 시작한다. */
-  level: Level = 1;
-  private levelHover: { i: number; k: number } | null = null;
   private trauma = 0;
   private stopT = 0;
   private flashA = 0;
-  private awayT = 0;
   /** 판정 도장이 찍힐 때 화면이 살짝 다가온다. */
   private zoom = 0;
   /** 막판 2배로 더 얻은 점수. 등급은 이걸 빼고 매겨서 체험별 등급 기준을 그대로 쓴다. */
@@ -302,19 +279,6 @@ export class FashionGame implements Fx {
 
   private get rush(): boolean {
     return this.phase === "play" && this.timeLeft <= (this.mode.rushAt ?? RUSH_SECONDS);
-  }
-
-  setLevel(level: Level): void {
-    if (this.level === level) return;
-    this.level = level;
-    this.awayT = 0;
-    this.rows = this.load();
-    this.sound.play("tick");
-    if (this.phase === "attract") {
-      this.mode.level = level;
-      this.mode.reset(this.W, this.H);
-    }
-    this.emit(true);
   }
 
   /** 처음 화면으로(버튼·모션 공통). 이번 판은 기록하지 않는다. */
@@ -355,14 +319,13 @@ export class FashionGame implements Fx {
   ) {
     // 옷 사진은 미리 불러 둔다(처음 나올 때 색 천으로 깜빡이지 않게)
     BRANDS.forEach(garmentPhoto);
-    mode.level = this.level;
     this.rows = this.load();
     this.timeLeft = mode.seconds;
   }
 
   private get key(): string {
-    // 이지는 예전(난이도 생기기 전) 기록을 그대로 잇는다
-    return `weaveon-${this.station}-scores-v1${this.level ? `-l${this.level}` : ""}`;
+    // 끝의 -l1은 난이도가 있던 때의 노멀 기록. 그 기록을 그대로 잇는다
+    return `weaveon-${this.station}-scores-v1-l1`;
   }
 
   private load(): ScoreRow[] {
@@ -420,13 +383,6 @@ export class FashionGame implements Fx {
     this.sound.stopMusic();
     this.phase = "attract";
     this.handsUpT = 0;
-    this.levelHover = null;
-    // 아무도 없으면 다음 사람은 노멀부터
-    if (!this.present && this.level !== 1) {
-      this.level = 1;
-      this.rows = this.load();
-    }
-    this.mode.level = this.level;
     this.mode.reset(this.W, this.H);
     this.emit(true);
   }
@@ -451,7 +407,6 @@ export class FashionGame implements Fx {
     this.handsUpT = 0;
     this.trauma = 0;
     this.stopT = 0;
-    this.mode.level = this.level;
     this.mode.reset(this.W, this.H);
     this.timeLeft = this.mode.seconds;
     this.lastSecond = 99;
@@ -488,7 +443,7 @@ export class FashionGame implements Fx {
     }
     const today = this.today();
     this.rank = row.s > 0 ? today.findIndex((r) => r.at === row.at) + 1 : 0;
-    const g = this.mode.grades[this.level];
+    const g = this.mode.grades;
     const base = this.points - this.bonus;
     this.grade = base >= g[0] ? 0 : base >= g[1] ? 1 : base >= g[2] ? 2 : 3;
     this.toTop = this.rank !== 1 && today[0] ? today[0].s - row.s + 1 : 0;
@@ -767,36 +722,6 @@ export class FashionGame implements Fx {
       else this.handsUpT = Math.max(0, this.handsUpT - dt * 2);
       if (this.handsUpT >= HANDS_UP_HOLD) this.goCountdown();
       else this.mode.update(dt, this.time, this.hands, this);
-      // 난이도 버튼 위에 사람 손을 잠깐 올려 두면 고른다
-      const over = LEVEL_BOXES.findIndex((b) =>
-        this.real.some(
-          (h) =>
-            h.on &&
-            h.x >= b.x * this.W &&
-            h.x <= (b.x + b.w) * this.W &&
-            h.y >= b.y * this.H &&
-            h.y <= (b.y + b.h) * this.H,
-        ),
-      );
-      if (over < 0 || over === this.level) this.levelHover = null;
-      else {
-        const k = (this.levelHover?.i === over ? this.levelHover.k : 0) + dt / LEVEL_HOLD;
-        this.levelHover = { i: over, k: Math.min(1, k) };
-        if (k >= 1) {
-          this.levelHover = null;
-          this.setLevel(over as Level);
-        }
-      }
-      // 사람이 떠난 지 8초면 다음 사람을 위해 노멀로 되돌린다
-      // (카메라 없이 터치로 하는 중이면 사람 유무를 모르니 두지 않는다)
-      this.awayT = this.present || this.camera !== "live" ? 0 : this.awayT + dt;
-      if (this.awayT > 8 && this.level !== 1) {
-        this.level = 1;
-        this.rows = this.load();
-        this.mode.level = 1;
-        this.mode.reset(this.W, this.H);
-        this.emit(true);
-      }
       // 아무도 없으면 40초마다 MC가 지나가는 사람을 부른다
       if (!this.present && this.time - this.helloAt > 40) {
         this.helloAt = this.time;
@@ -1170,8 +1095,6 @@ export class FashionGame implements Fx {
       toTop: this.toTop,
       toGrade: this.toGrade,
       homeProgress: this.homeProgress,
-      level: this.level,
-      levelHover: this.levelHover,
       finale:
         this.phase === "finale"
           ? {

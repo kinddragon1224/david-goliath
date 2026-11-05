@@ -488,7 +488,7 @@ function Attract({
                   <span
                     className={`min-w-0 flex-1 truncate font-display text-lg ${row.name ? "" : "text-fg-muted"}`}
                   >
-                    {row.name ?? "이름 없음"}
+                    {row.name ?? (EDITION.nameTag ? "이름 없음" : "용사")}
                   </span>
                   <span className="font-display text-lg tabular-nums">
                     {row.score.toLocaleString("ko-KR")}
@@ -1530,7 +1530,7 @@ export function SidePanel({ ui }: { ui: UiSnap }) {
               <span
                 className={`min-w-0 flex-1 truncate font-display text-lg ${row.name ? "" : "text-fg-muted"}`}
               >
-                {row.name ?? "이름 없음"}
+                {row.name ?? (EDITION.nameTag ? "이름 없음" : "용사")}
               </span>
               <span className="font-display text-lg tabular-nums">
                 {row.score.toLocaleString("ko-KR")}

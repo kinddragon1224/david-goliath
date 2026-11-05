@@ -21,9 +21,10 @@ export type Edition = {
   showVerses: boolean;
   /** 점수 기록 저장 이름. 판마다 따로 저장해 기록이 섞이지 않게. */
   scoresKey: string;
-  /** 순위판 옆 짧은 문구와 이름 입력 화면 문구. 시상이 없는 행사장은 도전 문구로. */
+  /** 순위판 옆 짧은 문구. 시상이 없는 행사장은 도전 문구로. */
   boardTag: string;
-  nameTag: string;
+  /** 이름 입력 화면 문구. null이면 이름을 묻지 않고 결과만 잠깐 보여 준 뒤 대기 화면으로 간다. */
+  nameTag: string | null;
 };
 
 /** 빌드할 때 글자 그대로 바뀌어, 고르지 않은 판의 내용(교회 이름·로고·말씀)은 결과물에 아예 안 들어간다. */
@@ -47,7 +48,7 @@ export const EDITION: Edition =
         showVerses: false,
         scoresKey: "david-goliath-scores-weaveon-v1",
         boardTag: "최고 점수에 도전!",
-        nameTag: "오늘의 용사로 이름을 올려 보세요!",
+        nameTag: null,
       }
     : EDITION_ID === "general"
       ? {

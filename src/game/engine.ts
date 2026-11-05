@@ -30,6 +30,7 @@ import {
   type ScoreRecord,
 } from "./scores";
 import { NAME_ENTRY_SECONDS, SCORES_KEY } from "./constants";
+import { EDITION } from "./edition";
 import {
   DAVID_SHIFT_MAX,
   DODGE_BONUS,
@@ -74,7 +75,8 @@ const AIM_ASSIST_PX = 110;
 /** 게임 중 양손을 이만큼(초) 들고 있으면 처음 화면으로. */
 const HOME_SECONDS = 2.5;
 /** 결과 화면을 보여 주는 시간(초). */
-const RESULT_SECONDS = 18;
+/** 이름을 묻지 않는 판은 점수만 잠깐 보여 주고 대기 화면으로 간다. */
+const RESULT_SECONDS = EDITION.nameTag ? 18 : 6;
 /** 마지막 일격에서 화면을 당기는 정도. */
 const KO_ZOOM = 0.45;
 
@@ -1000,7 +1002,7 @@ export class Game {
         this.resultRank = saved.rank;
         this.monthRank = saved.monthRank;
         this.resultAt = saved.at;
-        this.naming = qualifiesForName(saved.monthRank, this.score);
+        this.naming = !!EDITION.nameTag && qualifiesForName(saved.monthRank, this.score);
         this.namingLeft = NAME_ENTRY_SECONDS;
       }
     }

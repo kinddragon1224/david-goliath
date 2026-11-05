@@ -9,7 +9,6 @@ import {
   type DemoHand,
   type Fx,
   type Hand,
-  type Level,
   type Item,
   type Meter,
   type Mode,
@@ -34,11 +33,11 @@ const LAST_BEAT = 54;
 /** 이 박부터 끝까지는 음표 없이 마음껏 치는 연타 구간. */
 const ROLL_BEAT = 49;
 const ROLL_POINTS = 150;
-/** 음표가 줄 끝에서 판정 원까지 오는 시간(초) 이지·노멀·하드. */
-const LEAD = [2.6, 2.3, 2];
+/** 음표가 줄 끝에서 판정 원까지 오는 시간(초). */
+const LEAD = 2.3;
 /** 판정 폭(초). 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
-const PERFECT_W = [0.14, 0.12, 0.1];
-const GOOD_W = [0.32, 0.26, 0.22];
+const PERFECT_W = 0.12;
+const GOOD_W = 0.26;
 /** 웹캠·인식이 늦는 만큼(초). 현장 카메라에서 박자가 밀리면 이 값을 맞춘다. */
 const LAG = 0.06;
 /** 내려치는 줄(무대 높이 비율)과 최소 속도(초당 무대 높이). 어깨가 0.63이라 가슴 높이다. */
@@ -70,13 +69,8 @@ export class RhythmMode implements Mode {
   seconds = Math.ceil(SONG + 1);
   hint = "손을 들었다가 점선 아래로 내려쳐요";
   tip = "빨강 '왼'은 왼쪽, 파랑 '오'는 오른쪽에서 내려쳐요";
-  // 음표 수: 이지 48, 노멀 57(판정 폭 좁음), 하드 69(더 좁음) + 끝 연타. 모두 맞히고 연타 24번이면 35k·42k·51k(막판 2배 포함).
-  grades: [number, number, number][] = [
-    [22000, 11000, 5000],
-    [26000, 13000, 5000],
-    [30000, 15000, 6000],
-  ];
-  level: Level = 1;
+  // 음표 57개 + 끝 연타. 모두 맞히고 연타 24번이면 42k(막판 2배 포함).
+  grades: [number, number, number] = [26000, 13000, 5000];
   music = null;
   track = TRACK;
   /** 끝 몇 초는 곡이 잦아들어 음표가 없어서 그만큼 일찍 시작한다. */
@@ -130,7 +124,7 @@ export class RhythmMode implements Mode {
     this.t0 = fx.sound.now() + 0.25;
     if (!fx.sound.playTrack(this.t0))
       fx.sound.startMusic(BPM, this.t0, Math.ceil(SONG / BEAT / 4));
-    this.notes = chart(ROLL_BEAT - 1, this.level).map((c) => ({
+    this.notes = chart(ROLL_BEAT - 1).map((c) => ({
       lane: c.lane,
       both: c.both,
       at: this.t0 + c.beat * BEAT,
@@ -173,7 +167,6 @@ export class RhythmMode implements Mode {
     // 귀에 들리는 시각으로 판정한다(오디오 시계는 스피커보다 앞서 간다)
     this.now = this.started ? fx.sound.now() - fx.sound.latency() : t;
     const now = this.now;
-    const GOOD = GOOD_W[this.level];
     if (!this.rollOn && this.rolling(now)) {
       this.rollOn = true;
       fx.stamp("마음껏 두드려요!", this.W / 2, this.H * 0.44, "gold");
@@ -200,7 +193,7 @@ export class RhythmMode implements Mode {
     this.taps = [];
 
     for (const n of this.notes) {
-      if (n.state === "wait" && now - (this.started ? LAG : 0) - n.at > GOOD) {
+      if (n.state === "wait" && now - (this.started ? LAG : 0) - n.at > GOOD_W) {
         n.state = "miss";
         this.miss++;
         this.combo = 0;
@@ -241,14 +234,13 @@ export class RhythmMode implements Mode {
       fx.shake(0.1);
       return;
     }
-    const GOOD = GOOD_W[this.level];
     let n: Note | null = null;
     for (const x of this.notes) {
-      if (x.lane !== lane || x.state !== "wait" || Math.abs(x.at - at) > GOOD) continue;
+      if (x.lane !== lane || x.state !== "wait" || Math.abs(x.at - at) > GOOD_W) continue;
       if (!n || Math.abs(x.at - at) < Math.abs(n.at - at)) n = x;
     }
     if (!n) return;
-    const kind = Math.abs(n.at - at) <= PERFECT_W[this.level] ? "perfect" : "good";
+    const kind = Math.abs(n.at - at) <= PERFECT_W ? "perfect" : "good";
     n.state = kind;
     this.combo++;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
@@ -387,7 +379,7 @@ export class RhythmMode implements Mode {
     const y = this.railY();
     const tx = this.targetX();
     const top = y - r * 1.9;
-    const lead = LEAD[this.level];
+    const lead = LEAD;
     const x0 = W * 0.012;
     ctx.save();
     roundRect(ctx, x0, top, W - x0 * 2, r * 3.8, r * 0.9);
