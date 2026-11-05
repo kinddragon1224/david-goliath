@@ -51,6 +51,14 @@ for (const f of [
   cpSync(join(root, "public", f), join(app, f), { recursive: true });
 }
 writeFileSync(join(app, "version.txt"), `${version}\n`);
+// 위브온 웹(Vercel): TV 리모컨으로 치기 쉬운 짧은 주소 /tv → 지금 버전 APK
+if (editionArg === "weaveon") {
+  const apk = `https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v${version}.apk`;
+  writeFileSync(
+    join(app, "vercel.json"),
+    JSON.stringify({ redirects: [{ source: "/tv", destination: apk, permanent: false }] }),
+  );
+}
 
 // 실행 파일과 안내서. 윈도우용이라 줄바꿈은 CRLF, 한글 안내서는 BOM을 붙인다.
 const kiosk = join(root, "offline/kiosk");
