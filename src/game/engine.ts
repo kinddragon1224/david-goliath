@@ -399,7 +399,8 @@ export class Game {
 
   private stepHome(dt: number): void {
     const active = this.phase === "countdown" || this.phase === "play" || this.phase === "ko";
-    if (!active || !this.poseReady || this.cameraState !== "live") {
+    // 위브온판은 게임 중 양손 동작을 쓰지 않는다(시작 동작과 같아 던지다가 판이 끊긴다)
+    if (EDITION.id === "weaveon" || !active || !this.poseReady || this.cameraState !== "live") {
       this.homeHold = 0;
       this.homeProgress = 0;
       this.homeArmed = false;

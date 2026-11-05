@@ -95,7 +95,6 @@ const initialUi: FashionUi = {
   rush: false,
   toTop: 0,
   toGrade: 0,
-  homeProgress: 0,
 };
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -453,39 +452,6 @@ export function FashionApp({ station }: { station: FashionStation }) {
           </>
         )}
         <StationMenu current={station} onSame={() => g()?.goHome()} />
-        {ui.homeProgress > 0 && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-[2rem] bg-black/55">
-            <div className="relative size-36">
-              <svg viewBox="0 0 100 100" className="size-full -rotate-90">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="44"
-                  fill="rgba(13,11,20,0.7)"
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="7"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="44"
-                  fill="none"
-                  stroke="#9ff3ff"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeDasharray={276.5}
-                  strokeDashoffset={276.5 * (1 - ui.homeProgress)}
-                />
-              </svg>
-              <StepGlyph
-                icon="arms"
-                className="absolute inset-0 m-auto size-16 text-[var(--f-gold)]"
-              />
-            </div>
-            <p className="f-serif mt-4 text-4xl">처음 화면으로 돌아가요</p>
-            <p className="mt-1 text-lg text-[var(--f-muted)]">계속하려면 손을 내리세요</p>
-          </div>
-        )}
         {ui.phase === "result" && (
           <ResultOverlay
             ui={ui}

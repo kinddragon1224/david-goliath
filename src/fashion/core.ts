@@ -134,7 +134,6 @@ export type FashionUi = {
   /** 결과 화면 다음 목표: 오늘 1위까지, 다음 등급까지 남은 점수(0이면 없음). */
   toTop: number;
   toGrade: number;
-  homeProgress: number;
 };
 
 export const GRADE_NAMES = ["수석 디자이너", "디자이너", "어시스턴트", "인턴 디자이너"];
@@ -256,10 +255,7 @@ export class FashionGame implements Fx {
   private glitter: Glitter[] = [];
   private cele: { text: string; tone: Tone; t: number } | null = null;
   private trailT = 0;
-  private homeT = 0;
-  private homeArmed = false;
   private needRelease = false;
-  homeProgress = 0;
   private trauma = 0;
   private stopT = 0;
   private flashA = 0;
@@ -276,11 +272,10 @@ export class FashionGame implements Fx {
     return this.phase === "play" && this.timeLeft <= (this.mode.rushAt ?? RUSH_SECONDS);
   }
 
-  /** 처음 화면으로(버튼·모션 공통). 이번 판은 기록하지 않는다. */
+  /** 처음 화면으로(버튼). 이번 판은 기록하지 않는다. */
   goHome(): void {
     if (this.phase === "attract" || this.phase === "boot") return;
     this.needRelease = true;
-    this.homeT = 0;
     this.goAttract();
   }
   present = false;
@@ -670,18 +665,6 @@ export class FashionGame implements Fx {
       this.hands = this.real;
     }
 
-    // 게임 중 양손을 2.5초 들고 있으면 처음 화면으로(시작 때 든 손은 한 번 내린 뒤부터 센다)
-    if (this.phase === "countdown" || this.phase === "play") {
-      if (!this.homeArmed) {
-        if (!this.handsUpNow) this.homeArmed = true;
-      } else if (this.handsUpNow && this.present) this.homeT += dt;
-      else this.homeT = Math.max(0, this.homeT - dt * 3);
-      if (this.homeT >= 2.5) this.goHome();
-    } else {
-      this.homeArmed = false;
-      this.homeT = 0;
-    }
-    this.homeProgress = Math.max(0, Math.min(1, (this.homeT - 0.6) / 1.9));
     if (this.needRelease && !this.handsUpNow) this.needRelease = false;
 
     if (this.phase === "attract") {
@@ -1040,7 +1023,6 @@ export class FashionGame implements Fx {
       rush: this.rush,
       toTop: this.toTop,
       toGrade: this.toGrade,
-      homeProgress: this.homeProgress,
     });
   }
 }
