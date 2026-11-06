@@ -1,1 +1,23 @@
-{"redirects":[{"source":"/a","destination":"https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v1.9.3.apk","permanent":false},{"source":"/tv","destination":"https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v1.9.3.apk","permanent":false},{"source":"/pc","destination":"https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-v1.9.3.zip","permanent":false}]}
+{
+  "framework": null,
+  "installCommand": "echo skip-install",
+  "buildCommand": "echo skip-build",
+  "outputDirectory": ".",
+  "redirects": [
+    {
+      "source": "/a",
+      "destination": "https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v1.9.3.apk",
+      "permanent": false
+    },
+    {
+      "source": "/tv",
+      "destination": "https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-tv-v1.9.3.apk",
+      "permanent": false
+    },
+    {
+      "source": "/pc",
+      "destination": "https://github.com/kinddragon1224/david-goliath/releases/download/tv-weaveon/DavidGoliath-weaveon-v1.9.3.zip",
+      "permanent": false
+    }
+  ]
+}
