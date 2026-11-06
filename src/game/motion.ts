@@ -454,15 +454,29 @@ function travelOf(hist: HandSample[], window: number): number {
 
 type RawPoint = { x: number; y: number; visibility?: number };
 
+/** 따라가던 사람의 어깨 가운데가 이만큼(화면 폭 비율) 안에 있으면 같은 사람으로 본다. */
+export const PLAYER_GAP = 0.15;
+
 /** 화면에 여러 명이 잡힐 때 누구를 플레이어로 볼지.
- * - 양손을 머리 위로 든 사람(시작 동작)을 가장 먼저 고른다. 아이 뒤에 선 어른보다 손을 든 아이가 우선.
- * - 이미 따라가던 사람이 비슷한 자리에 있으면 계속 그 사람(중간에 어른이 다가와도 안 바뀜).
+ * - 게임 중(locked)에는 따라가던 사람만 본다. 옆 사람이 손을 들거나 다가와도 안 바뀌고, 안 보이면 -1.
+ * - 대기 중에는 양손을 머리 위로 든 사람(시작 동작)을 가장 먼저 고른다. 어른보다 손을 든 아이가 우선.
+ * - 손 든 사람이 없으면 따라가던 사람을 계속 본다(어른이 다가와도 안 바뀜).
  * - 그 밖에는 가까운(어깨가 넓은) 사람, 비슷하면 가운데 사람.
  * x는 카메라 원본 좌표(반전 전) 기준. lastCenter도 같은 좌표.
+ * ponytail: 어깨 가운데로만 사람을 구분한다. 플레이어와 옆 사람이 겹쳐 지나가면 바뀔 수 있다.
  */
-export function pickPlayer(poses: RawPoint[][], aspect: number, lastCenter: number | null): number {
+export function pickPlayer(
+  poses: RawPoint[][],
+  aspect: number,
+  lastCenter: number | null,
+  locked = false,
+): number {
   let best = -1;
   let bestScore = -Infinity;
+  let near = -1;
+  let nearGap = PLAYER_GAP;
+  let nearUp = false;
+  let anyUp = false;
   poses.forEach((p, i) => {
     const ls = p[11];
     const rs = p[12];
@@ -477,11 +491,17 @@ export function pickPlayer(poses: RawPoint[][], aspect: number, lastCenter: numb
     const handsUp = !!lw && !!rw && v(lw) > 0.5 && v(rw) > 0.5 && lw.y < headY && rw.y < headY;
     let score = width - Math.abs(cx - 0.5) * 0.25;
     if (handsUp) score += 0.3;
-    if (lastCenter !== null && Math.abs(cx - lastCenter) < 0.12) score += 0.15;
+    anyUp ||= handsUp;
+    if (lastCenter !== null && Math.abs(cx - lastCenter) < nearGap) {
+      nearGap = Math.abs(cx - lastCenter);
+      near = i;
+      nearUp = handsUp;
+    }
     if (score > bestScore) {
       bestScore = score;
       best = i;
     }
   });
-  return best;
+  if (locked && lastCenter !== null) return near;
+  return near >= 0 && (nearUp || !anyUp) ? near : best;
 }

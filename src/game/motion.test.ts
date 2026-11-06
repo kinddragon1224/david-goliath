@@ -244,6 +244,24 @@ test("한 번 고른 아이는 어른이 다가와도 계속 따라간다", () =
   assert.equal(pickPlayer([adult, kid], 4 / 3, 0.5), 1);
 });
 
+test("대기 중에는 옆 사람이 양손을 들면 그 사람으로 바뀌고, 둘 다 들면 따라가던 사람", () => {
+  const me = person(0.3, 0.2);
+  const other = person(0.7, 0.2, { handsUp: true });
+  assert.equal(pickPlayer([me, other], 4 / 3, 0.3), 1);
+  assert.equal(pickPlayer([person(0.3, 0.2, { handsUp: true }), other], 4 / 3, 0.3), 0);
+});
+
+test("게임 중에는 옆 사람이 양손을 들거나 더 가까이 와도 플레이어가 안 바뀐다", () => {
+  const me = person(0.3, 0.14);
+  assert.equal(pickPlayer([person(0.7, 0.2, { handsUp: true }), me], 4 / 3, 0.3, true), 1);
+  assert.equal(pickPlayer([person(0.6, 0.4), me], 4 / 3, 0.3, true), 1);
+});
+
+test("게임 중 플레이어가 가려지면 남을 잡지 않고 기다린다", () => {
+  assert.equal(pickPlayer([person(0.7, 0.3)], 4 / 3, 0.3, true), -1);
+  assert.equal(pickPlayer([person(0.7, 0.3)], 4 / 3, null, true), 0);
+});
+
 test("아무도 손을 안 들면 가까운(어깨가 넓은) 사람", () => {
   const near = person(0.45, 0.3);
   const far = person(0.55, 0.12);

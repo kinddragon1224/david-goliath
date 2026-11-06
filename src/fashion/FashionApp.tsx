@@ -25,7 +25,7 @@ import {
 import { BRANDS, garmentByName, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
-import { setMenuHands } from "@/app/HandCursor";
+import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "@/game/tvAudio";
 import { StationMenu } from "./StationMenu";
 import { IronMode } from "./modes/iron";
@@ -198,15 +198,18 @@ export function FashionApp({ station }: { station: FashionStation }) {
       const video = videoRef.current;
       if (pose.takeDisconnect()) game.setReadiness("off", "off");
       let frame: PoseFrame | null = null;
+      pose.locked = game.phase === "countdown" || game.phase === "play";
       if (video && pose.status === "live") {
         frame = pose.tick(now);
-        if (pose.poseReady) game.notePose(frame, now);
+        if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame, now);
       }
       game.update(now);
       const L = layoutRef.current;
       const hk = L.stage.w / STAGE_W;
       // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
-      const pointing = (game.phase === "attract" || game.phase === "result") && !frame?.handsUp;
+      const pointing =
+        (game.phase === "attract" || game.phase === "result") &&
+        (isMenuOpen() || !frame?.handsUp);
       setMenuHands(
         pointing
           ? game.hands
@@ -451,7 +454,11 @@ export function FashionApp({ station }: { station: FashionStation }) {
             )}
           </>
         )}
-        <StationMenu current={station} onSame={() => g()?.goHome()} />
+        <StationMenu
+          current={station}
+          onSame={() => g()?.goHome()}
+          tabs={ui.phase === "attract" || ui.phase === "result"}
+        />
         {ui.phase === "result" && (
           <ResultOverlay
             ui={ui}

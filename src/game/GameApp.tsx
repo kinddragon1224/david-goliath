@@ -10,7 +10,7 @@ import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
 import { isKiosk, isTv, setupKiosk } from "./kiosk";
 import { EDITION_ID } from "./edition";
-import { setMenuHands } from "@/app/HandCursor";
+import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "./tvAudio";
 import { StationMenu } from "@/fashion/StationMenu";
 
@@ -141,15 +141,16 @@ export function GameApp() {
         game.setReadiness("off", null, "off", null);
       }
       setMenuHands([]);
+      const waiting =
+        game.phase === "attract" || game.phase === "start" || game.phase === "result";
+      pose.locked = !waiting;
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
-        if (pose.poseReady) game.notePose(frame);
+        if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame);
         // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
         const wr = wrap.getBoundingClientRect();
-        const waiting =
-          game.phase === "attract" || game.phase === "start" || game.phase === "result";
         setMenuHands(
-          pose.poseReady && waiting && !frame.handsUp
+          pose.poseReady && waiting && (isMenuOpen() || !frame.handsUp)
             ? frame.reach.flatMap((h) =>
                 h ? [{ x: wr.left + h.x * wr.width, y: wr.top + h.y * wr.height }] : [],
               )

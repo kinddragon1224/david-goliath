@@ -230,6 +230,15 @@
   background: rgba(10, 13, 20, 0.85);
   color: var(--f-ink);
 }
+/* 손을 올려 두면 버튼이 아래에서 위로 차오른다(HandCursor가 --dwell을 넣는다) */
+.hand-fill::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(var(--dwell, 0) * 100%);
+  background: rgba(255, 211, 77, 0.55);
+  pointer-events: none;
+}
 /* 대기 화면: 무대 조명 빛줄기 + 반짝이 + 손 번쩍 사람 */
 .f-beam {
   position: absolute;

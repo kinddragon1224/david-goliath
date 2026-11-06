@@ -5,6 +5,7 @@ import { isUvcId, openUvc, tvToast, uvcCanvas, uvcDevices } from "./uvc";
 import {
   MotionTracker,
   pickPlayer,
+  PLAYER_GAP,
   type Aim,
   type BodyInput,
   type Landmark,
@@ -59,6 +60,8 @@ const TV_INFER_LONG = 320;
 /** TV 속도를 이 간격(ms)으로 화면에 알려 준다. 현장엔 로그를 볼 방법이 없다. */
 const STATS_MS = 10000;
 const STATS_TIMES = 6;
+/** 게임 중 플레이어가 이만큼(ms) 안 보이면 놓아주고 다른 사람을 잡는다. 지나가는 사람에 잠깐 가려지는 것은 기다린다. */
+const PLAYER_LOST_MS = 1500;
 /** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
 const CAMERA_SHAPE = {
   width: { ideal: 1280 },
@@ -87,6 +90,9 @@ export class PoseController {
   private disconnected = false;
   private motion = new MotionTracker();
   private lastCenter: number | null = null;
+  private lastSeen = 0;
+  /** 게임 중: 지금 플레이어를 놓지 않는다. 게임 루프가 정한다. */
+  locked = false;
   private lastTs = 0;
   private lastInfer = 0;
   private inferCanvas: HTMLCanvasElement | null = null;
@@ -163,8 +169,9 @@ export class PoseController {
       },
       runningMode: "VIDEO" as const,
       // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다.
+      // 위브온 현장은 줄 선 사람이 많다: 2명만 찾으면 구경꾼 둘에 밀려 플레이어가 빠진다
       // TV는 1명만: 찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다
-      numPoses: isTv() ? 1 : 2,
+      numPoses: isTv() ? 1 : EDITION.id === "weaveon" ? 3 : 2,
       // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
       minPoseDetectionConfidence: 0.4,
       minPosePresenceConfidence: 0.4,
@@ -431,9 +438,19 @@ export class PoseController {
     aspect: number,
     now: number,
   ): PoseFrame {
-    const pick = pickPlayer(poses, aspect, this.lastCenter);
-    this.lastCenter =
-      pick >= 0 ? ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2 : null;
+    const lost = now - this.lastSeen > PLAYER_LOST_MS;
+    const pick = pickPlayer(poses, aspect, this.lastCenter, this.locked && !lost);
+    if (pick >= 0) {
+      const cx = ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2;
+      // 다른 사람으로 바뀌면 손이 순간이동한 것을 동작으로 읽지 않게 지운다
+      if (this.lastCenter !== null && Math.abs(cx - this.lastCenter) >= PLAYER_GAP) {
+        this.motion.reset();
+      }
+      this.lastCenter = cx;
+      this.lastSeen = now;
+    } else if (lost || !this.locked) {
+      this.lastCenter = null;
+    }
     if (pick < 0) {
       const m = this.motion.update(null, now);
       this.present = m.present;
