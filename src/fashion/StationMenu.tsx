@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { setMenuOpen } from "@/app/HandCursor";
-import { STATIONS, saveStation, type StationId } from "./stations";
+import { STATIONS, TRYON, goTryon, saveStation, useTryonReady, type StationId } from "./stations";
 
 /** 아무것도 안 고르면 판이 이만큼(ms) 뒤 닫힌다. 스쳐서 열린 채 사람이 떠나면 시작 동작이 막혀 있게 된다. */
 const AUTO_CLOSE_MS = 12000;
@@ -30,6 +30,7 @@ export function StationMenu({
   tabs?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const tryon = useTryonReady();
   const pick = (id: StationId) => {
     if (id === current) {
       setOpen(false);
@@ -66,7 +67,21 @@ export function StationMenu({
         // 양옆을 비운다: 탭을 누른 손이 그 자리에 있어도 다른 칸이 눌리지 않고, 가운데는 팔을 조금만 움직여도 닿는다
         <div className="pointer-events-auto absolute inset-0 z-[60] flex flex-col gap-3 overflow-hidden rounded-[2rem] bg-[#0d0b14]/90 px-[18%] pt-[3%] pb-[2%] text-white">
           <p className="text-center text-2xl font-bold">손을 올려 1초 기다리면 바뀌어요</p>
-          <div className="grid min-h-0 w-full flex-1 grid-cols-2 grid-rows-3 gap-3">
+          <div
+            className={`grid min-h-0 w-full flex-1 grid-cols-2 gap-3 ${tryon ? "grid-rows-4" : "grid-rows-3"}`}
+          >
+            {/* 가상 착장이 꺼져 있으면 칸을 숨긴다: 손으로 못 누르는 칸이 자리만 차지한다 */}
+            {tryon && (
+              <button
+                type="button"
+                onClick={goTryon}
+                className="hand-fill relative col-span-2 overflow-hidden rounded-3xl border-4 border-[#9ff3ff]/60 bg-white/5 p-3 text-left"
+              >
+                <span className="relative text-3xl font-bold">{TRYON.no}</span>
+                <span className="relative ml-4 text-2xl font-bold">{TRYON.title}</span>
+                <span className="relative ml-4 text-base text-white/70">{TRYON.line}</span>
+              </button>
+            )}
             {STATIONS.map((s) => (
               <button
                 key={s.id}

@@ -1,4 +1,6 @@
-/** 위브온페스티벌 AX 체험 목록. 01 가상 착장은 따로 만든다. */
+import { useEffect, useState } from "react";
+
+/** 위브온페스티벌 AX 체험 목록. 01 가상 착장은 따로 도는 프로그램이라 아래 TRYON으로 잇는다. */
 export type StationId = "goliath" | "iron" | "scissors" | "sewing" | "rhythm";
 
 export type StationInfo = {
@@ -15,6 +17,36 @@ export const STATIONS: StationInfo[] = [
   { id: "sewing", no: "05", title: "바느질 챌린지", line: "하트·별·꽃을 수놓아요" },
   { id: "rhythm", no: "06", title: "몽글 드럼", line: "음악에 맞춰 큰 북을 두드려요" },
 ];
+
+/** 01 가상 착장: 같은 PC에서 따로 도는 프로그램(C:\Users\sunyo\weaveon\vton, 그래픽카드 필요). 켜져 있을 때만 열린다.
+ * ponytail: 주소를 이 PC(127.0.0.1)로 박아 뒀다. 다른 PC의 가상 착장을 열어야 하면 설정으로 뺀다. */
+export const TRYON = { no: "01", title: "가상 착장", line: "AI가 룩북 옷을 입혀 줘요" };
+const TRYON_ORIGIN = "http://127.0.0.1:8765";
+
+/** 가상 착장으로 넘어간다. home= 으로 지금 화면 주소를 넘겨, 거기서 이 화면으로 돌아온다. */
+export function goTryon(): void {
+  const home = encodeURIComponent(window.location.href);
+  window.location.href = `${TRYON_ORIGIN}/app/?game=ar3d&garment=g00&home=${home}`;
+}
+
+/** 가상 착장 프로그램이 켜져 있나. 5초마다 다시 본다. */
+export function useTryonReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = () =>
+      fetch(`${TRYON_ORIGIN}/health`, { signal: AbortSignal.timeout(2500) })
+        .then((r) => alive && setReady(r.ok))
+        .catch(() => alive && setReady(false));
+    void check();
+    const id = window.setInterval(check, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, []);
+  return ready;
+}
 
 const KEY = "weaveon-station";
 
