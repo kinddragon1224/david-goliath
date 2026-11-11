@@ -231,6 +231,7 @@ export class SewingMode implements Mode {
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
     drawPalace(ctx, this.W, this.H, t, ["#14233a", "#070b14"], "sewing");
     this.drawSpools(ctx, t);
+    this.drawSewn(ctx);
     const shown = this.bloom?.p ?? this.pattern();
     this.drawHoop(ctx, shown);
     if (this.bloom) this.drawBloom(ctx, this.bloom.p, this.bloom.t / BLOOM_T, t);
@@ -331,6 +332,33 @@ export class SewingMode implements Mode {
     });
   }
 
+  /** 완성한 자수를 틀 양옆에 작은 와펜으로 건다(최근 8개). 판이 진행될수록 무대가 채워진다. */
+  private drawSewn(ctx: CanvasRenderingContext2D): void {
+    const s = Math.min(this.W, this.H) * 0.045;
+    this.sewn.slice(-8).forEach((p, i) => {
+      const x = this.W * (i % 2 ? 0.93 : 0.07);
+      const y = this.H * (0.32 + Math.floor(i / 2) * 0.115);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = p.cloth;
+      ctx.strokeStyle = "#b47c43";
+      ctx.lineWidth = s * 0.16;
+      ctx.beginPath();
+      ctx.arc(0, 0, s, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = p.thread;
+      ctx.beginPath();
+      for (let k = 0; k < 40; k++) {
+        const [px, py] = p.at(k / 40);
+        ctx.lineTo(px * s * 0.66, py * s * 0.66);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
   /** 수놓을 무늬 밑선, 뜬 땀, 다음 구멍, 바늘까지 이어진 실. */
   private drawWork(
     ctx: CanvasRenderingContext2D,
@@ -362,8 +390,31 @@ export class SewingMode implements Mode {
       const ey = a.y + (b.y - a.y) * grow;
       drawThread(ctx, a.x, a.y, ex, ey, b.gold ? "#ffd34d" : p.thread, this.R * 0.05);
     }
+    // 다음 구멍으로 흘러가는 금빛 점선: 어느 쪽으로 가야 하는지 멀리서도 보인다
+    const from = this.holes[this.next - 1];
+    const to = this.holes[this.next];
+    if (from && to) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,190,70,0.9)";
+      ctx.lineWidth = 7;
+      ctx.setLineDash([4, 22]);
+      ctx.lineDashOffset = -t * 90;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+      ctx.restore();
+    }
     this.holes.forEach((h, i) => {
       const isNext = i === this.next;
+      // 그다음 구멍은 흰 고리로 미리 알려 준다
+      if (i === this.next + 1) {
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, 18 + Math.sin(t * 7) * 2, 0, TAU);
+        ctx.stroke();
+      }
       if (isNext) {
         const pulse = 1 + Math.sin(t * 7) * 0.15;
         const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, this.tol * pulse);
@@ -393,7 +444,8 @@ export class SewingMode implements Mode {
       ctx.quadraticCurveTo((last.x + nh.x) / 2, Math.max(last.y, nh.y) + 60, nh.x, nh.y);
       ctx.stroke();
     }
-    if (this.next === 0 && phase !== "result") {
+    // 카운트다운 숫자와 겹치지 않게 그동안은 숨긴다
+    if (this.next === 0 && phase !== "result" && phase !== "countdown") {
       const h = this.holes[0];
       ctx.save();
       ctx.font = `700 40px "Gowun Batang", serif`;
@@ -401,9 +453,10 @@ export class SewingMode implements Mode {
       ctx.lineJoin = "round";
       ctx.lineWidth = 9;
       ctx.strokeStyle = "rgba(20,14,30,0.85)";
-      ctx.strokeText("여기부터 콕!", h.x, h.y - this.tol - 8);
+      // 구멍 아래에: 위쪽은 공용 안내("여기로!")가 뜨는 자리
+      ctx.strokeText("여기부터 콕!", h.x, h.y + this.tol + 44);
       ctx.fillStyle = TONE.gold;
-      ctx.fillText("여기부터 콕!", h.x, h.y - this.tol - 8);
+      ctx.fillText("여기부터 콕!", h.x, h.y + this.tol + 44);
       ctx.restore();
     }
   }
@@ -556,7 +609,9 @@ function drawNeedle(
   if (!h.on) return;
   drawHandGlow(ctx, h, R * (1 + flash), "gold");
   ctx.save();
-  ctx.translate(h.x, h.y);
+  // 땀을 뜬 순간 바늘이 끝 쪽(왼쪽 아래)으로 콕 들어갔다 나온다
+  const dip = Math.sin(Math.min(1, flash / 0.25) * Math.PI) * R * 0.3;
+  ctx.translate(h.x - dip, h.y + dip);
   const img = propImage("needle");
   if (img) {
     // 그림은 바늘 끝이 왼쪽 아래 귀퉁이. 손 위치 = 바늘 끝.

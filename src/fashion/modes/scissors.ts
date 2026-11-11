@@ -32,6 +32,12 @@ const QUILT_BONUS = 1000;
 const CUT_SPEED = 0.14;
 const CHAIN_GAP = 1.6;
 const FLY_T = 0.6;
+/** 점선 높이(무대 높이 비율). 천마다 달라서 손을 위아래로도 움직이게 된다. */
+const CUT_LEVELS = [0.3, 0.36, 0.42];
+/** 다 채운 조각보가 번쩍하고 날아가는 시간(초). */
+const DONE_T = 1;
+/** 가위가 지나간 자리에 남는 궤적(초). */
+const TRAIL_T = 0.16;
 /** 이어 자를 때 올라가는 음(반음). */
 const LADDER = [2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
 
@@ -42,6 +48,8 @@ type Ribbon = {
   /** 위에서 내려오는 정도 0~1. */
   drop: number;
   cutAt: number | null;
+  /** 점선 높이(무대 높이 비율). */
+  cut: number;
 };
 type Patch = { color: string; print: Print; gold: boolean };
 type Piece = Patch & { x: number; y: number; w: number; h: number; cell: number; t: number };
@@ -67,6 +75,8 @@ export class ScissorsMode implements Mode {
   private snip = [0, 0];
   private seed = 1;
   private bits: { x: number; y: number; vx: number; vy: number; a: number; life: number; c: string }[] = [];
+  private finished: { patches: Patch[]; t: number } | null = null;
+  private trail: { x: number; y: number; t: number }[][] = [[], []];
 
   private rand(): number {
     this.seed = (this.seed * 16807) % 2147483647;
@@ -80,6 +90,7 @@ export class ScissorsMode implements Mode {
       gold: this.rand() < 0.14,
       drop: 0,
       cutAt: null,
+      cut: CUT_LEVELS[Math.floor(this.rand() * CUT_LEVELS.length)],
     };
   }
 
@@ -99,6 +110,8 @@ export class ScissorsMode implements Mode {
     this.hit = [-10, -10];
     this.snip = [0, 0];
     this.bits = [];
+    this.finished = null;
+    this.trail = [[], []];
   }
 
   private laneX(i: number): number {
@@ -110,8 +123,8 @@ export class ScissorsMode implements Mode {
   private railY(): number {
     return this.H * 0.06;
   }
-  private cutY(): number {
-    return this.H * 0.36;
+  private cutY(r: Ribbon): number {
+    return this.H * r.cut;
   }
   private endY(): number {
     return this.H * 0.54;
@@ -145,13 +158,18 @@ export class ScissorsMode implements Mode {
       else if (r.drop < 1) r.drop = Math.min(1, r.drop + dt * 3);
     });
 
+    if (this.finished && (this.finished.t += dt) > DONE_T) this.finished = null;
     hands.forEach((h, hi) => {
-      if (!h.on || h.speed < this.W * CUT_SPEED || t - this.hit[hi] < 0.12) return;
-      if (Math.abs(h.y - this.cutY()) > this.H * 0.09) return;
+      const tr = (this.trail[hi] ??= []);
+      while (tr.length && t - tr[0].t > TRAIL_T) tr.shift();
+      if (!h.on) return;
+      if (h.speed >= this.W * CUT_SPEED) tr.push({ x: h.x, y: h.y, t });
+      if (h.speed < this.W * CUT_SPEED || t - this.hit[hi] < 0.12) return;
       const i = this.ribbons.findIndex(
         (r, k) =>
           r.cutAt === null &&
           r.drop >= 1 &&
+          Math.abs(h.y - this.cutY(r)) <= this.H * 0.09 &&
           Math.abs(h.x - this.laneX(k)) < this.ribbonW() * 0.68,
       );
       if (i >= 0) this.cut(i, hi, t, fx);
@@ -176,7 +194,7 @@ export class ScissorsMode implements Mode {
     this.chain = t - this.lastCut < CHAIN_GAP ? this.chain + 1 : 1;
     this.maxChain = Math.max(this.maxChain, this.chain);
     const x = this.laneX(i);
-    const y = this.cutY();
+    const y = this.cutY(r);
     const pair = hi !== this.lastHand && this.lastHand >= 0 && t - this.lastCut < 0.5;
     this.lastCut = t;
     this.lastHand = hi;
@@ -217,6 +235,7 @@ export class ScissorsMode implements Mode {
     fx.burst(c.x + c.w / 2, c.y + c.h / 2, 5, "white");
     if (this.patches.length < CELLS) return;
     this.quilts.push(this.patches);
+    this.finished = { patches: this.patches, t: 0 };
     this.patches = [];
     fx.score(QUILT_BONUS, this.W / 2, this.H * 0.5, `조각보 완성 +${QUILT_BONUS}`, "pink");
     fx.celebrate("조각보 한 장 완성!", "pink");
@@ -230,6 +249,23 @@ export class ScissorsMode implements Mode {
     this.drawRail(ctx);
     this.ribbons.forEach((r, i) => this.drawRibbon(ctx, r, this.laneX(i), t));
     this.drawQuilt(ctx);
+    if (this.finished) this.drawDone(ctx, this.finished.patches, this.finished.t / DONE_T);
+    // 가위가 지나간 자리: 뒤로 갈수록 가늘어지는 흰 궤적
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#ffffff";
+    for (const tr of this.trail)
+      for (let k = 1; k < tr.length; k++) {
+        const a = 1 - (t - tr[k].t) / TRAIL_T;
+        if (a <= 0) continue;
+        ctx.globalAlpha = a * 0.7;
+        ctx.lineWidth = 4 + a * 14;
+        ctx.beginPath();
+        ctx.moveTo(tr[k - 1].x, tr[k - 1].y);
+        ctx.lineTo(tr[k].x, tr[k].y);
+        ctx.stroke();
+      }
+    ctx.restore();
     for (const p of this.pieces) {
       const k = Math.min(1, p.t / FLY_T);
       const e = k * k * (3 - 2 * k);
@@ -283,9 +319,11 @@ export class ScissorsMode implements Mode {
   private drawRibbon(ctx: CanvasRenderingContext2D, r: Ribbon, x: number, t: number): void {
     const w = this.ribbonW();
     const top = this.railY();
-    const cutY = this.cutY();
+    const cutY = this.cutY(r);
     const full = this.endY();
-    const end = r.cutAt !== null ? cutY : top + (full - top) * r.drop;
+    // 잘리면 남은 천이 위로 말려 올라간다
+    const roll = r.cutAt !== null ? Math.min(1, (t - r.cutAt) / 0.55) ** 2 : 0;
+    const end = r.cutAt !== null ? cutY - (cutY - top) * roll : top + (full - top) * r.drop;
     const color = r.gold ? "#ffd34d" : r.color;
     const sway = Math.sin(t * 1.6 + x) * 5;
     ctx.save();
@@ -294,7 +332,22 @@ export class ScissorsMode implements Mode {
       ctx.shadowColor = "#ffd34d";
       ctx.shadowBlur = 30;
     }
+    // 천 끝은 핑킹가위로 자른 것처럼 톱니 모양
+    ctx.save();
+    const teeth = 7;
+    const tw = w / teeth;
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, top);
+    ctx.lineTo(x + w / 2, top);
+    ctx.lineTo(x + w / 2, end - tw / 2);
+    for (let k = teeth; k > 0; k--) {
+      ctx.lineTo(x - w / 2 + (k - 0.5) * tw, end);
+      ctx.lineTo(x - w / 2 + (k - 1) * tw, end - tw / 2);
+    }
+    ctx.closePath();
+    ctx.clip();
     drawCloth(ctx, x - w / 2, top, w, end - top, color, r.print);
+    ctx.restore();
     ctx.shadowBlur = 0;
     // 집게
     ctx.fillStyle = "#f4e6c8";
@@ -331,7 +384,7 @@ export class ScissorsMode implements Mode {
     for (let i = 0; i < CELLS; i++) {
       const c = this.cellBox(i);
       const p = this.patches[i];
-      if (p) drawCloth(ctx, c.x + 2, c.y + 2, c.w - 4, c.h - 4, p.color, p.print);
+      if (p) drawPatch(ctx, c, p);
       else {
         ctx.fillStyle = "rgba(255,240,215,0.08)";
         ctx.fillRect(c.x + 2, c.y + 2, c.w - 4, c.h - 4);
@@ -350,6 +403,26 @@ export class ScissorsMode implements Mode {
       ctx.fillText("잘라낸 천으로 조각보를 채워요", q.x + q.w / 2, q.y + q.h / 2);
     }
     drawFlare(ctx, q.x, q.y, 0, "white", 0);
+  }
+
+  /** 다 채운 조각보: 번쩍 빛나며 살짝 커졌다가, 작아지면서 오른쪽 위로 날아간다. */
+  private drawDone(ctx: CanvasRenderingContext2D, patches: Patch[], k: number): void {
+    const q = this.quilt();
+    const fly = Math.max(0, (k - 0.45) / 0.55) ** 2;
+    const cx = q.x + q.w / 2 + (this.W * 0.9 - q.x - q.w / 2) * fly;
+    const cy = q.y + q.h / 2 + (this.H * 0.12 - q.y - q.h / 2) * fly;
+    const s = (1 + Math.sin(Math.min(1, k / 0.45) * Math.PI) * 0.07) * (1 - fly * 0.85);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(fly * 0.5);
+    ctx.scale(s, s);
+    ctx.translate(-q.x - q.w / 2, -q.y - q.h / 2);
+    ctx.globalAlpha = 1 - fly * 0.6;
+    patches.forEach((p, i) => drawPatch(ctx, this.cellBox(i), p));
+    ctx.globalAlpha = Math.max(0, 1 - k / 0.35) * 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(q.x, q.y, q.w, q.h);
+    ctx.restore();
   }
 
   stats(): Stat[] {
@@ -398,13 +471,30 @@ export class ScissorsMode implements Mode {
   }
 
   demo(t: number): DemoHand[] {
-    return [{ x: this.W * (0.5 + 0.42 * Math.sin(t * 1.5)), y: this.cutY() + Math.sin(t * 5) * 18 }];
+    const x = this.W * (0.5 + 0.42 * Math.sin(t * 1.5));
+    // 지나가는 줄의 점선 높이를 따라간다
+    const lane = Math.max(0, Math.min(LANES - 1, Math.round(((x / this.W - 0.14) / 0.72) * (LANES - 1))));
+    return [{ x, y: this.cutY(this.ribbons[lane]) + Math.sin(t * 5) * 18 }];
   }
 
   target(): DemoHand | null {
     const i = this.ribbons.findIndex((r) => r.cutAt === null && r.drop >= 1);
-    return i >= 0 ? { x: this.laneX(i), y: this.cutY() } : null;
+    return i >= 0 ? { x: this.laneX(i), y: this.cutY(this.ribbons[i]) } : null;
   }
+}
+
+/** 조각보에 붙은 천 조각: 가장자리를 따라 흰 바느질 땀. */
+function drawPatch(
+  ctx: CanvasRenderingContext2D,
+  c: { x: number; y: number; w: number; h: number },
+  p: Patch,
+): void {
+  drawCloth(ctx, c.x + 2, c.y + 2, c.w - 4, c.h - 4, p.color, p.print);
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 8]);
+  ctx.strokeRect(c.x + 9, c.y + 9, c.w - 18, c.h - 18);
+  ctx.setLineDash([]);
 }
 
 /** 천 한 장: 바탕색 + 무늬 + 위에서 비치는 빛. */
