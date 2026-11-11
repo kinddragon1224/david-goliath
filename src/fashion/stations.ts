@@ -18,6 +18,16 @@ export const STATIONS: StationInfo[] = [
   { id: "rhythm", no: "06", title: "몽글 드럼", line: "음악에 맞춰 큰 북을 두드려요" },
 ];
 
+/** 고르는 화면의 칸 그림: 배경(art), 배경에서 보여 줄 자리(at), 앞에 띄우는 소품(prop). */
+export const STATION_ART: Record<StationId | "tryon", { art: string; at: string; prop?: string }> = {
+  tryon: { art: "/art/rhythm.webp", at: "7% 40%" },
+  goliath: { art: "/valley.jpg", at: "70% 78%", prop: "/goliath-idle.png" },
+  iron: { art: "/art/iron.webp", at: "16% 40%", prop: "/art/prop-iron.png" },
+  scissors: { art: "/art/scissors.webp", at: "76% 30%", prop: "/art/prop-scissors.png" },
+  sewing: { art: "/art/sewing.webp", at: "20% 40%", prop: "/art/prop-needle.png" },
+  rhythm: { art: "/art/rhythm.webp", at: "50% 40%", prop: "/art/mongle-drum.webp" },
+};
+
 /** 01 가상 착장: 같은 PC에서 따로 도는 프로그램(C:\Users\sunyo\weaveon\vton, 그래픽카드 필요). 켜져 있을 때만 열린다.
  * ponytail: 주소를 이 PC(127.0.0.1)로 박아 뒀다. 다른 PC의 가상 착장을 열어야 하면 설정으로 뺀다. */
 export const TRYON = { no: "01", title: "가상 착장", line: "AI가 룩북 옷을 입혀 줘요" };

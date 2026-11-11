@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { setMenuOpen } from "@/app/HandCursor";
-import { STATIONS, TRYON, goTryon, saveStation, useTryonReady, type StationId } from "./stations";
+import { STATIONS, STATION_ART, TRYON, goTryon, saveStation, useTryonReady, type StationId } from "./stations";
 
 /** 아무것도 안 고르면 판이 이만큼(ms) 뒤 닫힌다. 스쳐서 열린 채 사람이 떠나면 시작 동작이 막혀 있게 된다. */
 const AUTO_CLOSE_MS = 12000;
@@ -16,6 +16,28 @@ function go(id: StationId): void {
 /** 화면 양옆 탭: 팔을 옆으로 쭉 뻗으면 손이 닿는다(어깨 높이가 무대 63%). 위쪽 구석은 팔이 안 닿고 손이 카메라 밖으로 나간다. */
 const TAB =
   "hand-fill pointer-events-auto absolute top-[48%] z-40 flex h-[40%] w-[12%] items-center justify-center overflow-hidden border-2 border-white/60 bg-black/70 text-2xl font-bold text-white shadow-xl";
+
+/** 칸 바탕 그림: 고르는 화면과 같은 그림을 어둡게 깔고, 오른쪽에 소품을 둔다. 글자가 먼저 읽히게 흐리게. */
+function Art({ id }: { id: StationId | "tryon" }) {
+  const a = STATION_ART[id];
+  return (
+    <>
+      <img
+        src={a.art}
+        alt=""
+        className="absolute inset-0 size-full object-cover opacity-35"
+        style={{ objectPosition: a.at }}
+      />
+      {a.prop && (
+        <img
+          src={a.prop}
+          alt=""
+          className="absolute top-[8%] right-[3%] h-[84%] w-[38%] object-contain drop-shadow-[0_0.4rem_0.6rem_rgba(0,0,0,0.7)]"
+        />
+      )}
+    </>
+  );
+}
 
 /** '다른 체험' 탭을 누르면(손을 올려 두기 또는 터치, HandCursor) 체험 고르는 판이 열린다.
  * 지금 체험을 고르면 처음 화면으로. */
@@ -77,6 +99,7 @@ export function StationMenu({
                 onClick={goTryon}
                 className="hand-fill relative col-span-2 overflow-hidden rounded-3xl border-4 border-[#9ff3ff]/60 bg-white/5 p-3 text-left"
               >
+                <Art id="tryon" />
                 <span className="relative text-3xl font-bold">{TRYON.no}</span>
                 <span className="relative ml-4 text-2xl font-bold">{TRYON.title}</span>
                 <span className="relative ml-4 text-base text-white/70">{TRYON.line}</span>
@@ -91,6 +114,7 @@ export function StationMenu({
                   s.id === current ? "border-[#ffd34d] bg-white/15" : "border-white/30 bg-white/5"
                 }`}
               >
+                <Art id={s.id} />
                 <span className="relative block text-3xl font-bold">{s.no}</span>
                 <span className="relative mt-1 block text-2xl font-bold">{s.title}</span>
                 <span className="relative mt-1 block text-base text-white/70">
