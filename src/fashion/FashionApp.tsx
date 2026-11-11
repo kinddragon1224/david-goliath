@@ -400,12 +400,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
         ui.phase === "countdown" ||
         ui.phase === "result" ? (
           <div className="flex shrink-0 items-center gap-3">
-            <div className="text-right">
-              <p className="text-xs text-[var(--f-muted)]">점수</p>
-              <p className="f-serif f-pearl text-4xl leading-none tabular-nums">
-                {ui.score.toLocaleString("ko-KR")}
-              </p>
-            </div>
+            <ScoreBox score={ui.score} hot={ui.rush} />
             <TimerRing
               pct={ui.seconds > 0 ? ui.timeLeft / ui.seconds : 0}
               left={Math.ceil(ui.timeLeft)}
@@ -430,14 +425,23 @@ export function FashionApp({ station }: { station: FashionStation }) {
         )}
         {ui.phase === "countdown" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center rounded-[2rem] bg-black/45">
-            <p key={ui.countdown} className="f-serif f-pearl animate-pop text-[9rem] leading-none">
-              {ui.countdown}
-            </p>
-            <p className="f-serif mt-4 px-6 text-center text-3xl">{ui.tip}</p>
+            <p className="text-xl tracking-[0.6em] text-[var(--f-gold)]">READY</p>
+            {/* 숫자마다 고리가 퍼져 나간다 */}
+            <div key={ui.countdown} className="relative flex size-[15rem] items-center justify-center">
+              <span className="f-count-ring absolute inset-0 rounded-full" />
+              <p className="f-serif f-pearl animate-pop text-[13rem] leading-none">
+                {ui.countdown}
+              </p>
+            </div>
+            <p className="f-serif f-card mt-2 px-8 py-3 text-center text-3xl">{ui.tip}</p>
           </div>
         )}
         {ui.phase === "play" && (
           <>
+            <TimeBar
+              pct={ui.seconds > 0 ? ui.timeLeft / ui.seconds : 0}
+              urgent={ui.rush || ui.timeLeft <= 5}
+            />
             <div className="absolute inset-x-0 bottom-4 flex justify-center px-4">
               <p
                 className={`f-serif max-w-full truncate px-7 py-2.5 text-center ${ui.rush ? "animate-throb rounded-3xl bg-[var(--f-pink)] text-3xl text-[#1b1526] shadow-2xl" : "f-card text-xl"}`}
@@ -691,12 +695,57 @@ function QueueChip({ q }: { q: QueueItem }) {
   );
 }
 
+/** 점수판: 멀리서도 읽히는 큰 숫자. 점수가 오르면 숫자가 툭 튄다. */
+function ScoreBox({ score, hot }: { score: number; hot: boolean }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const last = useRef({ score, at: 0 });
+  useEffect(() => {
+    const now = performance.now();
+    // 다림질처럼 점수가 계속 오르는 체험에서 쉬지 않고 튀지 않게 간격을 둔다
+    if (score > last.current.score && now - last.current.at > 160) {
+      last.current.at = now;
+      ref.current?.animate([{ transform: "scale(1.28)" }, { transform: "scale(1)" }], {
+        duration: 220,
+        easing: "ease-out",
+      });
+    }
+    last.current.score = score;
+  }, [score]);
+  return (
+    <div
+      className={`f-card flex min-w-[11rem] items-baseline justify-between gap-3 px-5 py-1.5 ${hot ? "border-[var(--f-pink)]" : ""}`}
+    >
+      <span className="text-sm tracking-[0.25em] text-[var(--f-gold)]">
+        SCORE{hot ? " ×2" : ""}
+      </span>
+      <p
+        ref={ref}
+        className="f-serif f-pearl origin-right text-[3.2rem] leading-none tabular-nums"
+      >
+        {score.toLocaleString("ko-KR")}
+      </p>
+    </div>
+  );
+}
+
+/** 무대 위쪽을 가로지르는 남은 시간 줄. 구석의 시계를 안 봐도 시간이 줄어드는 게 보인다. */
+function TimeBar({ pct, urgent }: { pct: number; urgent: boolean }) {
+  return (
+    <div className="absolute inset-x-[2%] top-2 h-3 overflow-hidden rounded-full border border-white/25 bg-black/50">
+      <div
+        className={`h-full rounded-full ${urgent ? "animate-pulse bg-[var(--f-pink)] shadow-[0_0_1rem_#ff6fa8]" : "bg-gradient-to-r from-[var(--f-mint)] via-[var(--f-gold)] to-white"}`}
+        style={{ width: `${Math.max(0, Math.min(1, pct)) * 100}%` }}
+      />
+    </div>
+  );
+}
+
 function TimerRing({ pct, left, hot }: { pct: number; left: number; hot: boolean }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   const urgent = hot || left <= 5;
   return (
-    <div className={`relative size-[4.4rem] ${urgent ? "animate-throb" : ""}`}>
+    <div className={`relative size-[5.2rem] ${urgent ? "animate-throb" : ""}`}>
       <svg viewBox="0 0 64 64" className="size-full -rotate-90">
         <circle
           cx="32"
@@ -719,7 +768,7 @@ function TimerRing({ pct, left, hot }: { pct: number; left: number; hot: boolean
         />
       </svg>
       <span
-        className={`f-serif absolute inset-0 flex items-center justify-center text-2xl tabular-nums ${urgent ? "text-[var(--f-pink)]" : ""}`}
+        className={`f-serif absolute inset-0 flex items-center justify-center text-3xl tabular-nums ${urgent ? "text-[var(--f-pink)]" : ""}`}
       >
         {left}
       </span>

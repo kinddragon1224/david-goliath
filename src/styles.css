@@ -230,6 +230,22 @@
   background: rgba(10, 13, 20, 0.85);
   color: var(--f-ink);
 }
+/* 카운트다운: 숫자가 바뀔 때마다 얼음빛 고리가 퍼진다 */
+.f-count-ring {
+  border: 0.5rem solid var(--f-gold);
+  box-shadow: 0 0 2rem rgba(159, 243, 255, 0.7);
+  animation: f-count-ring 0.9s ease-out both;
+}
+@keyframes f-count-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
 /* 체험 고르는 화면: 스테이지 카드. 차례로 떠오르고, 고르면 들리면서 빛난다 */
 .f-pick-bg {
   animation: f-pick-drift 40s ease-in-out infinite alternate;
