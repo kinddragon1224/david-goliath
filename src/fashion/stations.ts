@@ -28,10 +28,10 @@ export const STATION_ART: Record<StationId | "tryon", { art: string; at: string;
   rhythm: { art: "/art/rhythm.webp", at: "50% 40%", prop: "/art/mongle-drum.webp" },
 };
 
-/** 01 가상 착장: 같은 PC에서 따로 도는 프로그램(C:\Users\sunyo\weaveon\vton, 그래픽카드 필요). 켜져 있을 때만 열린다.
- * ponytail: 주소를 이 PC(127.0.0.1)로 박아 뒀다. 다른 PC의 가상 착장을 열어야 하면 설정으로 뺀다. */
+/** 01 가상 착장: 사무실 PC에서 따로 도는 프로그램(그래픽카드 필요)을 Cloudflare 터널로 연다. 서버가 켜져 있을 때만 열린다.
+ * 부스 PC마다 한 번 잠금 해제 주소(서버 PC의 vton\UNLOCK_URL.txt)를 열어야 사진이 찍힌다. */
 export const TRYON = { no: "01", title: "가상 착장", line: "AI가 룩북 옷을 입혀 줘요" };
-const TRYON_ORIGIN = "http://127.0.0.1:8765";
+const TRYON_ORIGIN = "https://studio.therumen.kr";
 
 /** 가상 착장으로 넘어간다. home= 으로 지금 화면 주소를 넘겨, 거기서 이 화면으로 돌아온다. */
 export function goTryon(): void {

@@ -26,7 +26,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     {
       key: "tryon",
       ...TRYON,
-      line: tryon ? TRYON.line : "이 PC에서 가상 착장을 켜면 열려요",
+      line: tryon ? TRYON.line : "가상 착장 서버가 꺼져 있어요",
       off: !tryon,
       go: goTryon,
     },
