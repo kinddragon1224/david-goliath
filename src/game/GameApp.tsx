@@ -283,8 +283,10 @@ export function GameApp() {
   startRef.current = startCamera;
   retryRef.current = retryMotion;
   useEffect(() => {
-    if (!isKiosk()) return;
-    const cleanup = setupKiosk();
+    // 위브온판은 키오스크가 아니어도 바로 시작한다: 마우스·터치 없이 체험을 옮겨 다니므로 '눌러서 시작'에서 멈추면 안 된다
+    const kiosk = isKiosk();
+    if (!kiosk && EDITION_ID !== "weaveon") return;
+    const cleanup = kiosk ? setupKiosk() : () => {};
     const g = gameRef.current;
     if (g && g.phase === "boot") {
       g.begin();
