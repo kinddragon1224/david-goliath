@@ -44,10 +44,18 @@ export function useTryonReady(): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let alive = true;
+    // 느린 와이파이에서 한 번 늦었다고 칸이 꺼지지 않게: 넉넉히 기다리고, 세 번 연달아 실패해야 끈다
+    let fails = 0;
+    const note = (ok: boolean) => {
+      if (!alive) return;
+      fails = ok ? 0 : fails + 1;
+      if (ok) setReady(true);
+      else if (fails >= 3) setReady(false);
+    };
     const check = () =>
-      fetch(`${TRYON_ORIGIN}/health`, { signal: AbortSignal.timeout(2500) })
-        .then((r) => alive && setReady(r.ok))
-        .catch(() => alive && setReady(false));
+      fetch(`${TRYON_ORIGIN}/health`, { signal: AbortSignal.timeout(6000) })
+        .then((r) => note(r.ok))
+        .catch(() => note(false));
     void check();
     const id = window.setInterval(check, 5000);
     return () => {

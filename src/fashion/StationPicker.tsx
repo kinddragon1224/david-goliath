@@ -30,7 +30,8 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     {
       key: "tryon",
       ...TRYON,
-      line: tryon ? TRYON.line : "가상 착장 서버가 꺼져 있어요",
+      // 가상 착장만 인터넷이 필요하다(사무실 PC로 연결). 기기가 인터넷에 없을 때가 가장 흔한 원인이라 그렇게 알려 준다
+      line: tryon ? TRYON.line : "인터넷에 연결되어야 해요 · 연결 확인 중",
       off: !tryon,
       go: goTryon,
     },
