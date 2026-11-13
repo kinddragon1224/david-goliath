@@ -52,8 +52,8 @@ const STEPS: Record<FashionStation, { icon: StepIcon; text: string }[]> = {
   ],
   scissors: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
-    { icon: "scissors", text: "손이 가위! 점선을 쓱 지나가요" },
-    { icon: "path", text: "잘라낸 천으로 조각보를 채워요" },
+    { icon: "scissors", text: "손이 가위! 분필선을 따라 오려요" },
+    { icon: "path", text: "옷본 조각을 다 오리면 재단 완성" },
   ],
   sewing: [
     { icon: "arms", text: "양손 번쩍! 1초면 시작" },
@@ -1101,7 +1101,7 @@ function AttractOverlay({
 
 const TEASER: Record<FashionStation, string> = {
   iron: "세탁소 손님 옷의 주름을 쫙 펴 주세요!",
-  scissors: "천을 싹둑! 나만의 조각보를 만들어요",
+  scissors: "옷본 따라 싹둑싹둑! 진짜 재단사처럼",
   sewing: "하트·별·꽃을 수놓아요!",
   rhythm: "두 손으로 큰 북을 쿵쿵! 10콤보면 피버!",
 };

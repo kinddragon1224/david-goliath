@@ -18,6 +18,11 @@ import {
   type Stat,
 } from "../core";
 import {
+  BLACK_SET,
+  LAVENDER_LONG,
+  ORANGE_HANBOK,
+  WEDDING,
+  WHITE_SAILOR,
   ECO,
   LAYOVER,
   RESTITCH,
@@ -38,7 +43,20 @@ import {
  * 다 펴면 손님이 고마워하고 다음 손님 옷. 감점은 없다.
  * 쉬지 않고 다리면 스팀 게이지가 차고, 가득 차면 4초 동안 '스팀 부스트'(다리미가 커지고 점수 1.5배). */
 
-const ORDER: Garment[] = [LAYOVER, TAILORED, SEOLBAEK, RESTITCH, SILUA, ECO];
+/** 판마다 시작 옷이 바뀐다(한 판에 2~4벌이라 모두 돌아가며 나오게). */
+const ORDER: Garment[] = [
+  LAYOVER,
+  BLACK_SET,
+  TAILORED,
+  ORANGE_HANBOK,
+  SEOLBAEK,
+  LAVENDER_LONG,
+  RESTITCH,
+  WEDDING,
+  SILUA,
+  WHITE_SAILOR,
+  ECO,
+];
 const COLS = 28;
 const ROWS = 22;
 /** 이만큼 펴면 완성. */
@@ -93,6 +111,7 @@ export class IronMode implements Mode {
   private W = 1400;
   private H = 860;
   private gi = 0;
+  private g0 = 0;
   private pts: Pt[] = [];
   private path = new Path2D();
   private box = { x: 0, y: 0, w: 0, h: 0 };
@@ -131,6 +150,7 @@ export class IronMode implements Mode {
     this.W = W;
     this.H = H;
     this.gi = 0;
+    this.g0 = Math.floor(Math.random() * ORDER.length);
     this.finished = [];
     this.fly = null;
     this.trail = [];
@@ -150,7 +170,7 @@ export class IronMode implements Mode {
   }
 
   private garment(): Garment {
-    return ORDER[this.gi % ORDER.length];
+    return ORDER[(this.g0 + this.gi) % ORDER.length];
   }
 
   private load(): void {
@@ -670,7 +690,7 @@ export class IronMode implements Mode {
     const n = Math.max(ORDER.length, this.gi + 1);
     const out: QueueItem[] = [];
     for (let i = 0; i < n; i++) {
-      const g = ORDER[i % ORDER.length];
+      const g = ORDER[(this.g0 + i) % ORDER.length];
       out.push({
         label: g.name,
         state: i < this.gi ? "done" : i === this.gi ? "now" : "next",

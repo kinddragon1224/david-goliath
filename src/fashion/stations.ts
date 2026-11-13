@@ -13,7 +13,7 @@ export type StationInfo = {
 export const STATIONS: StationInfo[] = [
   { id: "goliath", no: "02", title: "다윗과 골리앗", line: "큰 목표를 향해 공을 던져요" },
   { id: "iron", no: "03", title: "다리미 챌린지", line: "세탁소 손님 옷의 주름을 펴요" },
-  { id: "scissors", no: "04", title: "가위질 챌린지", line: "천을 잘라 조각보를 만들어요" },
+  { id: "scissors", no: "04", title: "가위질 챌린지", line: "옷본 따라 원단을 재단해요" },
   { id: "sewing", no: "05", title: "바느질 챌린지", line: "하트·별·꽃을 수놓아요" },
   { id: "rhythm", no: "06", title: "몽글 드럼", line: "음악에 맞춰 큰 북을 두드려요" },
 ];

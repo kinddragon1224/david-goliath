@@ -1,6 +1,6 @@
 import { OneEuro } from "@/game/motion";
 import type { PoseFrame } from "@/game/pose";
-import { BRANDS, type Garment, type Pt } from "./garments";
+import { BRANDS, MORE, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
@@ -299,7 +299,7 @@ export class FashionGame implements Fx {
     private onUi: (ui: FashionUi) => void,
   ) {
     // 옷 사진은 미리 불러 둔다(처음 나올 때 색 천으로 깜빡이지 않게)
-    BRANDS.forEach(garmentPhoto);
+    [...BRANDS, ...MORE].forEach(garmentPhoto);
     this.rows = this.load();
     this.timeLeft = mode.seconds;
   }
