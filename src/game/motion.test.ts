@@ -262,6 +262,17 @@ test("게임 중 플레이어가 가려지면 남을 잡지 않고 기다린다"
   assert.equal(pickPlayer([person(0.7, 0.3)], 4 / 3, null, true), 0);
 });
 
+test("놀이 자리를 정하면 뒤에 줄 선(작게 보이는) 사람과 옆 구경꾼은 손을 들어도 못 잡는다", () => {
+  const zone = { minWidth: 0.15, halfX: 0.3 };
+  const me = person(0.5, 0.25);
+  const queue = person(0.45, 0.12, { handsUp: true });
+  const side = person(0.9, 0.3, { handsUp: true });
+  assert.equal(pickPlayer([queue, side, me], 4 / 3, null, false, zone), 2);
+  assert.equal(pickPlayer([queue, side], 4 / 3, null, false, zone), -1);
+  // 자리에 선 아이(어른 기준 맞춤의 0.6배쯤)는 잡힌다
+  assert.equal(pickPlayer([queue, person(0.5, 0.17, { handsUp: true })], 4 / 3, null, false, zone), 1);
+});
+
 test("아무도 손을 안 들면 가까운(어깨가 넓은) 사람", () => {
   const near = person(0.45, 0.3);
   const far = person(0.55, 0.12);

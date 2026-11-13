@@ -465,11 +465,16 @@ export const PLAYER_GAP = 0.15;
  * x는 카메라 원본 좌표(반전 전) 기준. lastCenter도 같은 좌표.
  * ponytail: 어깨 가운데로만 사람을 구분한다. 플레이어와 옆 사람이 겹쳐 지나가면 바뀔 수 있다.
  */
+/** 놀이 자리. 이보다 작게(멀리) 보이거나 화면 옆쪽에 선 사람은 아예 없는 사람으로 본다(줄 선 사람, 구경꾼).
+ * 운영자 화면의 '놀이 자리 맞추기'로 PC마다 정한다. */
+export type PlayZone = { minWidth: number; halfX: number };
+
 export function pickPlayer(
   poses: RawPoint[][],
   aspect: number,
   lastCenter: number | null,
   locked = false,
+  zone: PlayZone | null = null,
 ): number {
   let best = -1;
   let bestScore = -Infinity;
@@ -484,6 +489,7 @@ export function pickPlayer(
     if (!ls || !rs || v(ls) < 0.4 || v(rs) < 0.4) return;
     const width = Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y);
     const cx = (ls.x + rs.x) / 2;
+    if (zone && (width < zone.minWidth || Math.abs(cx - 0.5) > zone.halfX)) return;
     const nose = p[0];
     const lw = p[15];
     const rw = p[16];

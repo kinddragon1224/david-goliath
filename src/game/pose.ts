@@ -9,10 +9,53 @@ import {
   type Aim,
   type BodyInput,
   type Landmark,
+  type PlayZone,
   type ThrowEvent,
 } from "./motion";
 
 export type { Aim, Landmark, ThrowEvent };
+
+/* ── 놀이 자리: PC마다 한 번 맞춘다. 같은 PC의 모든 게임이 같이 쓴다(이 PC 브라우저에 저장). ── */
+const ZONE_KEY = "weaveon-play-zone";
+function loadZone(): PlayZone | null {
+  try {
+    const z = JSON.parse(localStorage.getItem(ZONE_KEY) ?? "null") as PlayZone | null;
+    return z && z.minWidth > 0 && z.halfX > 0 ? z : null;
+  } catch {
+    return null;
+  }
+}
+let zone: PlayZone | null = typeof window === "undefined" ? null : loadZone();
+/** 지금 돌고 있는 인식. 운영자 화면 버튼이 지금 선 사람을 읽는다. */
+let active: PoseController | null = null;
+
+export function playZone(): PlayZone | null {
+  return zone;
+}
+
+/** 지금 자리에 선 사람(어른 권장) 기준으로 맞춘다. 같은 자리의 아이(어른의 0.6배쯤)는 잡히고,
+ * 그 두 배쯤 뒤에 선 사람과 옆으로 크게 비켜 선 사람은 안 잡힌다. 맞춘 사람이 없으면 null. */
+export function calibratePlayZone(): PlayZone | null {
+  const p = active?.lastPick;
+  if (!p || performance.now() - p.at > 1000) return null;
+  // ponytail: 비율 두 개로만 가른다. 줄이 너무 가까우면(플레이어의 2배 거리 안) 줄 선 사람도 잡힌다 → 줄을 뒤로
+  zone = { minWidth: p.width * 0.5, halfX: Math.min(0.5, Math.abs(p.cx - 0.5) + 0.22) };
+  try {
+    localStorage.setItem(ZONE_KEY, JSON.stringify(zone));
+  } catch {
+    /* 저장이 막히면 이번 실행에만 */
+  }
+  return zone;
+}
+
+export function clearPlayZone(): void {
+  zone = null;
+  try {
+    localStorage.removeItem(ZONE_KEY);
+  } catch {
+    /* 무시 */
+  }
+}
 
 export type PoseFrame = {
   present: boolean;
@@ -57,8 +100,7 @@ const INFER_MS = 30;
 const INFER_LONG = 640;
 /** TV는 칩이 약해 작게 읽는다. 모델 입력이 256이라 이보다 커도 인식은 나아지지 않는다. */
 const TV_INFER_LONG = 320;
-/** 약한 PC(4코어 이하, 예: Intel HD 520 미니 PC). 3명을 찾고 640으로 읽으면 사람 찾기가 매 프레임 돌아 인식이 몇 배 늦다.
- * TV처럼 1명·320으로 읽는다. 대신 줄 선 사람이 바로 뒤에 서면 플레이어를 잠깐 놓칠 수 있다. */
+/** 약한 PC(4코어 이하, 예: Intel HD 520). 3명·640으로 읽으면 인식이 몇 배 늦다. 2명·320으로 읽는다. */
 const SLOW_PC =
   typeof navigator !== "undefined" && !isTv() && (navigator.hardwareConcurrency || 8) <= 4;
 // ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
@@ -115,6 +157,8 @@ export class PoseController {
   private stats = { at: 0, ticks: 0, infers: 0, ms: 0, told: 0 };
   present = false;
   lastFrame: PoseFrame = EMPTY;
+  /** 마지막으로 고른 플레이어의 어깨 폭·가운데(놀이 자리 맞추기용). */
+  lastPick: { width: number; cx: number; at: number } | null = null;
 
   resetMotion(): void {
     this.motion.reset();
@@ -186,7 +230,8 @@ export class PoseController {
       // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다.
       // 위브온 현장은 줄 선 사람이 많다: 2명만 찾으면 구경꾼 둘에 밀려 플레이어가 빠진다
       // TV는 1명만: 찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다
-      numPoses: isTv() || SLOW_PC ? 1 : EDITION.id === "weaveon" ? 3 : 2,
+      // 약한 PC도 여러 명 중 플레이어를 고르려면 2명 이상은 찾아야 한다(1명이면 누가 잡힐지 모델 마음대로)
+      numPoses: isTv() ? 1 : EDITION.id === "weaveon" ? (SLOW_PC ? 2 : 3) : 2,
       // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
       minPoseDetectionConfidence: 0.4,
       minPosePresenceConfidence: 0.4,
@@ -454,10 +499,16 @@ export class PoseController {
     aspect: number,
     now: number,
   ): PoseFrame {
+    active = this;
     const lost = now - this.lastSeen > PLAYER_LOST_MS;
-    const pick = pickPlayer(poses, aspect, this.lastCenter, this.locked && !lost);
+    const pick = pickPlayer(poses, aspect, this.lastCenter, this.locked && !lost, zone);
     if (pick >= 0) {
-      const cx = ((poses[pick][11]?.x ?? 0.5) + (poses[pick][12]?.x ?? 0.5)) / 2;
+      const ls = poses[pick][11];
+      const rs = poses[pick][12];
+      const cx = ((ls?.x ?? 0.5) + (rs?.x ?? 0.5)) / 2;
+      if (ls && rs) {
+        this.lastPick = { width: Math.hypot((rs.x - ls.x) * aspect, rs.y - ls.y), cx, at: performance.now() };
+      }
       // 다른 사람으로 바뀌면 손이 순간이동한 것을 동작으로 읽지 않게 지운다
       if (this.lastCenter !== null && Math.abs(cx - this.lastCenter) >= PLAYER_GAP) {
         this.motion.reset();

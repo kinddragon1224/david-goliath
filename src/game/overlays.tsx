@@ -10,6 +10,7 @@ import {
 } from "./constants";
 import { EDITION, EDITION_ID } from "./edition";
 import { resetStation } from "@/fashion/stations";
+import { PlayZoneButton } from "@/app/PlayZoneButton";
 import { isKiosk, isTv, listCameras, preferredCameraId, setPreferredCamera } from "./kiosk";
 import { backspaceJamo, KEY_ROWS, SHIFTED, typeJamo } from "./hangul";
 import { GIANT_PRESETS } from "./giant";
@@ -1235,6 +1236,9 @@ function AdminPanel({
           >
             소리 확인
           </button>
+        </div>
+        <div className="mt-2">
+          <PlayZoneButton className="h-11 w-full rounded-lg border-[0.1875rem] border-ink bg-cream font-display text-base" />
         </div>
         {EDITION_ID === "weaveon" && (
           <button

@@ -28,6 +28,7 @@ import { resetStation, stationInfo, type StationId } from "./stations";
 import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "@/game/tvAudio";
 import { StationMenu } from "./StationMenu";
+import { PlayZoneButton } from "@/app/PlayZoneButton";
 import { IronMode } from "./modes/iron";
 import { ScissorsMode } from "./modes/scissors";
 import { SewingMode } from "./modes/sewing";
@@ -1473,6 +1474,7 @@ function AdminPanel({
         <button type="button" onClick={onMute} className="f-ghost w-full py-3 text-lg">
           {muted ? "소리 켜기" : "소리 끄기"}
         </button>
+        <PlayZoneButton className="f-ghost w-full py-3 text-lg" />
         <div>
           <p className="mb-2 text-sm text-[var(--f-muted)]">카메라 고르기</p>
           <div className="space-y-2">
