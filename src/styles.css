@@ -371,6 +371,10 @@
   background: rgba(255, 211, 77, 0.55);
   pointer-events: none;
 }
+/* 고르는 화면의 칸은 그림이 꽉 차 있어 게이지를 그림 위로 올린다 */
+.f-pick.hand-fill::before {
+  z-index: 2;
+}
 /* 대기 화면: 무대 조명 빛줄기 + 반짝이 + 손 번쩍 사람 */
 .f-beam {
   position: absolute;

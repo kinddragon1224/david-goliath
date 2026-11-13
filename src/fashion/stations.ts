@@ -35,7 +35,10 @@ const TRYON_ORIGIN = "https://studio.therumen.kr";
 
 /** 가상 착장으로 넘어간다. home= 으로 지금 화면 주소를 넘겨, 거기서 이 화면으로 돌아온다. */
 export function goTryon(): void {
-  const home = encodeURIComponent(window.location.href);
+  // 돌아올 곳은 늘 고르는 화면(메인): 어느 체험에서 넘어갔든 ?game= 을 떼고 넘긴다
+  const url = new URL(window.location.href);
+  url.searchParams.delete("game");
+  const home = encodeURIComponent(url.toString());
   window.location.href = `${TRYON_ORIGIN}/app/?game=ar3d&garment=g00&home=${home}`;
 }
 
@@ -66,8 +69,6 @@ export function useTryonReady(): boolean {
   return ready;
 }
 
-const KEY = "weaveon-station";
-
 export function stationInfo(id: StationId): StationInfo {
   return STATIONS.find((s) => s.id === id) ?? STATIONS[0];
 }
@@ -76,26 +77,20 @@ function isStation(v: string | null): v is StationId {
   return !!v && STATIONS.some((s) => s.id === v);
 }
 
-/** 주소의 ?game= 이 먼저, 없으면 이 기기에 저장된 체험. 처음이면 null(고르는 화면). */
+/** 지금 체험은 주소의 ?game= 에만 둔다. 없으면 null(고르는 화면).
+ * 기기에 저장하지 않는다: 켤 때마다, 가상 착장에서 돌아올 때마다 메인은 고르는 화면이어야 한다. */
 export function savedStation(): StationId | null {
   if (typeof window === "undefined") return null;
   const q = new URLSearchParams(window.location.search).get("game");
-  if (isStation(q)) return q;
-  try {
-    const v = localStorage.getItem(KEY);
-    return isStation(v) ? v : null;
-  } catch {
-    return null;
-  }
+  return isStation(q) ? q : null;
 }
 
+/** 주소에 적어 둔다: 무인 운영 중 새로고침(오류 복구)이 나도 하던 체험으로 돌아온다. */
 export function saveStation(id: StationId | null): void {
-  try {
-    if (id) localStorage.setItem(KEY, id);
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* 저장이 막히면 매번 고른다 */
-  }
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set("game", id);
+  else url.searchParams.delete("game");
+  window.history.replaceState(null, "", url.toString());
 }
 
 /** 체험 바꾸기: 저장을 지우고 주소의 ?game= 도 떼고 다시 연다. */

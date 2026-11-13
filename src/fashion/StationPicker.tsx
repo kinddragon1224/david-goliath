@@ -1,8 +1,7 @@
 import "@fontsource/gowun-batang/700.css";
-import { useEffect, useState } from "react";
-
-/** 고르는 화면에서 아무 입력이 없으면 이만큼(초) 뒤 첫 체험으로 들어간다. */
-const AUTO_START_S = 20;
+import { useEffect, useRef, useState } from "react";
+import { setMenuHands } from "@/app/HandCursor";
+import { PoseController } from "@/game/pose";
 import {
   STATIONS,
   STATION_ART,
@@ -46,24 +45,50 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
       },
     })),
   ];
-  // 마우스·터치가 없는 기기: 아무도 안 누르면 첫 체험으로 들어간다. 그 안에서는 팔을 뻗어 다른 체험으로 옮길 수 있다.
-  const first = STATIONS[0];
-  const [left, setLeft] = useState(AUTO_START_S);
+  // 마우스·터치가 없는 기기: 카메라로 손을 읽어 손 커서(HandCursor)로 칸을 고른다. 팔 닿는 범위를 화면 전체에 펼친다.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [seen, setSeen] = useState(false);
   useEffect(() => {
-    const reset = () => setLeft(AUTO_START_S);
-    const id = window.setInterval(() => setLeft((n) => n - 1), 1000);
-    const evs = ["pointermove", "pointerdown", "keydown"] as const;
-    evs.forEach((e) => window.addEventListener(e, reset));
+    const pose = new PoseController();
+    let raf = 0;
+    let starting = false;
+    const start = () => {
+      const video = videoRef.current;
+      if (starting || !video) return;
+      starting = true;
+      pose
+        .start(video)
+        .catch(() => {
+          pose.status = "denied";
+        })
+        .finally(() => {
+          starting = false;
+        });
+    };
+    start();
+    const retry = window.setInterval(() => {
+      if (pose.status === "off" || pose.status === "denied") start();
+    }, 5000);
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      const frame = pose.status === "live" ? pose.tick(now) : null;
+      const hands =
+        frame && pose.poseReady
+          ? frame.reach.flatMap((h) =>
+              h ? [{ x: h.x * window.innerWidth, y: h.y * window.innerHeight }] : [],
+            )
+          : [];
+      setMenuHands(hands);
+      setSeen(hands.length > 0);
+    };
+    raf = requestAnimationFrame(loop);
     return () => {
-      window.clearInterval(id);
-      evs.forEach((e) => window.removeEventListener(e, reset));
+      cancelAnimationFrame(raf);
+      window.clearInterval(retry);
+      setMenuHands([]);
+      pose.stop();
     };
   }, []);
-  useEffect(() => {
-    if (left > 0) return;
-    saveStation(first.id);
-    onPick(first.id);
-  }, [left, first.id, onPick]);
   return (
     <div className="f-root fixed inset-0 flex flex-col overflow-hidden">
       <img src="/art/iron.webp" alt="" className="f-pick-bg absolute inset-0 size-full object-cover" />
@@ -78,10 +103,12 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         <p className="f-pick-cta f-serif mt-[1.2vmin] text-[2.4vmin] text-[var(--f-ink)]">
           ◆ 체험을 골라 주세요 ◆
         </p>
-        <p className="mt-[0.8vmin] text-[1.8vmin] text-[var(--f-muted)]">
-          {Math.max(0, left)}초 뒤 「{first.title}」부터 시작해요 · 들어가서 팔을 옆으로 쭉 뻗으면 다른
-          체험으로 갈 수 있어요
+        <p className="mt-[0.8vmin] text-[2vmin] text-[var(--f-muted)]">
+          {seen
+            ? "하고 싶은 체험에 손을 올리고 1초 기다려 주세요"
+            : "카메라 앞에 서서 손을 들어 보세요 · 손으로 고를 수 있어요"}
         </p>
+        <video ref={videoRef} className="pointer-events-none absolute size-px opacity-0" playsInline muted autoPlay />
       </header>
       <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] p-[3vmin] landscape:grid-cols-6 landscape:py-[5vmin]">
         {tiles.map((t, i) => {
@@ -93,7 +120,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
               autoFocus={i === 1}
               disabled={t.off}
               onClick={t.go}
-              className="f-pick group text-left"
+              className="f-pick hand-fill group text-left"
               style={{ "--i": i } as React.CSSProperties}
             >
               <img
