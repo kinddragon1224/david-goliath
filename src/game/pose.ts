@@ -57,6 +57,11 @@ const INFER_MS = 30;
 const INFER_LONG = 640;
 /** TV는 칩이 약해 작게 읽는다. 모델 입력이 256이라 이보다 커도 인식은 나아지지 않는다. */
 const TV_INFER_LONG = 320;
+/** 약한 PC(4코어 이하, 예: Intel HD 520 미니 PC). 3명을 찾고 640으로 읽으면 사람 찾기가 매 프레임 돌아 인식이 몇 배 늦다.
+ * TV처럼 1명·320으로 읽는다. 대신 줄 선 사람이 바로 뒤에 서면 플레이어를 잠깐 놓칠 수 있다. */
+const SLOW_PC =
+  typeof navigator !== "undefined" && !isTv() && (navigator.hardwareConcurrency || 8) <= 4;
+// ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
 /** TV 속도를 이 간격(ms)으로 화면에 알려 준다. 현장엔 로그를 볼 방법이 없다. */
 const STATS_MS = 10000;
 const STATS_TIMES = 6;
@@ -137,12 +142,21 @@ export class PoseController {
     return true;
   }
 
+  /** stop()이 늘린다. 켜는 도중에 꺼지면(고르는 화면에서 바로 체험을 고를 때) 뒤늦게 켜진 카메라·인식을 버린다.
+   * 안 그러면 보이지 않는 인식이 하나 더 남아 약한 PC에서 게임 인식을 같이 깎아 먹는다. */
+  private gen = 0;
+
   async start(video: HTMLVideoElement, onCamera?: () => void): Promise<void> {
+    const gen = this.gen;
     this.video = video;
     this.status = "loading";
     this.error = null;
     try {
       await this.openCamera(video);
+      if (gen !== this.gen) {
+        this.stop();
+        return;
+      }
       this.status = "live";
       onCamera?.();
     } catch (err) {
@@ -153,6 +167,7 @@ export class PoseController {
       return;
     }
     await this.loadModel();
+    if (gen !== this.gen) this.stop();
   }
 
   async loadModel(): Promise<void> {
@@ -171,7 +186,7 @@ export class PoseController {
       // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다.
       // 위브온 현장은 줄 선 사람이 많다: 2명만 찾으면 구경꾼 둘에 밀려 플레이어가 빠진다
       // TV는 1명만: 찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다
-      numPoses: isTv() ? 1 : EDITION.id === "weaveon" ? 3 : 2,
+      numPoses: isTv() || SLOW_PC ? 1 : EDITION.id === "weaveon" ? 3 : 2,
       // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
       minPoseDetectionConfidence: 0.4,
       minPosePresenceConfidence: 0.4,
@@ -332,6 +347,7 @@ export class PoseController {
   }
 
   stop(): void {
+    this.gen += 1;
     this.landmarker?.close?.();
     this.landmarker = null;
     this.stopWorker();
@@ -399,7 +415,7 @@ export class PoseController {
     const vw = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
     const vh = src instanceof HTMLVideoElement ? src.videoHeight : src.height;
     if (vw < 2 || vh < 2) return null;
-    const k = Math.min(1, (isTv() ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
+    const k = Math.min(1, (isTv() || SLOW_PC ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
     const w = Math.round(vw * k);
     const h = Math.round(vh * k);
     if (!this.tvCanvas || this.tvCanvas.width !== w || this.tvCanvas.height !== h) {
@@ -486,7 +502,7 @@ export class PoseController {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     if (vw < 2 || vh < 2) return video;
-    const k = Math.min(1, (isTv() ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
+    const k = Math.min(1, (isTv() || SLOW_PC ? TV_INFER_LONG : INFER_LONG) / Math.max(vw, vh));
     const w = Math.round(vw * k);
     const h = Math.round(vh * k);
     if (!this.inferCanvas) this.inferCanvas = document.createElement("canvas");
