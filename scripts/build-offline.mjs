@@ -73,6 +73,8 @@ const kiosk = join(root, "offline/kiosk");
 for (const f of readdirSync(kiosk)) {
   const text = readFileSync(join(kiosk, f), "utf8")
     .replaceAll("{{APP_NAME}}", edition.title)
+    // 켤 때 새 버전을 받아 올 곳(update.ps1). 웹이 있는 위브온판만.
+    .replaceAll("{{UPDATE_URL}}", editionArg === "weaveon" ? "https://wvn.vercel.app" : "")
     .replace(/\r?\n/g, "\r\n");
   const bom = f.endsWith(".txt") ? "\ufeff" : "";
   writeFileSync(join(pkg, f), bom + text);

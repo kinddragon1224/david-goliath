@@ -7,6 +7,10 @@ set "URL=http://localhost:%PORT%/?kiosk=1"
 set "PROFILE=%LOCALAPPDATA%\DavidGoliath\browser"
 set "PF86=%ProgramFiles(x86)%"
 
+rem 0) Self-update from the web. Kept on ONE line on purpose: the update overwrites this file,
+rem    and cmd has already read the whole line before that happens. Exit 3 = updated, start again.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%update.ps1" & if errorlevel 3 (start "" /min "%~f0" & exit /b 0)
+
 rem 1) Start the local server unless THIS version is already running.
 rem    An older server (previous install, another folder) is stopped first; otherwise it keeps
 rem    the port and serves old or missing files ("localhost" error after an update).
