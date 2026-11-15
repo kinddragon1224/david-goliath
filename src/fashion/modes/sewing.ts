@@ -1,3 +1,4 @@
+import { slow } from "@/game/perf";
 import {
   drawFlare,
   drawHandGlow,
@@ -130,7 +131,7 @@ export class SewingMode implements Mode {
     this.cx = W / 2;
     this.cy = H * 0.52;
     this.R = Math.min(W * 0.4, H * 0.42);
-    this.tol = Math.min(W, H) * 0.1;
+    this.tol = Math.min(W, H) * slow(0.1, 0.13);
     this.pi = 0;
     this.combo = 0;
     this.maxCombo = 0;

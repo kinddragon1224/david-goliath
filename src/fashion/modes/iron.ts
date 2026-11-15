@@ -1,3 +1,4 @@
+import { slow } from "@/game/perf";
 import {
   drawGarmentPhoto,
   drawHandGlow,
@@ -65,7 +66,7 @@ const GARMENT_POINTS = 1000;
 const GARMENT_BONUS = 500;
 const BOOST_SECONDS = 4;
 /** 주름이 펴지는 빠르기. */
-const PRESS = 1.15;
+const PRESS = slow(1.15, 1.4);
 /** 옷마다 맡긴 손님. */
 const CUSTOMERS = ["할머니", "꼬마", "신랑", "학생", "사장님", "이웃집"];
 const CRITTERS_MAX = 3;
@@ -82,7 +83,7 @@ const ZONE_LADDER = [0, 2, 4, 7, 9, 12];
 /** 안 다린 옷을 덮는 칙칙함. 다린 자리만 걷혀서 진짜 옷색이 드러난다. */
 const DULL = "rgba(22,24,34,0.52)";
 /** 이만큼 빠르게(초당 무대 폭 비율) 오가야 '쓱!'으로 친다. 웹캠 손 떨림은 안 센다. */
-const STROKE_SPEED = 0.22;
+const STROKE_SPEED = slow(0.22, 0.17);
 
 /** w: 남은 주름, w0: 처음 주름, dw: 주름 그림에 마지막으로 반영한 w, z: 구역. */
 type Cell = {

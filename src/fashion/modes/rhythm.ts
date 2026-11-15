@@ -1,4 +1,5 @@
 import { chart, smoothClock, StrikeDetector, type Lane } from "../drum";
+import { slow } from "@/game/perf";
 import {
   artImage,
   drawArt,
@@ -36,13 +37,14 @@ const ROLL_POINTS = 150;
 /** 음표가 줄 끝에서 판정 원까지 오는 시간(초). */
 const LEAD = 2.3;
 /** 판정 폭(초). 웹캠은 손이 100ms쯤 늦게 보여서 일반 리듬게임(±20~50ms)보다 넉넉하다. */
-const PERFECT_W = 0.12;
-const GOOD_W = 0.26;
+// 약한 PC는 인식이 띄엄띄엄이라 치는 순간이 최대 0.15초쯤 흔들린다: 판정을 넓힌다
+const PERFECT_W = slow(0.12, 0.18);
+const GOOD_W = slow(0.26, 0.38);
 /** 웹캠·인식이 늦는 만큼(초). 현장 카메라에서 박자가 밀리면 이 값을 맞춘다. */
-const LAG = 0.06;
+const LAG = slow(0.06, 0.18);
 /** 내려치는 줄(무대 높이 비율)과 최소 속도(초당 무대 높이). 어깨가 0.63이라 가슴 높이다. */
 const LINE = 0.72;
-const STRIKE_SPEED = 0.5;
+const STRIKE_SPEED = slow(0.5, 0.35);
 const FEVER_AT = 10;
 
 const LANE_COLOR = ["#f16e60", "#559fdc"];

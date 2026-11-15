@@ -1,12 +1,16 @@
 import { OneEuro } from "@/game/motion";
+import { slow } from "@/game/perf";
 import type { PoseFrame } from "@/game/pose";
 import { BRANDS, MORE, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
 import type { StationId } from "./stations";
 
 /** 웹캠·인식이 늦는 만큼 손을 속도 방향으로 조금 앞에 그린다(초). 멈출 때 튀어나가지 않게 짧게. */
-const LEAD = 0.04;
-const LEAD_MAX = 0.07;
+// 약한 PC는 인식이 0.2초쯤 늦고 띄엄띄엄(초당 5~8번) 와서 더 앞으로 그린다
+const LEAD = slow(0.04, 0.1);
+const LEAD_MAX = slow(0.07, 0.2);
+/** 두 인식 사이가 이보다 길면 속도를 버린다(순간이동). 약한 PC는 사이가 길다. */
+const SAMPLE_GAP = slow(0.3, 0.5);
 
 /** 손 하나. 좌표는 무대(stage) 안 좌표. 가로는 늘 STAGE_W, 세로는 화면 비율에 맞춘다. */
 export type Hand = {
@@ -487,7 +491,7 @@ export class FashionGame implements Fx {
       const x = this.filters[i][0].filter(r.x * this.W, nowMs);
       const y = this.filters[i][1].filter(r.y * this.H, nowMs);
       const sdt = (nowMs - s.at) / 1000;
-      if (h.on && sdt > 0 && sdt < 0.3) {
+      if (h.on && sdt > 0 && sdt < SAMPLE_GAP) {
         s.vx = s.vx * 0.4 + ((x - s.x) / sdt) * 0.6;
         s.vy = s.vy * 0.4 + ((y - s.y) / sdt) * 0.6;
       } else {

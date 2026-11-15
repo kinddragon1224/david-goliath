@@ -14,6 +14,7 @@ import {
   type Stat,
 } from "../core";
 import { pathOf, resample, type Pt } from "../garments";
+import { slow } from "@/game/perf";
 
 /** 04 가위질 챌린지 · 재단
  * 재단대 원단 위에 옷본 조각이 분필선으로 그려진다. 손(가위)을 선 위에 대고 따라가면
@@ -189,7 +190,7 @@ const GARMENTS: GarmentDef[] = [
 ];
 
 /** 판정 여유(무대 짧은 변 비율). 손 떨림을 견딜 만큼. */
-const TOL = 0.065;
+const TOL = slow(0.065, 0.09);
 /** 선 위 점 간격(무대 짧은 변 비율). */
 const STEP = 0.028;
 const DRAW_T = 0.6;

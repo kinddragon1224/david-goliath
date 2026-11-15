@@ -1,8 +1,10 @@
 import { EDITION } from "./edition";
 import { isTv, preferredCameraId } from "./kiosk";
+import { SLOW_PC } from "./perf";
 import { reachHands, type ReachHand } from "./reach";
 import { isUvcId, openUvc, tvToast, uvcCanvas, uvcDevices } from "./uvc";
 import {
+  MOTION,
   MotionTracker,
   pickPlayer,
   PLAYER_GAP,
@@ -100,11 +102,20 @@ const INFER_MS = 30;
 const INFER_LONG = 640;
 /** TV는 칩이 약해 작게 읽는다. 모델 입력이 256이라 이보다 커도 인식은 나아지지 않는다. */
 const TV_INFER_LONG = 320;
-/** 약한 PC(4스레드 이하, 예: 2코어 6세대 i3 + HD 520 — 이름만 i9로 바꾼 행사용 미니 PC가 이렇다).
- * 초저사양 모드: 1명만 찾고(찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다),
- * 320으로 읽고, 카메라도 640×480으로 받고, 화면은 dpr 1·그림자 없이 그린다. */
-export const SLOW_PC =
-  typeof navigator !== "undefined" && !isTv() && (navigator.hardwareConcurrency || 8) <= 4;
+/* 약한 PC 초저사양 모드: 1명만 찾고(찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다),
+ * 320으로 읽고, 카메라도 640×480으로 받고, 화면은 dpr 1·그림자 없이·초당 30장으로 그린다. */
+export { SLOW_PC };
+// 약한 PC: 인식이 초당 5~8번이라 던지는 순간 속도가 덜 잡힌다. 던지기 판정을 낮추고 장전을 오래 기다린다
+if (SLOW_PC) {
+  Object.assign(MOTION, {
+    cockHoldMs: 1100,
+    releaseDownSpeed: 3,
+    releaseDrop: 0.55,
+    releaseForwardSpeed: 1.2,
+    swingSpeed: 6,
+    swingTravel: 1.1,
+  });
+}
 // ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
 /** 약한 PC는 화면을 초당 30장까지만 그린다. 남는 힘을 인식에 준다. */
 export const FRAME_MS = SLOW_PC ? 32 : 0;
