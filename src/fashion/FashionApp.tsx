@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "@fontsource/gowun-batang/700.css";
 import { FRAME_MS, lightCanvas, PoseController, screenDpr, type PoseFrame } from "@/game/pose";
+import { SLOW_PC } from "@/game/perf";
 import {
   isKiosk,
   listCameras,
@@ -550,12 +551,14 @@ function drawMirror(
   ctx.scale(-1, 1);
   ctx.drawImage(video, sx, sy, cw, ch, 0, 0, w, h);
   ctx.restore();
-  // 진주빛 막
-  const g = ctx.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0, "rgba(255,214,234,0.12)");
-  g.addColorStop(1, "rgba(196,244,234,0.12)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
+  // 진주빛 막(약한 PC는 뺀다)
+  if (!SLOW_PC) {
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "rgba(255,214,234,0.12)");
+    g.addColorStop(1, "rgba(196,244,234,0.12)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
   const sk = frame?.skeleton;
   if (!sk || !frame?.present) return;
   const P = (p: { x: number; y: number }) => ({

@@ -1,5 +1,5 @@
 import { OneEuro } from "@/game/motion";
-import { slow } from "@/game/perf";
+import { slow, SLOW_PC } from "@/game/perf";
 import type { PoseFrame } from "@/game/pose";
 import { BRANDS, MORE, type Garment, type Pt } from "./garments";
 import type { FashionSound, Line, Sfx } from "./sound";
@@ -844,8 +844,8 @@ export class FashionGame implements Fx {
       drawGuide(ctx, from.x, from.y, tgt.x, tgt.y, this.time);
     }
 
-    // 떠다니는 반짝이
-    for (const g of this.glitter) {
+    // 떠다니는 반짝이(약한 PC는 뺀다)
+    for (const g of SLOW_PC ? [] : this.glitter) {
       const tw = (Math.sin(this.time * g.sp * 2 + g.ph) + 1) / 2;
       if (tw < 0.55) continue;
       drawFlare(
@@ -914,7 +914,7 @@ export class FashionGame implements Fx {
       ctx.translate(cx, cy);
       ctx.rotate(this.time * 0.6);
       const fade = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < (SLOW_PC ? 0 : 14); i++) {
         ctx.rotate((Math.PI * 2) / 14);
         const g = ctx.createLinearGradient(0, 0, Math.max(W, H) * 0.8, 0);
         g.addColorStop(0, `rgba(200,245,255,${0.35 * fade})`);
@@ -949,8 +949,8 @@ export class FashionGame implements Fx {
       ctx.restore();
     }
 
-    // 색종이
-    for (const c of this.confetti) {
+    // 색종이(약한 PC는 뺀다)
+    for (const c of SLOW_PC ? [] : this.confetti) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, (c.life - c.t) * 2);
       ctx.translate(c.x, c.y);
@@ -1035,6 +1035,12 @@ export class FashionGame implements Fx {
 
 /** 화면 전체 배경(포스터 톤): 검정 위에 얼음빛 번짐과 은빛 실크 리본. */
 export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
+  if (SLOW_PC) {
+    // 약한 PC: 번짐·리본 없이 한 색(화면 전체를 7번 칠하던 것)
+    ctx.fillStyle = "#0a0d14";
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, "#10141d");
   g.addColorStop(1, "#040509");
@@ -1425,13 +1431,47 @@ export function drawPalace(
   wall: [string, string] = ["#141a26", "#06080d"],
   art?: string,
 ): void {
+  // 약한 PC: 벽 전체를 한 번만 그려 두고 한 장으로 찍는다(매 프레임 화면 6장 분량을 칠하던 것)
+  if (SLOW_PC) {
+    const key = `${W}x${H}|${wall}|${art ?? ""}`;
+    let c = PALACE.get(key);
+    if (!c && typeof document !== "undefined") {
+      const cv = document.createElement("canvas");
+      cv.width = Math.ceil(W);
+      cv.height = Math.ceil(H);
+      const cx = cv.getContext("2d");
+      // 배경 그림이 아직 안 왔으면 이번엔 저장하지 않고 다음에 다시
+      if (cx && paintPalace(cx, W, H, 0, wall, art, false)) PALACE.set(key, (c = cv));
+    }
+    if (c) {
+      ctx.drawImage(c, 0, 0, W, H);
+      return;
+    }
+  }
+  paintPalace(ctx, W, H, t, wall, art, true);
+}
+const PALACE = new Map<string, HTMLCanvasElement>();
+
+/** 왕궁 방을 그린다. 배경 그림을 다 그렸으면(또는 그림이 없으면) true. */
+function paintPalace(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  t: number,
+  wall: [string, string],
+  art: string | undefined,
+  sparkle: boolean,
+): boolean {
+  let complete = true;
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, wall[0]);
   g.addColorStop(1, wall[1]);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   // 그린 배경 그림(public/art)이 있으면 꽉 채워 깔고 살짝 어둡게. 없으면 아래 무늬로 그린다.
-  if (!art || !drawArt(ctx, W, H, art)) {
+  const drewArt = !!art && drawArt(ctx, W, H, art);
+  if (art && !drewArt) complete = false;
+  if (!drewArt) {
     // 다마스크 무늬: 마름모 격자 + 작은 백합 문양
     ctx.save();
     const s = Math.min(W, H) * 0.09;
@@ -1490,6 +1530,7 @@ export function drawPalace(
     ctx.fillStyle = lg;
     ctx.fillRect(0, 0, W, H);
   }
+  if (!sparkle) return complete;
   // 반짝이 가루
   ctx.save();
   ctx.fillStyle = "#e6f6ff";
@@ -1513,4 +1554,5 @@ export function drawPalace(
     ctx.fill();
   }
   ctx.restore();
+  return complete;
 }

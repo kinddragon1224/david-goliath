@@ -147,7 +147,10 @@ export function screenDpr(): number {
 }
 /** 약한 PC: 빛 번짐(shadowBlur)은 내장 그래픽에서 가장 비싼 그리기라 통째로 끈다. 모양은 그대로 남는다. */
 export function lightCanvas(ctx: CanvasRenderingContext2D): void {
-  if (SLOW_PC) Object.defineProperty(ctx, "shadowBlur", { get: () => 0, set: () => {} });
+  // 같은 화면이 두 번 붙을 수 있다(화면 다시 붙이기·개발 모드): 이미 바꿨으면 그대로
+  if (SLOW_PC && !Object.getOwnPropertyDescriptor(ctx, "shadowBlur")) {
+    Object.defineProperty(ctx, "shadowBlur", { get: () => 0, set: () => {}, configurable: true });
+  }
 }
 /** TV 속도를 이 간격(ms)으로 화면에 알려 준다. 현장엔 로그를 볼 방법이 없다. */
 const STATS_MS = 10000;

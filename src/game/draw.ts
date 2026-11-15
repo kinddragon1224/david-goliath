@@ -9,6 +9,7 @@ import {
   type DavidPose,
 } from "./art";
 import { KO_HOLD } from "./boss";
+import { SLOW_PC } from "./perf";
 import { BEAT_BPM, GRAVITY, WORLD_H, WORLD_W } from "./constants";
 import { goliathAngle, stoneFlight } from "./rules";
 import type { Floater, GameSim } from "./types";
@@ -1264,6 +1265,21 @@ function drawSpeedLines(ctx: CanvasRenderingContext2D, sim: GameSim): void {
   ctx.restore();
 }
 
+/** 약한 PC: 하늘을 멈춘 그림으로 한 번만 그려 두고 찍는다(돌아가는 햇살·구름·색종이 없이). */
+const SKY = new Map<boolean, HTMLCanvasElement>();
+function stillSky(fever: boolean): HTMLCanvasElement | null {
+  if (SKY.has(fever)) return SKY.get(fever)!;
+  if (typeof document === "undefined") return null;
+  const cv = document.createElement("canvas");
+  cv.width = WORLD_W;
+  cv.height = 1400;
+  const c = cv.getContext("2d");
+  if (!c) return null;
+  drawSky(c, 0, true, fever);
+  SKY.set(fever, cv);
+  return cv;
+}
+
 export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = false): void {
   ctx.save();
   ctx.translate(sim.shakeX, sim.shakeY);
@@ -1275,7 +1291,9 @@ export function drawWorld(ctx: CanvasRenderingContext2D, sim: GameSim, calm = fa
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  drawSky(ctx, sim.time, calm, sim.fever);
+  const still = SLOW_PC ? stillSky(sim.fever) : null;
+  if (still) ctx.drawImage(still, 0, 0);
+  else drawSky(ctx, sim.time, calm, sim.fever);
   const bg = staticBackground();
   if (bg) ctx.drawImage(bg, 0, 0);
   if (sim.fever) {

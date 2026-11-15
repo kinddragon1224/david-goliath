@@ -362,6 +362,17 @@
     animation: none;
   }
 }
+/* 약한 PC(perf.ts가 html에 .lite): 움직임·그림자·필터를 다 끈다. 내장 그래픽은 게임 화면 위의 이것들을 매 프레임 다시 그린다 */
+.lite *,
+.lite *::before,
+.lite *::after {
+  animation: none !important;
+  transition: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
 /* 손을 올려 두면 버튼이 아래에서 위로 차오른다(HandCursor가 --dwell을 넣는다) */
 .hand-fill::before {
   content: "";
