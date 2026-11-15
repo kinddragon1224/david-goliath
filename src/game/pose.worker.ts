@@ -12,7 +12,7 @@ self.onmessage = async (e: MessageEvent<Init | Frame>) => {
   if (m.type === "init") {
     try {
       const fileset = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      let delegate: "GPU" | "CPU" = "GPU";
+      let delegate: "GPU" | "CPU" = m.opts.baseOptions?.delegate === "CPU" ? "CPU" : "GPU";
       try {
         landmarker = await PoseLandmarker.createFromOptions(fileset, m.opts);
       } catch {

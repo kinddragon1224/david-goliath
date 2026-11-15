@@ -5,7 +5,7 @@ import { WORLD_H, WORLD_W, ROUND_SECONDS } from "./constants";
 import { drawPip } from "./draw";
 import { Game } from "./engine";
 import { Overlays, SidePanel } from "./overlays";
-import { lightCanvas, PoseController, screenDpr } from "./pose";
+import { FRAME_MS, lightCanvas, PoseController, screenDpr } from "./pose";
 import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
 import { isKiosk, setupKiosk } from "./kiosk";
@@ -135,8 +135,11 @@ export function GameApp() {
     let raf = 0;
     let lastPhase = game.phase;
     let throwFlashUntil = 0;
+    let drawn = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (now - drawn < FRAME_MS) return;
+      drawn = now;
       const video = videoRef.current;
       if (pose.takeDisconnect()) {
         game.setReadiness("off", null, "off", null);

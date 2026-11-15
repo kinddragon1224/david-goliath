@@ -106,6 +106,30 @@ const TV_INFER_LONG = 320;
 export const SLOW_PC =
   typeof navigator !== "undefined" && !isTv() && (navigator.hardwareConcurrency || 8) <= 4;
 // ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
+/** 약한 PC는 화면을 초당 30장까지만 그린다. 남는 힘을 인식에 준다. */
+export const FRAME_MS = SLOW_PC ? 32 : 0;
+/** 약한 PC: 인식을 GPU·CPU로 한 번씩 재 보고 빠른 쪽을 이 PC에 저장한다(6세대 내장 그래픽은 CPU가 더 빠를 수 있다). */
+const DELEGATE_KEY = "weaveon-delegate";
+function savedDelegate(): "GPU" | "CPU" | null {
+  try {
+    const v = localStorage.getItem(DELEGATE_KEY);
+    return v === "GPU" || v === "CPU" ? v : null;
+  } catch {
+    return null;
+  }
+}
+/** 약한 PC: 화면 구석에 속도를 띄운다(현장에서 숫자로 알려 주시라고). */
+function speedBadge(text: string): void {
+  let el = document.getElementById("pose-speed");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "pose-speed";
+    el.style.cssText =
+      "position:fixed;left:6px;bottom:4px;z-index:99999;font:12px monospace;color:#fff;background:#0008;padding:2px 6px;border-radius:4px;pointer-events:none";
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+}
 /** 화면 배율. TV·약한 PC는 1(고해상도 화면이어도 2배로 그리지 않는다). */
 export function screenDpr(): number {
   return Math.min(isTv() || SLOW_PC ? 1 : 2, window.devicePixelRatio || 1);
@@ -165,6 +189,9 @@ export class PoseController {
   } | null = null;
   private tvCanvas: OffscreenCanvas | null = null;
   private delegate = "";
+  /** 약한 PC: 이번에 쓸 인식 장치와, 비교용으로 잰 GPU 속도(ms). */
+  private want: "GPU" | "CPU" = savedDelegate() ?? "GPU";
+  private gpuMs: number | null = null;
   private stats = { at: 0, ticks: 0, infers: 0, ms: 0, told: 0 };
   present = false;
   lastFrame: PoseFrame = EMPTY;
@@ -235,7 +262,7 @@ export class PoseController {
     const opts = {
       baseOptions: {
         modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
-        delegate: "GPU" as const,
+        delegate: SLOW_PC ? this.want : ("GPU" as const),
       },
       runningMode: "VIDEO" as const,
       // 뒤에 지나가는 사람이 있어도 가장 가까운 사람을 고른다.
@@ -492,7 +519,8 @@ export class PoseController {
     if (!s.at) s.at = now;
     if (now - s.at < STATS_MS) return;
     const sec = (now - s.at) / 1000;
-    if (s.told < STATS_TIMES) {
+    if (SLOW_PC) this.tuneSlowPc(s, sec);
+    if (isTv() && s.told < STATS_TIMES) {
       s.told += 1;
       tvToast(
         `화면 ${Math.round(s.ticks / sec)}장/초 · 인식 ${Math.round(s.infers / sec)}회/초 ` +
@@ -504,6 +532,31 @@ export class PoseController {
     s.ticks = 0;
     s.infers = 0;
     s.ms = 0;
+  }
+
+  /** 약한 PC: 속도를 화면 구석에 띄우고, 처음 한 번 GPU·CPU를 재서 빠른 쪽을 저장한다. */
+  private tuneSlowPc(s: { ticks: number; infers: number; ms: number }, sec: number): void {
+    const avg = Math.round(s.ms / Math.max(1, s.infers));
+    speedBadge(
+      `${this.delegate} 인식 ${avg}ms · ${Math.round(s.infers / sec)}회/초 · 화면 ${Math.round(s.ticks / sec)}장/초`,
+    );
+    if (savedDelegate() || s.infers < 10) return;
+    if (this.want === "GPU") {
+      this.gpuMs = avg;
+      this.want = "CPU";
+      void this.loadModel();
+    } else if (this.gpuMs !== null) {
+      const best = avg < this.gpuMs ? "CPU" : "GPU";
+      try {
+        localStorage.setItem(DELEGATE_KEY, best);
+      } catch {
+        /* 저장이 막히면 다음에 또 잰다 */
+      }
+      if (best === "GPU") {
+        this.want = "GPU";
+        void this.loadModel();
+      }
+    }
   }
 
   private readPoses(

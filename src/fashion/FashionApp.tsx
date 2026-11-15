@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "@fontsource/gowun-batang/700.css";
-import { lightCanvas, PoseController, screenDpr, type PoseFrame } from "@/game/pose";
+import { FRAME_MS, lightCanvas, PoseController, screenDpr, type PoseFrame } from "@/game/pose";
 import {
   isKiosk,
   listCameras,
@@ -184,8 +184,11 @@ export function FashionApp({ station }: { station: FashionStation }) {
     let raf = 0;
     // 한 장면이 터져도 다음 장면은 그린다. 계속 터지면(무인 운영) 대기 화면일 때 새로고침.
     let fails = 0;
+    let drawn = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (now - drawn < FRAME_MS) return;
+      drawn = now;
       try {
         frameStep(now);
         fails = 0;
