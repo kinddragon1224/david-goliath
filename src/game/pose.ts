@@ -537,10 +537,13 @@ export class PoseController {
   /** 약한 PC: 속도를 화면 구석에 띄우고, 처음 한 번 GPU·CPU를 재서 빠른 쪽을 저장한다. */
   private tuneSlowPc(s: { ticks: number; infers: number; ms: number }, sec: number): void {
     const avg = Math.round(s.ms / Math.max(1, s.infers));
+    const done = savedDelegate();
     speedBadge(
-      `${this.delegate} 인식 ${avg}ms · ${Math.round(s.infers / sec)}회/초 · 화면 ${Math.round(s.ticks / sec)}장/초`,
+      `${this.delegate} 인식 ${avg}ms · ${Math.round(s.infers / sec)}회/초 · 화면 ${Math.round(s.ticks / sec)}장/초` +
+        (done ? "" : " · 속도 재는 중"),
     );
-    if (savedDelegate() || s.infers < 10) return;
+    // 바꿔 끼우는 동안 인식이 몇 초 끊긴다: 게임 중에는 재지 않고 대기 화면에서만
+    if (done || this.locked || s.infers < 10) return;
     if (this.want === "GPU") {
       this.gpuMs = avg;
       this.want = "CPU";
