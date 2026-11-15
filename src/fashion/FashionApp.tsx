@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "@fontsource/gowun-batang/700.css";
-import { PoseController, type PoseFrame } from "@/game/pose";
+import { lightCanvas, PoseController, screenDpr, type PoseFrame } from "@/game/pose";
 import {
   isKiosk,
-  isTv,
   listCameras,
   preferredCameraId,
   setPreferredCamera,
@@ -147,6 +146,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    lightCanvas(ctx);
     const sound = new FashionSound();
     const game = new FashionGame(station, makeMode(station), sound, setUi);
     gameRef.current = game;
@@ -158,7 +158,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
     const resize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      dpr = Math.min(isTv() ? 1 : 2, window.devicePixelRatio || 1);
+      dpr = screenDpr();
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
       const L = computeLayout(w, h);

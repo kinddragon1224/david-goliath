@@ -100,10 +100,20 @@ const INFER_MS = 30;
 const INFER_LONG = 640;
 /** TV는 칩이 약해 작게 읽는다. 모델 입력이 256이라 이보다 커도 인식은 나아지지 않는다. */
 const TV_INFER_LONG = 320;
-/** 약한 PC(4코어 이하, 예: Intel HD 520). 3명·640으로 읽으면 인식이 몇 배 늦다. 2명·320으로 읽는다. */
-const SLOW_PC =
+/** 약한 PC(4스레드 이하, 예: 2코어 6세대 i3 + HD 520 — 이름만 i9로 바꾼 행사용 미니 PC가 이렇다).
+ * 초저사양 모드: 1명만 찾고(찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다),
+ * 320으로 읽고, 카메라도 640×480으로 받고, 화면은 dpr 1·그림자 없이 그린다. */
+export const SLOW_PC =
   typeof navigator !== "undefined" && !isTv() && (navigator.hardwareConcurrency || 8) <= 4;
 // ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
+/** 화면 배율. TV·약한 PC는 1(고해상도 화면이어도 2배로 그리지 않는다). */
+export function screenDpr(): number {
+  return Math.min(isTv() || SLOW_PC ? 1 : 2, window.devicePixelRatio || 1);
+}
+/** 약한 PC: 빛 번짐(shadowBlur)은 내장 그래픽에서 가장 비싼 그리기라 통째로 끈다. 모양은 그대로 남는다. */
+export function lightCanvas(ctx: CanvasRenderingContext2D): void {
+  if (SLOW_PC) Object.defineProperty(ctx, "shadowBlur", { get: () => 0, set: () => {} });
+}
 /** TV 속도를 이 간격(ms)으로 화면에 알려 준다. 현장엔 로그를 볼 방법이 없다. */
 const STATS_MS = 10000;
 const STATS_TIMES = 6;
@@ -111,8 +121,9 @@ const STATS_TIMES = 6;
 const PLAYER_LOST_MS = 1500;
 /** 4:3을 먼저 청한다. 16:9는 많은 웹캠에서 위아래가 잘려, 높이 달린 카메라에 작은 아이가 안 담긴다. */
 const CAMERA_SHAPE = {
-  width: { ideal: 1280 },
-  height: { ideal: 960 },
+  // 약한 PC는 1280×960 영상을 풀고 줄이는 것만으로 CPU를 꽤 먹는다. 인식은 어차피 320으로 읽는다
+  width: { ideal: SLOW_PC ? 640 : 1280 },
+  height: { ideal: SLOW_PC ? 480 : 960 },
   aspectRatio: { ideal: 4 / 3 },
   frameRate: { ideal: 30 },
 };
@@ -231,7 +242,8 @@ export class PoseController {
       // 위브온 현장은 줄 선 사람이 많다: 2명만 찾으면 구경꾼 둘에 밀려 플레이어가 빠진다
       // TV는 1명만: 찾을 수보다 적게 보이면 매 프레임 사람 찾기를 다시 돌려 몇 배 느려진다
       // 약한 PC도 여러 명 중 플레이어를 고르려면 2명 이상은 찾아야 한다(1명이면 누가 잡힐지 모델 마음대로)
-      numPoses: isTv() ? 1 : EDITION.id === "weaveon" ? (SLOW_PC ? 2 : 3) : 2,
+      // ponytail: 약한 PC는 1명 — 뒤 사람이 더 또렷하면 그 사람이 잡혀 놀이 자리에서 걸러지고 잠깐 아무도 없다. 행사 뒤 PC를 바꾸면 3명으로 돌아간다
+      numPoses: isTv() || SLOW_PC ? 1 : EDITION.id === "weaveon" ? 3 : 2,
       // 화면 아래쪽에 반쯤 걸친 작은 아이도 잡히게 0.5 → 0.4
       minPoseDetectionConfidence: 0.4,
       minPosePresenceConfidence: 0.4,
@@ -473,7 +485,8 @@ export class PoseController {
   }
 
   private reportSpeed(now: number): void {
-    if (!isTv()) return;
+    // 약한 PC도 속도를 window.__poseStats에 남긴다(PC엔 토스트가 없어 F12 콘솔로 본다)
+    if (!isTv() && !SLOW_PC) return;
     const s = this.stats;
     s.ticks += 1;
     if (!s.at) s.at = now;

@@ -5,10 +5,10 @@ import { WORLD_H, WORLD_W, ROUND_SECONDS } from "./constants";
 import { drawPip } from "./draw";
 import { Game } from "./engine";
 import { Overlays, SidePanel } from "./overlays";
-import { PoseController } from "./pose";
+import { lightCanvas, PoseController, screenDpr } from "./pose";
 import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
-import { isKiosk, isTv, setupKiosk } from "./kiosk";
+import { isKiosk, setupKiosk } from "./kiosk";
 import { EDITION_ID } from "./edition";
 import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "./tvAudio";
@@ -107,6 +107,7 @@ export function GameApp() {
     if (!canvas || !wrap) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    lightCanvas(ctx);
 
     const audio = new GameAudio();
     const game = new Game(audio, (snap) => setUi(snap));
@@ -117,7 +118,7 @@ export function GameApp() {
 
     const resize = () => {
       const r = wrap.getBoundingClientRect();
-      const dpr = Math.min(isTv() ? 1 : 2, window.devicePixelRatio || 1);
+      const dpr = screenDpr();
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
