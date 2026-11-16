@@ -2,7 +2,9 @@ import { uvcDevices } from "./uvc";
 
 /** 무인 키오스크 운영용 도우미. 주소에 ?kiosk=1 이 있으면 켜진다(오프라인 설치판의 start.bat이 붙인다). */
 
-export const CAMERA_KEY = "david-goliath-camera-id";
+// PC 한 대에 창 두 개(게임 두 개)를 띄울 때 주소에 ?cam=2 처럼 붙이면 창마다 고른 카메라를 따로 기억한다
+const camSlot = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("cam");
+export const CAMERA_KEY = "david-goliath-camera-id" + (camSlot ? `:${camSlot}` : "");
 
 export function isKiosk(): boolean {
   if (typeof window === "undefined") return false;
