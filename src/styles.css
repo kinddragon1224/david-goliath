@@ -253,6 +253,25 @@
 .f-pick-cta {
   animation: f-pick-pulse 2.4s ease-in-out infinite;
 }
+/* 고르는 법 단계: 지금 할 단계만 밝게 */
+.f-step {
+  border: 0.2vmin solid rgba(195, 207, 220, 0.25);
+  background: rgba(10, 13, 20, 0.6);
+  color: var(--f-muted);
+  transition: all 300ms;
+}
+.f-step b {
+  background: rgba(195, 207, 220, 0.18);
+}
+.f-step-on {
+  border-color: var(--f-gold);
+  color: var(--f-ink);
+  box-shadow: 0 0 1.6vmin rgba(159, 243, 255, 0.3);
+}
+.f-step-on b {
+  background: var(--f-gold);
+  color: #07080c;
+}
 .f-pick {
   position: relative;
   overflow: hidden;

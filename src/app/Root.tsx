@@ -27,7 +27,8 @@ export function Root() {
       ) : (
         <FashionApp station={station} />
       )}
-      <ProducerMark />
+      {/* 고르는 화면은 아래 로고 띠에 제작사가 있다 */}
+      {station !== null && <ProducerMark />}
       <HandCursor />
       <RemoteFocus />
     </>

@@ -1,6 +1,7 @@
 import "@fontsource/gowun-batang/700.css";
 import { useEffect, useRef, useState } from "react";
 import { setMenuHands } from "@/app/HandCursor";
+import { PRODUCER } from "@/game/constants";
 import { PoseController } from "@/game/pose";
 import {
   STATIONS,
@@ -93,24 +94,38 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     <div className="f-root fixed inset-0 flex flex-col overflow-hidden">
       <img src="/art/iron.webp" alt="" className="f-pick-bg absolute inset-0 size-full object-cover" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(7,8,12,0.35),rgba(7,8,12,0.92)_75%)]" />
-      <header className="relative px-[3vmin] pt-[4vmin] text-center">
-        <p className="text-[1.7vmin] tracking-[0.5em] text-[var(--f-gold)]">
-          2026 WEAVE ON FESTIVAL
-        </p>
-        <h1 className="f-serif mt-[1vmin] text-[6.4vmin] leading-tight">
-          몸으로 즐기는 <span className="f-pearl">AX 체험</span>
-        </h1>
-        <p className="f-pick-cta f-serif mt-[1.2vmin] text-[2.4vmin] text-[var(--f-ink)]">
-          ◆ 체험을 골라 주세요 ◆
-        </p>
-        <p className="mt-[0.8vmin] text-[2vmin] text-[var(--f-muted)]">
-          {seen
-            ? "하고 싶은 체험에 손을 올리고 1초 기다려 주세요"
-            : "카메라 앞에 서서 손을 들어 보세요 · 손으로 고를 수 있어요"}
-        </p>
+      {/* 머리: 왼쪽 행사 로고 · 가운데 제목 · 오른쪽 고르는 법(지금 할 단계가 밝게 켜진다) */}
+      <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2.5vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
+        <img
+          src="/brand/logo-weaveon.png"
+          alt="위브온 중촌"
+          className="h-[13vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.8)] landscape:justify-self-start"
+        />
+        <div>
+          <p className="text-[1.7vmin] tracking-[0.5em] text-[var(--f-gold)]">
+            2026 WEAVE ON FESTIVAL
+          </p>
+          <h1 className="f-serif mt-[0.6vmin] text-[6vmin] leading-tight">
+            몸으로 즐기는 <span className="f-pearl">AX 체험</span>
+          </h1>
+          <p className="f-pick-cta f-serif mt-[0.8vmin] text-[2.4vmin] text-[var(--f-ink)]">
+            ◆ 체험을 골라 주세요 ◆
+          </p>
+        </div>
+        <ol className="flex gap-[1vmin] text-left text-[1.8vmin] landscape:flex-col landscape:justify-self-end">
+          {["카메라 앞에 서요", "하고 싶은 체험에 손을 올려요", "1초 기다리면 시작!"].map((s, i) => (
+            <li
+              key={s}
+              className={`f-step flex items-center gap-[1vmin] rounded-full py-[0.5vmin] pr-[1.8vmin] pl-[0.5vmin] ${(i === 0) !== seen ? "f-step-on" : ""}`}
+            >
+              <b className="f-serif grid size-[3vmin] place-items-center rounded-full">{i + 1}</b>
+              {s}
+            </li>
+          ))}
+        </ol>
         <video ref={videoRef} className="pointer-events-none absolute size-px opacity-0" playsInline muted autoPlay />
       </header>
-      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] p-[3vmin] landscape:grid-cols-6 landscape:py-[5vmin]">
+      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] px-[3vmin] py-[2.5vmin] landscape:grid-cols-6">
         {tiles.map((t, i) => {
           const a = STATION_ART[t.key];
           return (
@@ -153,6 +168,16 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
           );
         })}
       </div>
+      {/* 함께하는 곳: 로고가 짙은 색이라 흰 띠 위에 원래 색 그대로 둔다 */}
+      <footer className="pointer-events-none relative flex justify-center pb-[2vmin]">
+        <div className="flex items-center gap-[3.5vmin] rounded-full bg-white/95 px-[4.5vmin] py-[1vmin] shadow-[0_0.8vmin_2.4vmin_rgba(0,0,0,0.6)]">
+          <img src="/brand/logo-youth.png" alt="청년마을" className="h-[5.4vmin] w-auto" />
+          <i className="h-[3.4vmin] w-px bg-black/15" />
+          <img src="/brand/logo-bargium.png" alt="BARGIUM" className="h-[3.2vmin] w-auto" />
+          <i className="h-[3.4vmin] w-px bg-black/15" />
+          <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-[3.2vmin] w-auto" />
+        </div>
+      </footer>
     </div>
   );
 }
