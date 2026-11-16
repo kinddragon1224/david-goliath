@@ -49,6 +49,20 @@ export async function listCameras(): Promise<{ id: string; label: string }[]> {
   }
 }
 
+/** PC 한 대에 창 두 개일 때 주소에 ?spk=LG 처럼 붙이면 이름에 그 글자가 든 스피커
+ * (예: 그 창이 뜬 모니터의 HDMI 소리)로 이 창 소리만 보낸다. 이름은 카메라 허락 뒤에야 보여서 몇 번 다시 찾는다. */
+export async function routeSpeaker(ctx: AudioContext): Promise<void> {
+  const want = new URLSearchParams(window.location.search).get("spk")?.toLowerCase();
+  const setSink = (ctx as AudioContext & { setSinkId?: (id: string) => Promise<void> }).setSinkId;
+  if (!want || !setSink) return;
+  for (let i = 0; i < 15; i++) {
+    const devs = await navigator.mediaDevices?.enumerateDevices().catch(() => []) ?? [];
+    const d = devs.find((x) => x.kind === "audiooutput" && x.label.toLowerCase().includes(want));
+    if (d) return void (await setSink.call(ctx, d.deviceId).catch(() => {}));
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 /** 화면 꺼짐 방지, 마우스 커서 숨김, 우클릭·확대 막기. 정리 함수를 돌려준다. */
 export function setupKiosk(): () => void {
   const cleanups: (() => void)[] = [];

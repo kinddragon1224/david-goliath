@@ -1,4 +1,4 @@
-import { isTv } from "@/game/kiosk";
+import { isTv, routeSpeaker } from "@/game/kiosk";
 
 /** 패션 체험 효과음과 음악. 몽글 드럼 곡만 파일이고 나머지는 Web Audio로 만든다(오프라인·TV 대응). */
 
@@ -70,6 +70,7 @@ export class FashionSound {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
+      void routeSpeaker(this.ctx);
       const len = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);

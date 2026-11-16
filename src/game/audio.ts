@@ -1,5 +1,5 @@
 import { BEAT_BPM } from "./constants";
-import { isTv } from "./kiosk";
+import { isTv, routeSpeaker } from "./kiosk";
 
 type SfxName =
   | "throw"
@@ -47,6 +47,7 @@ export class GameAudio {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
+      void routeSpeaker(this.ctx);
     }
     if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
   };
