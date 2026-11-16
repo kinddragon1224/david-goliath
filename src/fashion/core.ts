@@ -152,7 +152,8 @@ const COUNTDOWN = 3;
 const RESULT_SECONDS = 14;
 const RUSH_SECONDS = 10;
 const HANDS_UP_HOLD = 1.0;
-const ABSENT_END = 7;
+/** 하다가 떠나면 이 시간 뒤 결과 화면 없이 바로 처음 화면(기록 안 함) — 다음 사람이 14초 결과를 기다리지 않게 */
+const ABSENT_END = 5;
 /** 사람 손이 이만큼 안 보이면 대기 화면에서 시범 손이 나온다. */
 const DEMO_AFTER = 1.2;
 /** 손이 목표에서 이만큼 오래 떨어져 있으면 화살표. */
@@ -725,7 +726,8 @@ export class FashionGame implements Fx {
         );
         this.offTargetT = near > this.W * 0.14 ? this.offTargetT + dt : 0;
       } else this.offTargetT = 0;
-      if (this.timeLeft <= 0 || this.mode.done?.() || this.absentT > ABSENT_END) this.finish();
+      if (this.absentT > ABSENT_END) this.goHome();
+      else if (this.timeLeft <= 0 || this.mode.done?.()) this.finish();
     } else if (this.phase === "result") {
       this.resultT -= dt;
       const left = Math.ceil(this.resultT);
