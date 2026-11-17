@@ -141,9 +141,10 @@ function speedBadge(text: string): void {
   }
   el.textContent = text;
 }
-/** 화면 배율. TV·약한 PC는 1(고해상도 화면이어도 2배로 그리지 않는다). */
+/** 화면 배율. TV는 1, 약한 PC는 0.7(70% 크기로 그려 늘린다: 칠할 점이 절반. 글자가 조금 흐려진다). */
 export function screenDpr(): number {
-  return Math.min(isTv() || SLOW_PC ? 1 : 2, window.devicePixelRatio || 1);
+  if (SLOW_PC) return 0.7;
+  return Math.min(isTv() ? 1 : 2, window.devicePixelRatio || 1);
 }
 /** 약한 PC: 빛 번짐(shadowBlur)은 내장 그래픽에서 가장 비싼 그리기라 통째로 끈다. 모양은 그대로 남는다. */
 export function lightCanvas(ctx: CanvasRenderingContext2D): void {
@@ -163,7 +164,8 @@ const CAMERA_SHAPE = {
   width: { ideal: SLOW_PC ? 640 : 1280 },
   height: { ideal: SLOW_PC ? 480 : 960 },
   aspectRatio: { ideal: 4 / 3 },
-  frameRate: { ideal: 30 },
+  // 약한 PC는 인식이 초당 5~8번뿐이라 30장을 다 풀 이유가 없다: 15장만 받아 영상 푸는 일을 절반으로
+  frameRate: { ideal: SLOW_PC ? 15 : 30 },
 };
 
 export class PoseController {
