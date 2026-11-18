@@ -1,32 +1,55 @@
-# 인수인계 (클라우드 세션 → 로컬 세션)
+# 인수인계 (2026-11-18 기준)
+
+새 세션은 이 파일을 먼저 읽고 이어서 작업한다. 대화 기록은 넘어오지 않는다.
 
 ## 프로젝트
-- 위브온페스티벌(행정안전부 청년마을 사업 피날레) AX 체험 5종. 납품: 더루멘(THE RUMEN)
-- 일정: 11/4 1차 초안 · **11/6 오픈리허설** · **11/20(금) 14~18시 본 행사**(중촌동 맞춤패션 플랫폼)
-- 기기: 체험마다 TV 1대 + USB 웹캠(총 5대). 지금은 PC(윈도우 zip)로 먼저 검증 → 완성본을 구글 TV APK로
-- 01 가상 착장은 따로 만드는 중(이 저장소 아님)
+- 위브온페스티벌(행정안전부 청년마을 사업 피날레) AX 체험 6종. 납품: 더루멘(THE RUMEN)
+- **본 행사: 11/20(금) 14~18시**, 중촌동 맞춤패션 플랫폼
+- 협력 로고: WEAVE ON 중촌 · 청년마을 · BARGIUM · THE RUMEN (`public/brand/logo-*.png`, `public/therumen-logo.png`)
+- 체험: 01 가상 착장 · 02 다윗과 골리앗 · 03 다리미 · 04 가위질 · 05 바느질 · 06 몽글 드럼
 
-## 구조
-- `src/app/Root.tsx`: 체험 고르기(기기에 저장, `?game=` 으로 고정). 위브온판(`VITE_EDITION=weaveon`)
-- `src/game/*`: 02 다윗과 골리앗(태고의 달인 풍). 난이도 숫자는 `src/game/boss.ts`, `src/game/rules.ts`
-- `src/fashion/*`: 03 다리미 · 04 가위질 · 05 바느질 · 06 몽글 드럼(코드 id는 rhythm. 원본 저장소 mongle-air-drum에서 옮겨 옴, 곡은 public/audio/mongle-drum.mp3 = AI 5형제 144.26초~끝)
-  - `core.ts` 공통 엔진(시범 손, 여기로 화살표, 축하·색종이, 처음으로 동작)
-  - `modes/*.ts` 체험별 규칙·그림. `FashionApp.tsx` 화면(피팅룸 거울, 진행 줄, 결과 컬렉션)
-- 오프라인 윈도우판: `npm run build:offline:weaveon` → `dist-offline/`
-- 구글 TV APK: `android/` + `.github/workflows/android-tv.yml`(main 푸시 시 릴리스 `tv-weaveon`에 apk·zip 자동 업로드)
-- TV를 세워 쓸 때: 앱을 켜고 리모컨 오른쪽 버튼 3번(1.5초 안에)이면 시계 방향 90도, 왼쪽 3번이면 반대로 90도. 기기에 저장된다. 윈도우 PC는 디스플레이 설정에서 세로로 돌린다
+## 현장 기기 (11/18 계획)
+- 태블릿 3대 · 미니 PC 2대 · 노트북 1대. **모두 가로 화면.** 520 그래픽 PC는 안 쓰기로 함
+- 무거운 게임(골리앗·몽글 드럼)은 노트북·미니 PC에, 태블릿엔 가상 착장·다리미·바느질 권장
+- 태블릿은 아직 실기기 시험 안 함: 크롬으로 열기, 화면 꺼짐 끄기, 충전기 연결, 2~3m 떨어져 몸 전체가 잡히는지 확인
+- PC 한 대에 TV 두 대(HDMI 두 개, "확장" 모드)도 가능:
+  - 창마다 카메라: 주소에 `?cam=1` / `?cam=2`
+  - 소리 나누기: 가장 확실한 건 **한 게임은 크롬, 다른 게임은 엣지**로 띄우고 윈도우 볼륨 믹서에서 앱별 출력 장치 지정
+  - `?spk=TV이름`(코드로 출력 장치 고르기)은 실기기 미검증. 크롬이 마이크 권한 없이 스피커 이름을 안 줄 수 있음
 
-## 확인·실행
-- `npm ci` → `npm test`(전부 통과해야 함) → `npx tsc --noEmit`
-- 미리보기: `VITE_EDITION=weaveon npm run dev` 후 `http://localhost:8080/?game=iron` (goliath|iron|scissors|sewing|rhythm)
+## 두 저장소
+### 1) 게임: `C:\Users\sunyo\Documents\david-goliath` (이 폴더)
+- 사이트: https://wvn.vercel.app (`/version.txt`로 배포 버전 확인). **main에 push하면 Vercel 배포 + GitHub Actions로 APK·zip 빌드**
+- 지금 배포된 버전: **v1.15.0** (`src/game/constants.ts`의 `APP_VERSION`)
+- **배포 안 된 로컬 커밋:** `e60611a` 약한 PC(HD 520)용 카메라 15장/초 · 화면 70% 크기. 520을 안 쓰기로 해서 급하지 않음(4스레드 이하 PC에서만 켜짐)
+- 구조
+  - `src/app/Root.tsx`: 첫 화면 분기. `?game=goliath|iron|scissors|sewing|rhythm`
+  - `src/fashion/StationPicker.tsx`: 홈(체험 고르기) 화면. 로고·고르는 법 3단계·하단 로고 띠
+  - `src/fashion/stations.ts`: 체험 목록, 가상 착장 연결(studio.therumen.kr)
+  - `src/fashion/core.ts`: 패션 게임 공통 엔진. 플레이어가 5초 안 보이면 결과 없이 홈으로(`ABSENT_END`)
+  - `src/game/*`: 다윗과 골리앗, 공통 인식(`pose.ts`), 약한 PC 판별(`perf.ts`, `?lite=1|0`로 강제), 키오스크(`kiosk.ts`)
+- 확인: `npx tsc --noEmit`, `npm test`
+- 미리보기: `$env:VITE_EDITION='weaveon'; npm run dev` → http://localhost:8080/
+- 커밋할 때 파일을 골라서 add. **`.vercel/output`, `src/routeTree.gen.ts`, `.claude/`는 올리지 않는다**
 
-## 대표님 피드백(최근)
-- "지금은 단발성. 감동도 재미도 없다" → 완성도 개선이 최우선
-- 클라이언트는 **화려한 것**을 좋아함
-- 골리앗이 너무 일찍 죽던 문제 → v1.7.1에서 체력 170·막기/피하기 강화(실사용 확인 필요)
+### 2) 가상 착장: `C:\Users\sunyo\weaveon\vton`
+- 이 PC에서 돈다: `server\server.py`(FastAPI), Cloudflare 터널로 https://studio.therumen.kr, 화면은 `/app`
+- 화면 `app\`은 빌드된 번들만 있음(소스 없음). 고칠 땐 node 스크립트로 정확한 문자열을 바꿔 **새 파일**로 쓰고 `index.html`이 그 파일을 가리키게 한다. 원본 `-b.js`는 건드리지 않음
+- 현재: `app\assets\vton-DRvWkagp-d.js` (대기 놀이: 룩북 잡기 + 몸을 노리는 바늘 피하기). 되돌리기용 백업 `index.html.bak1116needle`(원본), `index.html.bak1116needle2`
+- 바늘 조절값: 나오는 비율 `.4`, 속도 `1.9`배. 실제 부스 시험 후 조절 필요
+- 접속 PIN은 유료 AI 생성 보호용(한 번 입력하면 30일 유지). PIN·KEY·토큰은 `booth.ini`/`UNLOCK_URL.txt`에 있고 **절대 출력·공유하지 않는다**
+- 이 저장소는 git push 하지 않음. 바꾸기 전에 `.bak날짜` 백업. 추가 유료 API 쓰지 않음. 룩북 사진은 로컬에만
 
-## 다음 할 일(제안, 대표님 결정 대기)
-1. **피팅 피날레**: 게임에서 완성한 옷을 거울 속 내 몸(어깨·엉덩이 좌표)에 입혀 주고, 런웨이 음악 + "찰칵" 3초 포토타임. 사진은 저장하지 않음(아동 초상)
-2. **MC 음성**: "완벽해요!", "수석 디자이너 탄생!" 등 한국어 음성(ElevenLabs 연결 시 생성, 크레딧 사용 전 비용 확인)
-3. **디자이너 데뷔 투어**: 5개 체험 스탬프 카드(실물) + 화면 도장 연출
-4. GPT 이미지·캡컷 대기 영상: 로컬에서 컴퓨터 사용 기능이 되면 직접 생성해 체험별 배경·대기 영상에 넣기
+## 작업 규칙 (대표님 요청)
+- 한국어로 답한다. 불필요한 질문 없이 직접 한다(gh·Vercel 로그인/설정도 직접)
+- **"배포해"라고 할 때만 push.** 그 전엔 로컬 커밋까지
+- 한글 파일을 PowerShell `Get-Content`/`Set-Content`로 고치지 않는다(CP949로 깨짐). Edit 도구나 utf-8 node 스크립트 사용
+- 현장엔 마우스·키보드 없음: 손 동작이나 터치로만 조작
+- **아이 사진은 절대 저장하지 않는다**
+- Vercel MCP는 팀 권한 403 → Vercel CLI 사용(로그인돼 있음)
+
+## 남은 일
+1. 태블릿 3대 실기기 시험(인식 속도, 카메라 위치). 느리면 그 기기만 가볍게
+2. 부스에서 홈 화면 단계 표시(사람 서면 1→2·3번 켜짐)와 바늘 피하기 난이도 확인
+3. 몽글 드럼용 위브온중촌 Suno 곡(약 6곡) 받으면 곡 목록에 넣기 — 아직 파일 안 옴
+4. (보류) 폰 QR 연동: 이번 행사엔 방식 변경 안 함. 끝난 뒤 점수·사진을 QR로 받아 가기 정도만 검토
