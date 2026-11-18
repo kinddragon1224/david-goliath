@@ -309,6 +309,10 @@
   animation: f-pick-float 3.6s ease-in-out infinite;
   animation-delay: calc(var(--i) * -0.6s);
 }
+/* 옆으로 긴 칸: 소품이 오른쪽에 붙는다(가운데 맞춤용 이동을 뺀다) */
+.f-pick-prop.f-pick-side {
+  translate: none;
+}
 .f-pick-go {
   border: 0.2vmin solid var(--f-frame);
   color: var(--f-ink);

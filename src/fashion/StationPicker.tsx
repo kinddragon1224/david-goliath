@@ -4,11 +4,14 @@ import { setMenuHands } from "@/app/HandCursor";
 import { PRODUCER } from "@/game/constants";
 import { PoseController } from "@/game/pose";
 import {
+  METEOR,
   STATIONS,
   STATION_ART,
   TRYON,
+  goMeteor,
   goTryon,
   saveStation,
+  useMeteorReady,
   useTryonReady,
   type StationId,
 } from "./stations";
@@ -21,18 +24,21 @@ const PICK_HOLD = 1.5;
 const REST = 0.3;
 
 type Tile = {
-  key: StationId | "tryon";
+  key: StationId | "tryon" | "meteor";
   no: string;
   title: string;
   line: string;
   off?: boolean;
+  /** 큰 칸: 가로 화면에서는 두 줄 높이, 세로 화면에서는 두 칸 너비. */
+  big?: boolean;
   go: () => void;
 };
 
 /** 처음 켰을 때(또는 '체험 바꾸기' 후) 체험을 고르는 화면. 게임의 스테이지 고르기처럼 그림 카드로 보여 준다.
- * 터치·리모컨 방향키로 고른다. */
+ * 일곱 칸: 01 가상 착장만 크게, 나머지 여섯은 3×2. 손(손 커서)·터치·리모컨 방향키로 고른다. */
 export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
   const tryon = useTryonReady();
+  const meteor = useMeteorReady();
   const tiles: Tile[] = [
     {
       key: "tryon",
@@ -40,6 +46,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
       // 가상 착장만 인터넷이 필요하다(사무실 PC로 연결). 기기가 인터넷에 없을 때가 가장 흔한 원인이라 그렇게 알려 준다
       line: tryon ? TRYON.line : "인터넷에 연결되어야 해요 · 연결 확인 중",
       off: !tryon,
+      big: true,
       go: goTryon,
     },
     ...STATIONS.map((s) => ({
@@ -52,6 +59,8 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         onPick(s.id);
       },
     })),
+    // 꿈돌이 게임은 따로 빌드한 파일이라, 이 설치판에 들어 있을 때만 켠다
+    { key: "meteor", ...METEOR, off: !meteor, go: goMeteor },
   ];
   // 마우스·터치가 없는 기기: 카메라로 손을 읽어 손 커서(HandCursor)로 칸을 고른다. 팔 닿는 범위를 화면 전체에 펼친다.
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -119,7 +128,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         <video ref={videoRef} className="pointer-events-none absolute size-px opacity-0" playsInline muted autoPlay />
       </header>
       {/* 칸은 화면 위쪽에만 둔다: 손을 내리고 서 있거나 가슴 높이에서 움직이는 손은 아래 쉬는 자리에 떨어져 아무것도 눌리지 않는다 */}
-      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] px-[3vmin] pt-[2vmin] landscape:grid-cols-6">
+      <div className="relative grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-[2vmin] px-[3vmin] pt-[2vmin] landscape:grid-cols-[1.2fr_1fr_1fr_1fr] landscape:grid-rows-2">
         {tiles.map((t, i) => {
           const a = STATION_ART[t.key];
           return (
@@ -130,7 +139,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
               disabled={t.off}
               onClick={t.go}
               data-hold={PICK_HOLD}
-              className="f-pick hand-fill group text-left"
+              className={`f-pick hand-fill group text-left ${t.big ? "col-span-2 landscape:col-span-1 landscape:row-span-2" : ""}`}
               style={{ "--i": i } as React.CSSProperties}
             >
               <img
@@ -139,21 +148,34 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
                 className="f-pick-art absolute inset-0 size-full object-cover"
                 style={{ objectPosition: a.at }}
               />
-              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,8,12,0.1)_0%,rgba(7,8,12,0.25)_45%,rgba(7,8,12,0.96)_82%)]" />
+              {/* 글자 자리만 어둡게: 큰 칸은 아래쪽, 옆으로 긴 칸은 왼쪽(오른쪽에 소품·그림이 온다) */}
+              <span
+                className={`absolute inset-0 ${t.big ? "bg-[linear-gradient(180deg,rgba(7,8,12,0.1)_0%,rgba(7,8,12,0.25)_45%,rgba(7,8,12,0.96)_85%)]" : "bg-[linear-gradient(78deg,rgba(7,8,12,0.96)_22%,rgba(7,8,12,0.5)_58%,rgba(7,8,12,0.08)_100%)]"}`}
+              />
               {a.prop && (
                 <img
                   src={a.prop}
                   alt=""
-                  className="f-pick-prop absolute top-[14%] left-1/2 h-[42%] w-[80%] object-contain"
+                  className="f-pick-prop f-pick-side absolute top-[7%] right-[3%] h-[86%] w-[40%] object-contain"
                 />
               )}
-              <span className="f-serif f-pearl absolute top-[2%] left-[6%] text-[6vmin] leading-none">
+              <span
+                className={`f-serif f-pearl absolute leading-none ${t.big ? "top-[2.5%] left-[6%] text-[9vmin]" : "top-[5%] left-[4.5%] text-[5.4vmin]"}`}
+              >
                 {t.no}
               </span>
               {/* 좁은 칸(4:3 태블릿)에서 "챌린/지"처럼 낱말 가운데서 끊기지 않게 낱말 단위로 줄을 바꾼다 */}
-              <span className="absolute inset-x-0 bottom-0 block p-[1.8vmin] [word-break:keep-all]">
-                <span className="f-serif block text-[3.1vmin] leading-tight">{t.title}</span>
-                <span className="mt-[0.6vmin] block text-[1.7vmin] leading-snug text-[var(--f-muted)]">
+              <span
+                className={`absolute bottom-0 left-0 block [word-break:keep-all] ${t.big ? "w-full p-[2.4vmin]" : "w-[66%] p-[1.8vmin]"}`}
+              >
+                <span
+                  className={`f-serif block leading-tight ${t.big ? "text-[4.8vmin]" : "text-[3.1vmin]"}`}
+                >
+                  {t.title}
+                </span>
+                <span
+                  className={`mt-[0.6vmin] block leading-snug text-[var(--f-muted)] ${t.big ? "text-[2.2vmin]" : "text-[1.75vmin]"}`}
+                >
                   {t.line}
                 </span>
                 {t.off && (

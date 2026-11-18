@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { setMenuOpen } from "@/app/HandCursor";
-import { STATIONS, STATION_ART, TRYON, goTryon, saveStation, useTryonReady, type StationId } from "./stations";
+import {
+  METEOR,
+  STATIONS,
+  STATION_ART,
+  TRYON,
+  goMeteor,
+  goTryon,
+  saveStation,
+  useMeteorReady,
+  useTryonReady,
+  type StationId,
+} from "./stations";
 
 /** 아무것도 안 고르면 판이 이만큼(ms) 뒤 닫힌다. 스쳐서 열린 채 사람이 떠나면 시작 동작이 막혀 있게 된다. */
 const AUTO_CLOSE_MS = 12000;
@@ -18,7 +29,7 @@ const TAB =
   "hand-fill pointer-events-auto absolute top-[48%] z-40 flex h-[40%] w-[12%] items-center justify-center overflow-hidden border-2 border-white/60 bg-black/70 text-2xl font-bold text-white shadow-xl";
 
 /** 칸 바탕 그림: 고르는 화면과 같은 그림을 어둡게 깔고, 오른쪽에 소품을 둔다. 글자가 먼저 읽히게 흐리게. */
-function Art({ id }: { id: StationId | "tryon" }) {
+function Art({ id }: { id: StationId | "tryon" | "meteor" }) {
   const a = STATION_ART[id];
   return (
     <>
@@ -53,6 +64,12 @@ export function StationMenu({
 }) {
   const [open, setOpen] = useState(false);
   const tryon = useTryonReady();
+  const meteor = useMeteorReady();
+  // 맨 윗줄: 이 앱 밖에서 도는 두 체험(가상 착장·꿈돌이). 켜져 있는 것만 보이고, 하나뿐이면 한 줄을 다 쓴다
+  const outside = [
+    ...(tryon ? [{ key: "tryon" as const, ...TRYON, go: goTryon }] : []),
+    ...(meteor ? [{ key: "meteor" as const, ...METEOR, go: goMeteor }] : []),
+  ];
   const pick = (id: StationId) => {
     if (id === current) {
       setOpen(false);
@@ -90,21 +107,22 @@ export function StationMenu({
         <div className="pointer-events-auto absolute inset-0 z-[60] flex flex-col gap-3 overflow-hidden rounded-[2rem] bg-[#0d0b14]/90 px-[18%] pt-[3%] pb-[2%] text-white">
           <p className="text-center text-2xl font-bold">손을 올려 1초 기다리면 바뀌어요</p>
           <div
-            className={`grid min-h-0 w-full flex-1 grid-cols-2 gap-3 ${tryon ? "grid-rows-4" : "grid-rows-3"}`}
+            className={`grid min-h-0 w-full flex-1 grid-cols-2 gap-3 ${outside.length ? "grid-rows-4" : "grid-rows-3"}`}
           >
-            {/* 가상 착장이 꺼져 있으면 칸을 숨긴다: 손으로 못 누르는 칸이 자리만 차지한다 */}
-            {tryon && (
+            {/* 꺼져 있는 체험은 칸을 숨긴다: 손으로 못 누르는 칸이 자리만 차지한다 */}
+            {outside.map((o) => (
               <button
+                key={o.key}
                 type="button"
-                onClick={goTryon}
-                className="hand-fill relative col-span-2 overflow-hidden rounded-3xl border-4 border-[#9ff3ff]/60 bg-white/5 p-3 text-left"
+                onClick={o.go}
+                className={`hand-fill relative overflow-hidden rounded-3xl border-4 border-[#9ff3ff]/60 bg-white/5 p-3 text-left ${outside.length === 1 ? "col-span-2" : ""}`}
               >
-                <Art id="tryon" />
-                <span className="relative text-3xl font-bold">{TRYON.no}</span>
-                <span className="relative ml-4 text-2xl font-bold">{TRYON.title}</span>
-                <span className="relative ml-4 text-base text-white/70">{TRYON.line}</span>
+                <Art id={o.key} />
+                <span className="relative block text-3xl font-bold">{o.no}</span>
+                <span className="relative mt-1 block text-2xl font-bold">{o.title}</span>
+                <span className="relative mt-1 block text-base text-white/70">{o.line}</span>
               </button>
-            )}
+            ))}
             {STATIONS.map((s) => (
               <button
                 key={s.id}

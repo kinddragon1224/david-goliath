@@ -19,8 +19,13 @@ export const STATIONS: StationInfo[] = [
 ];
 
 /** 고르는 화면의 칸 그림: 배경(art), 배경에서 보여 줄 자리(at), 앞에 띄우는 소품(prop). */
-export const STATION_ART: Record<StationId | "tryon", { art: string; at: string; prop?: string }> = {
+export const STATION_ART: Record<
+  StationId | "tryon" | "meteor",
+  { art: string; at: string; prop?: string }
+> = {
   tryon: { art: "/art/rhythm.webp", at: "7% 40%" },
+  // 게임 화면을 그대로 찍은 그림(꿈돌이가 오른쪽에 오게 잘랐다). 소품은 따로 없다
+  meteor: { art: "/art/meteor.jpg", at: "78% 40%" },
   goliath: { art: "/valley.jpg", at: "70% 78%", prop: "/goliath-idle.png" },
   iron: { art: "/art/iron.webp", at: "16% 40%", prop: "/art/prop-iron.png" },
   scissors: { art: "/art/scissors.webp", at: "76% 30%", prop: "/art/prop-scissors.png" },
@@ -64,6 +69,32 @@ export function useTryonReady(): boolean {
     return () => {
       alive = false;
       window.clearInterval(id);
+    };
+  }, []);
+  return ready;
+}
+
+/** 07 꿈돌이 운석 피하기: 따로 만든 3D 게임(games/daejeon-ax)을 빌드해 public/daejeon-ax 에 둔 것. 같은 주소 아래에서 연다. */
+export const METEOR = { no: "07", title: "꿈돌이 운석 피하기", line: "몸을 좌우로 움직여 운석을 피해요" };
+const METEOR_PAGE = "/daejeon-ax/index.html";
+
+/** 꿈돌이 게임으로 넘어간다. home= 으로 고르는 화면 주소를 넘겨, 게임의 '체험 고르기로'와 방치 시 자동 복귀가 이리로 돌아온다. */
+export function goMeteor(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("game");
+  window.location.href = `${METEOR_PAGE}?home=${encodeURIComponent(url.toString())}`;
+}
+
+/** 게임 파일이 이 설치판에 들어 있나(한 번만 본다). 없는데 칸을 누르면 빈 화면에 갇힌다: 현장엔 뒤로 갈 키보드가 없다. */
+export function useMeteorReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch(METEOR_PAGE)
+      .then((r) => alive && setReady(r.ok))
+      .catch(() => {});
+    return () => {
+      alive = false;
     };
   }, []);
   return ready;
