@@ -64,6 +64,8 @@ export const MOTION = {
   swingSpeed: 7.5,
   swingTravel: 1.3,
   throwCooldownMs: 420,
+  /** 손 속도를 잴 두 장면이 이보다(초) 떨어져 있으면 속도를 모르는 것으로 친다. 인식이 뜸한 약한 PC는 pose.ts에서 늘린다. */
+  velocityGapS: 0.25,
   /** 시작 동작: 두 손을 어깨선 위 이만큼(머리 위). */
   handsUpHeight: -0.9,
   /** 너무 멀다고 보는 어깨너비(화면 높이 대비). */
@@ -432,7 +434,7 @@ function velocity(
   }
   if (!ref) return null;
   const dt = (cur.t - ref.t) / 1000;
-  if (dt > 0.25) return null;
+  if (dt > MOTION.velocityGapS) return null;
   return { vx: (cur.hx - ref.hx) / dt, vy: (cur.hy - ref.hy) / dt, vdz: (cur.dz - ref.dz) / dt };
 }
 

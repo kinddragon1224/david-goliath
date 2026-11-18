@@ -114,20 +114,113 @@ if (SLOW_PC) {
     releaseForwardSpeed: 1.2,
     swingSpeed: 6,
     swingTravel: 1.1,
+    // 초당 5번(0.2초 간격)이면 한 번만 늦어도 0.25초를 넘어 던지기가 통째로 안 잡혔다
+    velocityGapS: 0.4,
   });
 }
 // ponytail: 코어 수로만 가린다. 코어는 많은데 그래픽이 약한 기기가 나오면 실제 인식 시간(ms)을 재서 고르게 바꾼다
 /** 약한 PC는 화면을 초당 30장까지만 그린다. 남는 힘을 인식에 준다. */
 export const FRAME_MS = SLOW_PC ? 32 : 0;
-/** 약한 PC: 인식을 GPU·CPU로 한 번씩 재 보고 빠른 쪽을 이 PC에 저장한다(6세대 내장 그래픽은 CPU가 더 빠를 수 있다). */
-const DELEGATE_KEY = "weaveon-delegate";
+/** 약한 PC: 인식을 GPU·CPU로 한 번씩 재 보고 빠른 쪽을 이 PC에 저장한다(6세대 내장 그래픽은 CPU가 더 빠를 수 있다).
+ * v2: 재는 방법이 바뀌어(아래 benchDelegates) 예전 방법으로 저장한 값은 버리고 한 번 다시 잰다. */
+const DELEGATE_KEY = "weaveon-delegate-v2";
+/** 주소에 ?delegate=cpu 또는 gpu 를 붙이면 재지 않고 그쪽으로 고정한다(현장 시험용, 저장하지 않는다). */
+const forcedDelegate = ((): "GPU" | "CPU" | null => {
+  if (typeof window === "undefined") return null;
+  const v = new URLSearchParams(window.location.search).get("delegate")?.toUpperCase();
+  return v === "GPU" || v === "CPU" ? v : null;
+})();
 function savedDelegate(): "GPU" | "CPU" | null {
+  if (forcedDelegate) return forcedDelegate;
   try {
     const v = localStorage.getItem(DELEGATE_KEY);
     return v === "GPU" || v === "CPU" ? v : null;
   } catch {
     return null;
   }
+}
+/** 재 볼 때 읽힐 그림(사람 한 명)과 횟수. 처음 몇 번은 준비(셰이더·캐시) 때문에 느려서 버린다. */
+const BENCH_IMAGE = "/goliath-idle.png";
+const BENCH_RUNS = 9;
+const BENCH_SKIP = 3;
+/** 한 PC에서 한 번만 잰다. 고르는 화면과 체험 화면이 동시에 재지 않게 같은 약속을 나눠 쓴다. */
+let benching: Promise<"GPU" | "CPU" | null> | null = null;
+
+/** 작업자에 한 번 묻고 다음 답을 기다린다. */
+function askWorker<T>(w: Worker, msg: unknown, transfer: Transferable[], ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("timeout")), ms);
+    w.onerror = (e) => {
+      window.clearTimeout(timer);
+      reject(new Error(e.message || "worker"));
+    };
+    w.onmessage = (e) => {
+      window.clearTimeout(timer);
+      if (e.data?.type === "fail") reject(new Error(String(e.data.message)));
+      else resolve(e.data as T);
+    };
+    w.postMessage(msg, transfer);
+  });
+}
+
+/** 약한 PC 첫 실행: 같은 그림을 GPU·CPU 작업자에 각각 읽혀 보고 빠른 쪽을 고른다(몇 초).
+ * 예전에는 켜진 뒤 실제 영상으로 10초씩 쟀다: 첫 인식의 준비 시간이 GPU 쪽에 섞이고, 사람이 서 있을 때와 없을 때가 뒤섞여
+ * 느린 쪽이 영영 저장될 수 있었다. 그림을 못 받거나 한쪽도 못 재면 null(예전 방식으로 넘어간다). */
+async function benchDelegates(opts: { baseOptions: object }): Promise<"GPU" | "CPU" | null> {
+  const blob = await fetch(BENCH_IMAGE).then((r) => (r.ok ? r.blob() : Promise.reject(new Error("image"))));
+  const img = await createImageBitmap(blob);
+  // 실제와 같은 크기(320×240)의 장면에 사람을 세운다
+  const canvas = new OffscreenCanvas(TV_INFER_LONG, Math.round(TV_INFER_LONG * 0.75));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#667";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const h = canvas.height * 0.92;
+  const w = (h * img.width) / img.height;
+  ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+  img.close();
+  const timeOne = async (delegate: "GPU" | "CPU"): Promise<number> => {
+    const worker = new Worker(new URL("./pose.worker.ts", import.meta.url));
+    try {
+      const ready = await askWorker<{ delegate: string }>(
+        worker,
+        { type: "init", opts: { ...opts, baseOptions: { ...opts.baseOptions, delegate } } },
+        [],
+        30000,
+      );
+      if (ready.delegate !== delegate) return Infinity; // GPU를 못 만들어 CPU로 바뀌었다
+      const times: number[] = [];
+      for (let i = 0; i < BENCH_RUNS; i++) {
+        const bitmap = await createImageBitmap(canvas);
+        const r = await askWorker<{ ms: number }>(
+          worker,
+          { type: "frame", bitmap, ts: (i + 1) * 100, at: 0, aspect: canvas.width / canvas.height },
+          [bitmap],
+          15000,
+        );
+        if (!(r.ms > 0)) return Infinity; // 작업자가 읽다 터지면 0을 돌려준다
+        if (i >= BENCH_SKIP) times.push(r.ms);
+      }
+      times.sort((a, b) => a - b);
+      return times[Math.floor(times.length / 2)] || Infinity;
+    } catch {
+      return Infinity;
+    } finally {
+      worker.terminate();
+    }
+  };
+  const gpu = await timeOne("GPU");
+  const cpu = await timeOne("CPU");
+  if (!Number.isFinite(gpu) && !Number.isFinite(cpu)) return null;
+  const best = cpu < gpu ? "CPU" : "GPU";
+  const show = (v: number) => (Number.isFinite(v) ? `${Math.round(v)}ms` : "안 됨");
+  speedBadge(`속도 재기: GPU ${show(gpu)} · CPU ${show(cpu)} → ${best}`);
+  try {
+    localStorage.setItem(DELEGATE_KEY, best);
+  } catch {
+    /* 저장이 막히면 다음에 또 잰다 */
+  }
+  return best;
 }
 /** 약한 PC: 화면 구석에 속도를 띄운다(현장에서 숫자로 알려 주시라고). */
 function speedBadge(text: string): void {
@@ -197,6 +290,8 @@ export class PoseController {
   /** TV: 인식을 화면과 따로 돌리는 작업자. 못 띄우면 null이고 예전처럼 화면 줄에서 돈다. */
   private worker: Worker | null = null;
   private workerBusy = false;
+  /** 마지막으로 작업자에 넘긴 영상의 시각(video.currentTime). 같은 장면을 두 번 읽지 않는다. */
+  private lastShotTime = -1;
   private workerOut: {
     landmarks: RawPoint[][];
     world: { x: number; y: number; z: number }[][];
@@ -270,11 +365,24 @@ export class PoseController {
 
   async loadModel(): Promise<void> {
     if (this.status !== "live") return;
+    const gen = this.gen;
     this.poseReady = false;
     this.modelError = null;
     this.landmarker?.close?.();
     this.landmarker = null;
     this.stopWorker();
+    // 약한 PC 첫 실행: 어느 쪽이 빠른지 먼저 잰다(이 PC에 저장된 값이 있으면 건너뛴다)
+    if (SLOW_PC && !savedDelegate()) {
+      benching ??= benchDelegates({
+        baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task" },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      } as { baseOptions: object }).catch(() => null);
+      const best = await benching;
+      if (best) this.want = best;
+      // 재는 사이에 꺼졌으면(고르는 화면에서 바로 체험을 골랐을 때) 여기서 멈춘다
+      if (gen !== this.gen || this.status !== "live") return;
+    }
     const opts = {
       baseOptions: {
         modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
@@ -323,6 +431,7 @@ export class PoseController {
 
   /** 작업자를 띄운다. 모델까지 준비되면 true, 안 되면 false(화면 줄에서 돈다). */
   private startWorker(opts: unknown): Promise<boolean> {
+    const gen = this.gen;
     return new Promise((resolve) => {
       let w: Worker;
       try {
@@ -347,8 +456,15 @@ export class PoseController {
         const m = e.data;
         if (m.type === "ready") {
           window.clearTimeout(timer);
+          // 준비되는 사이에 꺼졌으면(stop) 버린다: 안 그러면 아무도 안 쓰는 작업자가 남는다
+          if (gen !== this.gen) {
+            w.terminate();
+            resolve(false);
+            return;
+          }
           this.worker = w;
           this.delegate = m.delegate;
+          this.watchFrames(w);
           resolve(true);
         } else if (m.type === "fail") {
           giveUp(m.message);
@@ -357,6 +473,8 @@ export class PoseController {
           this.workerOut = m;
           this.stats.infers += 1;
           this.stats.ms += m.ms;
+          // 결과가 오자마자 다음 장면을 넘긴다(화면 장면을 기다리지 않는다)
+          this.pump(performance.now());
         }
       };
       w.postMessage({ type: "init", opts });
@@ -466,7 +584,7 @@ export class PoseController {
       return this.lastFrame;
     }
     this.reportSpeed(now);
-    if (this.worker) return this.tickWorker(this.worker, video, now);
+    if (this.worker) return this.tickWorker(now);
     if (now - this.lastInfer < INFER_MS && this.lastFrame.skeleton) {
       return { ...this.lastFrame, throwEvent: null };
     }
@@ -493,21 +611,42 @@ export class PoseController {
   }
 
   /** 작업자에 최신 영상을 넘기고, 끝난 결과가 있으면 읽는다. 화면은 기다리지 않는다. */
-  private tickWorker(worker: Worker, video: HTMLVideoElement, now: number): PoseFrame {
-    if (!this.workerBusy && now - this.lastInfer >= INFER_MS) {
-      const shot = this.grabFrame(video);
-      if (shot) {
-        this.lastInfer = now;
-        const ts = now <= this.lastTs ? this.lastTs + 1 : now;
-        this.lastTs = ts;
-        this.workerBusy = true;
-        worker.postMessage({ type: "frame", ts, at: now, ...shot }, [shot.bitmap]);
-      }
-    }
+  private tickWorker(now: number): PoseFrame {
+    this.pump(now);
     const out = this.workerOut;
     if (!out) return { ...this.lastFrame, throwEvent: null };
     this.workerOut = null;
     return this.readPoses(out.landmarks, out.world, out.aspect, out.at);
+  }
+
+  /** 작업자가 쉬고 있으면 최신 영상을 넘긴다. 화면 줄(tick)과 결과 도착(startWorker의 onmessage) 양쪽에서 부른다.
+   * 예전에는 화면 장면(약한 PC는 33ms마다)에서만 넘겨서, 인식이 끝나도 다음 장면까지 작업자가 놀았다:
+   * 인식 한 번이 70ms면 100ms 주기(초당 10번), 110ms면 133ms 주기로 묶였다. 이제 끝나는 대로 이어서 읽는다. */
+  private pump(now: number): void {
+    const video = this.video;
+    if (!this.worker || this.workerBusy || !video || video.readyState < 2 || document.hidden) return;
+    if (now - this.lastInfer < INFER_MS) return;
+    // 카메라가 새 장면을 주지 않았으면 같은 그림을 또 읽지 않는다(USB 직접 읽기는 시각이 없어 그냥 읽는다)
+    if (!uvcCanvas() && video.currentTime === this.lastShotTime) return;
+    const shot = this.grabFrame(video);
+    if (!shot) return;
+    this.lastShotTime = video.currentTime;
+    this.lastInfer = now;
+    const ts = now <= this.lastTs ? this.lastTs + 1 : now;
+    this.lastTs = ts;
+    this.workerBusy = true;
+    this.worker.postMessage({ type: "frame", ts, at: now, ...shot }, [shot.bitmap]);
+  }
+
+  /** 카메라가 새 장면을 줄 때마다 바로 넘겨 본다(작업자가 쉬고 있을 때만 실제로 넘어간다). 이 작업자가 살아 있는 동안만 돈다. */
+  private watchFrames(w: Worker): void {
+    const video = this.video as (HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }) | null;
+    if (!video?.requestVideoFrameCallback) return;
+    video.requestVideoFrameCallback(() => {
+      if (this.worker !== w) return;
+      this.pump(performance.now());
+      this.watchFrames(w);
+    });
   }
 
   private grabFrame(video: HTMLVideoElement): { bitmap: ImageBitmap; aspect: number } | null {
