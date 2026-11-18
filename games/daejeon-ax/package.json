@@ -1,0 +1,25 @@
+{
+  "name": "daejeon-ax-2026",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "build:host": "tsc --noEmit && vite build --outDir ../../public/daejeon-ax --emptyOutDir",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "setup:pose": "node scripts/fetch-pose-assets.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.3",
+    "qrcode-generator": "^2.0.4",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

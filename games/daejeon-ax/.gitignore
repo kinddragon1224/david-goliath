@@ -1,0 +1,8 @@
+node_modules
+dist
+# 빌드 결과(../../public/daejeon-ax/mediapipe)에 같은 파일이 들어간다. 없으면 npm run setup:pose
+public/mediapipe
+.vercel
+
+.vercel
+.env*
