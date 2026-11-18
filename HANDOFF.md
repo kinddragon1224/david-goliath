@@ -20,15 +20,15 @@
 ## 두 저장소
 ### 1) 게임: `C:\Users\sunyo\Documents\david-goliath` (이 폴더)
 - 사이트: https://wvn.vercel.app (`/version.txt`로 배포 버전 확인). **main에 push하면 Vercel 배포 + GitHub Actions로 APK·zip 빌드**
-- 지금 배포된 버전: **v1.15.0** (`src/game/constants.ts`의 `APP_VERSION`)
-- **배포 안 된 로컬 커밋:** `e60611a` 약한 PC(HD 520)용 카메라 15장/초 · 화면 70% 크기. 520을 안 쓰기로 해서 급하지 않음(4스레드 이하 PC에서만 켜짐)
+- 지금 배포된 버전: **v1.16.0** (11/18 푸시, `src/game/constants.ts`의 `APP_VERSION`). 대표님 지시(11/18): 개발이 끝나면 승인 없이 바로 커밋·푸시한다
+- v1.16.0 에 `e60611a` 약한 PC(HD 520)용 카메라 15장/초 · 화면 70% 크기도 함께 나갔다(4스레드 이하 PC에서만 켜짐). 대표님은 i3-6006U(HD 520)에서 인식이 너무 느리다고 하심 → 계속 개선 중
 - 구조
   - `src/app/Root.tsx`: 첫 화면 분기. `?game=goliath|iron|scissors|sewing|rhythm`
   - `src/fashion/StationPicker.tsx`: 홈(체험 고르기) 화면. 로고·고르는 법 3단계·하단 로고 띠
   - `src/fashion/stations.ts`: 체험 목록, 가상 착장 연결(studio.therumen.kr)
   - `src/fashion/core.ts`: 패션 게임 공통 엔진. 플레이어가 5초 안 보이면 결과 없이 홈으로(`ABSENT_END`)
   - `src/game/*`: 다윗과 골리앗, 공통 인식(`pose.ts`), 약한 PC 판별(`perf.ts`, `?lite=1|0`로 강제), 키오스크(`kiosk.ts`)
-- **배포 안 된 로컬 커밋 `2f6a428`·`618aca7` 화면 수정(11/18, 실기기 미검증):**
+- **v1.16.0 의 화면 수정(11/18, 실기기 미검증):**
   - 체험 4종 대기 화면(`src/fashion/FashionApp.tsx`의 `AttractOverlay`): 제목·문구 카드를 한 장으로 합치고, 간판 7초(시범을 어둡게 덮음) ↔ 시범 7초(카드 숨김)로 번갈아 보인다
   - 홈(`src/fashion/StationPicker.tsx`): 칸을 화면 위 70%에만 두고 아래 30%(`REST`)는 버튼 없는 쉬는 자리. 칸은 손을 1.5초(`PICK_HOLD`) 올려야 고른다. 다른 버튼은 그대로 1초(`src/app/HandCursor.tsx`, 버튼에 `data-hold`를 적으면 그 버튼만 바뀜)
 - 확인: `npx tsc --noEmit`, `npm test` (윈도우에서는 scripts 의 symlink 시험 2개가 원래 실패한다)
@@ -43,15 +43,17 @@
 - 접속 PIN은 유료 AI 생성 보호용(한 번 입력하면 30일 유지). PIN·KEY·토큰은 `booth.ini`/`UNLOCK_URL.txt`에 있고 **절대 출력·공유하지 않는다**
 - 이 저장소는 git push 하지 않음. 바꾸기 전에 `.bak날짜` 백업. 추가 유료 API 쓰지 않음. 룩북 사진은 로컬에만
 
-### 3) 꿈돌이 운석 피하기 「대전 AX 2026」 사본: `games/daejeon-ax` (11/18 추가, 커밋·배포 전)
+### 3) 꿈돌이 운석 피하기 「대전 AX 2026」 사본: `games/daejeon-ax` (11/18 추가, v1.16.0 에 포함)
 - 원본은 `C:\Users\sunyo\Desktop\꿈돌이 운석 피하기 시연용`(Vercel `daejeon-ax-2026`, 따로 배포). 여기는 **복사본**이라 원본을 고쳐도 자동으로 따라오지 않는다
 - 따로 도는 Vite + Three.js 프로젝트(자기 `package.json`·`node_modules`). 이 저장소의 `tsc`·`npm test`·빌드와 섞이지 않는다
-- 들어가는 법: 개발 서버를 켜고 http://localhost:8080/daejeon-ax/index.html (`/daejeon-ax/`만 치면 개발 서버에선 404). 홈(체험 고르기) 화면에는 아직 칸이 없다
+- 들어가는 법: 개발 서버를 켜고 http://localhost:8080/daejeon-ax/index.html (`/daejeon-ax/`만 치면 개발 서버에선 404). 11/18부터 홈(체험 고르기)의 **07 꿈돌이 운석 피하기** 칸과 체험 안 '다른 체험' 판에서 들어간다(`src/fashion/stations.ts`의 `METEOR`·`goMeteor`). 게임에는 `?home=주소`로 들어가고, 게임의 '체험 고르기로' 버튼·타이틀에서 30초 방치·Esc 가 그 주소로 돌아온다(같은 출처만). 게임 파일이 없는 설치판에서는 칸이 '준비 중'으로 꺼진다
+- **현장 주의(미해결):** 꿈돌이 게임의 메뉴(시작·난이도·조종 방식)는 터치나 키보드로만 누를 수 있다. 손 커서가 없어서 터치가 안 되는 TV·미니 PC 에서는 시작할 수 없다. 태블릿에 두거나 손 커서를 넣어야 한다
+- 홈 칸 그림 `public/art/meteor.jpg`는 게임 선택 화면을 찍어 자른 것
 - 고친 뒤: `cd games/daejeon-ax` → `npx tsc --noEmit`, `npx vitest run`(70개), `npm run build:host` → 결과물이 `public/daejeon-ax/`에 다시 써진다(약 25MB, MediaPipe 모델·WASM 포함)
 - `games/daejeon-ax/public/mediapipe`는 git에서 뺐다(빌드 결과물에 같은 파일이 있음). 새로 받은 PC에선 `npm ci` 뒤 `npm run setup:pose`
 - 모션 인식 조절값은 `games/daejeon-ax/src/config.ts`의 `pose`: 예민함은 `rangeShoulders`(0.9, 올리면 둔해짐)·`deadzone`(0.1), 부하는 `maxLoad`(0.25)·`singlePoseMs`(12). 11/18에 원본 폴더에도 같은 세 파일(`src/config.ts`·`src/input/pose.ts`·`src/game/game.test.ts`)을 넣었다(원본 재배포는 안 함). 실제 카메라로는 아직 시험 안 함
-- 11/18에 메뉴 화면(타이틀·난이도 카드·조종 방식 카드·뒤로 가기·결과 화면)을 새로 짰고 원본에도 같은 파일(`index.html`·`src/style.css`·`src/main.ts`·`README.md`)을 넣었다. 지금 원본과 사본의 소스는 같다(사본만 `package.json`의 `build:host`와 `.gitignore`가 다름). 색은 `src/style.css` 맨 위 변수
-- **wvn.vercel.app·APK·zip에는 아직 안 들어간다**: `scripts/build-offline.mjs`가 `public/`에서 고른 폴더만 복사한다. 넣으려면 그 목록에 `"daejeon-ax"` 한 줄(APK·zip도 약 25MB 커짐)
+- 11/18에 메뉴 화면(타이틀·난이도 카드·조종 방식 카드·뒤로 가기·결과 화면)을 새로 짰고 원본에도 같은 파일(`index.html`·`src/style.css`·`src/main.ts`·`README.md`)을 넣었다. 사본에만 있는 것: `package.json`의 `build:host`, `.gitignore`, 그리고 `?home=` 복귀(`index.html`·`src/main.ts`). 색은 `src/style.css` 맨 위 변수
+- 배포판 포함: `scripts/build-offline.mjs`의 위브온판 목록에 `"daejeon-ax"`를 넣었다(11/18). **`games/`와 `public/daejeon-ax/`를 커밋해야** wvn.vercel.app·APK·zip에 들어가고, 그러면 APK·zip이 약 25MB 커진다. 오프라인 빌드와 APK 안에서의 동작은 아직 돌려 보지 않았다
 
 ## 작업 규칙 (대표님 요청)
 - 한국어로 답한다. 불필요한 질문 없이 직접 한다(gh·Vercel 로그인/설정도 직접)
