@@ -1,7 +1,9 @@
 import {
+  artImage,
   drawHandGlow,
   drawPalace,
   propImage,
+  stampLayer,
   TONE,
   type DemoHand,
   type Fx,
@@ -194,7 +196,8 @@ const TOL = slow(0.065, 0.09);
 /** 선 위 점 간격(무대 짧은 변 비율). */
 const STEP = 0.028;
 const DRAW_T = 0.6;
-const LIFT_T = 1.15;
+// 조각이 들려 날아가는 동안은 오릴 것이 없다: 35초 판에서 조각마다 1.15초씩 쉬던 것을 줄였다
+const LIFT_T = 0.8;
 const PIECE_BONUS = 300;
 const ACC_BONUS = 500;
 const NOTCH_BONUS = 80;
@@ -207,7 +210,7 @@ type Done = { def: PieceDef; color: string; acc: number };
 export class ScissorsMode implements Mode {
   seconds = 35;
   hint = "분필선 위에 가위 손을 대고 따라 오려요";
-  tip = "분필선을 따라 가위 손을 천천히!";
+  tip = "분필선을 따라 쓱쓱! 두 손으로 양쪽을 오려도 돼요";
   grades: [number, number, number] = [13000, 8000, 3500];
   music = "lofi" as const;
   private W = 1400;
@@ -219,6 +222,8 @@ export class ScissorsMode implements Mode {
   private cut: boolean[] = [];
   private notch = new Set<number>();
   private count = 0;
+  /** 마지막으로 오려 나간 방향(1 = a 쪽, -1 = b 쪽). */
+  private lastDir = 1;
   private a = 0;
   private b = 0;
   private s = 0;
@@ -380,7 +385,8 @@ export class ScissorsMode implements Mode {
           const i1 = (((idx + dir * (k + 1)) % N) + N) % N;
           d = Math.min(d, segDist(hp, this.P[i0], this.P[i1]));
         }
-        const acc = Math.max(0, Math.min(1, 1 - d / tol));
+        // 허용 폭의 앞 1/4 안이면 만점: 손목 인식이 떨리는 만큼(몇 px)은 봐준다. 예전에는 6px 안이어야 "칼같이!"였다
+        const acc = Math.max(0, Math.min(1, 1.25 - d / tol));
         this.cut[idx] = true;
         this.count++;
         got++;
@@ -401,6 +407,7 @@ export class ScissorsMode implements Mode {
           });
         if (dir > 0) this.a = (idx + 1) % N;
         else this.b = (idx - 1 + N) % N;
+        this.lastDir = dir;
         if (this.count === N) {
           this.finish(fx);
           return got;
@@ -803,7 +810,8 @@ export class ScissorsMode implements Mode {
 
   target(): DemoHand | null {
     if (this.stage !== "cut") return null;
-    const [x, y] = this.P[this.count === 0 ? this.s : this.a];
+    // 방금 오리던 쪽 끝을 가리킨다. 늘 한쪽 끝(a)만 가리키면 반대쪽으로 잘 오리는 사람에게 "여기로!"가 떴다
+    const [x, y] = this.P[this.count === 0 ? this.s : this.lastDir > 0 ? this.a : this.b];
     return { x, y };
   }
 }
@@ -840,8 +848,21 @@ function drawSelvage(ctx: CanvasRenderingContext2D, F: { x: number; y: number; w
   ctx.restore();
 }
 
-/** 천 한 장: 바탕색 + 무늬 + 위에서 비치는 빛. */
+/** 천 한 장: 바탕색 + 무늬 + 위에서 비치는 빛. 약한 PC는 한 번 그려 둔 것을 찍는다(물방울 무늬는 매 장면 원 수백 개였다). */
 function drawCloth(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  print: Print,
+): void {
+  const key = `cloth|${Math.round(w)}x${Math.round(h)}|${color}|${print}`;
+  if (stampLayer(ctx, key, x, y, w, h, (c) => paintCloth(c, 0, 0, w, h, color, print))) return;
+  paintCloth(ctx, x, y, w, h, color, print);
+}
+function paintCloth(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -860,8 +881,13 @@ function drawCloth(
   ctx.fillRect(x, y, w, h);
 }
 
-/** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). */
+/** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
+  const key = `mat|${W}x${H}|${artImage("scissors") ? 1 : 0}`;
+  if (stampLayer(ctx, key, 0, 0, W, H, (c) => paintMat(c, W, H, 0))) return;
+  paintMat(ctx, W, H, t);
+}
+function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   drawPalace(ctx, W, H, t, ["#1a1626", "#07070c"], "scissors");
   const x = W * 0.12;
   const y = H * 0.03;

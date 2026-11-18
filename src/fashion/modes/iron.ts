@@ -1,5 +1,6 @@
 import { slow } from "@/game/perf";
 import {
+  artImage,
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
@@ -7,6 +8,7 @@ import {
   fabricTexture,
   propImage,
   rng,
+  stampLayer,
   TONE,
   type DemoHand,
   type Fx,
@@ -102,7 +104,7 @@ type Trail = { x: number; y: number; t: number; r: number };
 export class IronMode implements Mode {
   seconds = 35;
   hint = "옷 위를 쓱쓱 문질러 주름을 펴요";
-  tip = "손이 다리미! 옷 위를 크게 쓱쓱, 구김이는 눌러 잡아요";
+  tip = "손이 다리미! 옷 위를 크게 쓱쓱, 두 손으로 다리면 2배";
   grades: [number, number, number] = [15000, 7500, 2500];
   music = "lofi" as const;
   private critters: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
@@ -531,8 +533,11 @@ export class IronMode implements Mode {
       k.t += dt;
       k.x += k.vx * dt;
       k.y += k.vy * dt;
-      if (k.x < b.x + b.w * 0.12 || k.x > b.x + b.w * 0.88) k.vx *= -1;
-      if (k.y < b.y + b.h * 0.1 || k.y > b.y + b.h * 0.9) k.vy *= -1;
+      // 가장자리 밖에서 태어난 구김이가 매 장면 방향을 뒤집어 제자리에서 떨지 않게, 늘 안쪽으로만 튕긴다
+      if (k.x < b.x + b.w * 0.12) k.vx = Math.abs(k.vx);
+      else if (k.x > b.x + b.w * 0.88) k.vx = -Math.abs(k.vx);
+      if (k.y < b.y + b.h * 0.1) k.vy = Math.abs(k.vy);
+      else if (k.y > b.y + b.h * 0.9) k.vy = -Math.abs(k.vy);
       if (!hands.some((h) => h.on && Math.hypot(h.x - k.x, h.y - k.y) < R + this.ironR * 0.45))
         return true;
       const area = this.ironR * 1.2;
@@ -734,7 +739,8 @@ export class IronMode implements Mode {
   }
 
   target(): DemoHand | null {
-    return this.critters[0] ?? this.hot;
+    // 주름이 많은 곳(hot)은 거의 다 다렸을 때만 가리킨다. 처음부터 가리키면 밑단을 잘 다리는 사람에게도 "여기로!"가 떴다
+    return this.critters[0] ?? (this.pct() >= 70 ? this.hot : null);
   }
 }
 
@@ -917,8 +923,13 @@ function drawBoutique(
   t: number,
   done: Garment[],
 ): void {
-  drawPalace(ctx, W, H, t, undefined, "iron");
-  drawBoard(ctx, W, H);
+  // 벽과 다림판은 바뀌지 않는다: 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다)
+  const paintRoom = (c: CanvasRenderingContext2D, tt: number) => {
+    drawPalace(c, W, H, tt, undefined, "iron");
+    drawBoard(c, W, H);
+  };
+  if (!stampLayer(ctx, `room|${W}x${H}|${artImage("iron") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
+    paintRoom(ctx, t);
   // 은 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;
   ctx.strokeStyle = "#c3cfdc";

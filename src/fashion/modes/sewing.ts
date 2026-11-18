@@ -91,7 +91,8 @@ const COMBO_GAP = 2.4;
 /** 손이 쓸고 지나가는 것만으로 한꺼번에 찍히지 않게. */
 const MIN_GAP = 0.14;
 const PATTERN_BONUS = 500;
-const BLOOM_T = 1.3;
+// 자수가 피는 동안은 다음 땀을 못 놓는다: 무늬마다 1.3초씩 쉬던 것을 줄였다(색 채우기는 이 시간의 60%에서 끝난다)
+const BLOOM_T = 0.9;
 /** 구멍마다 내는 음(반음). 12땀이 한 가락. */
 const MELODY = [-5, -3, 0, 2, 4, 7, 4, 7, 9, 12, 9, 12];
 const SPOOLS = ["#e8505b", "#e0a91f", "#2e8b57", "#2f6fb5"];
@@ -101,7 +102,7 @@ type Hole = { x: number; y: number; done: boolean; gold: boolean; at?: number };
 export class SewingMode implements Mode {
   seconds = 35;
   hint = "빛나는 구멍에 바늘 손을 콕! 무늬를 따라 수놓아요";
-  tip = "빛나는 구멍을 바늘 손으로 콕콕!";
+  tip = "빛나는 구멍을 쉬지 않고 콕콕! 5번 이으면 2배";
   grades: [number, number, number] = [11000, 6000, 2000];
   music = "lofi" as const;
   private W = 1400;

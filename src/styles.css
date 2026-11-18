@@ -396,6 +396,11 @@
   box-shadow: none !important;
   text-shadow: none !important;
 }
+/* 약한 PC: 대기 화면의 빛줄기(화면 섞기 mix-blend)와 반짝이는 움직임이 꺼져 멈춘 장식일 뿐인데, 게임 화면 위에서 매 장면 다시 섞인다 */
+.lite .f-beam,
+.lite .f-twinkle {
+  display: none;
+}
 /* 손을 올려 두면 버튼이 아래에서 위로 차오른다(HandCursor가 --dwell을 넣는다) */
 .hand-fill::before {
   content: "";

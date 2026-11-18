@@ -40,8 +40,12 @@ const LEAD = 2.3;
 // 약한 PC는 인식이 띄엄띄엄이라 치는 순간이 최대 0.15초쯤 흔들린다: 판정을 넓힌다
 const PERFECT_W = slow(0.12, 0.18);
 const GOOD_W = slow(0.26, 0.38);
-/** 웹캠·인식이 늦는 만큼(초). 현장 카메라에서 박자가 밀리면 이 값을 맞춘다. */
-const LAG = slow(0.06, 0.18);
+/** 웹캠·인식이 늦는 만큼(초). 현장 카메라·TV 스피커에서 박자가 밀리면 주소에 ?lag=250 처럼(천분의 1초, 0~600) 붙여 맞춘다. */
+const lagMs = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("lag");
+const LAG =
+  lagMs !== null && lagMs !== "" && Number(lagMs) >= 0 && Number(lagMs) <= 600
+    ? Number(lagMs) / 1000
+    : slow(0.06, 0.18);
 /** 내려치는 줄(무대 높이 비율)과 최소 속도(초당 무대 높이). 어깨가 0.63이라 가슴 높이다. */
 const LINE = 0.72;
 const STRIKE_SPEED = slow(0.5, 0.35);
@@ -68,15 +72,16 @@ function sectionOf(beat: number): number {
 }
 
 export class RhythmMode implements Mode {
-  seconds = Math.ceil(SONG + 1);
+  // 연타가 끝나고(55박 = 40초) 2초 뒤에 판을 끝낸다. 예전에는 곡 끝(45.6초)까지 기다려, 칠 것이 없는 6초가 "막판 2배!" 글자와 함께 흘렀다
+  seconds = Math.ceil((LAST_BEAT + 1) * BEAT + 3);
   hint = "손을 들었다가 점선 아래로 내려쳐요";
   tip = "빨강 '왼'은 왼쪽, 파랑 '오'는 오른쪽에서 내려쳐요";
   // 음표 57개 + 끝 연타. 모두 맞히고 연타 24번이면 42k(막판 2배 포함).
   grades: [number, number, number] = [26000, 13000, 5000];
   music = null;
   track = TRACK;
-  /** 끝 몇 초는 곡이 잦아들어 음표가 없어서 그만큼 일찍 시작한다. */
-  rushAt = 17;
+  /** 막판 2배는 예전과 같이 시작 30초 뒤부터(판이 43초로 줄어 17 → 13). */
+  rushAt = 13;
   private W = 1400;
   private H = 860;
   private notes: Note[] = [];
@@ -135,7 +140,7 @@ export class RhythmMode implements Mode {
       state: "wait",
       sec: sectionOf(c.beat),
     }));
-    this.end = this.t0 + SONG;
+    this.end = this.t0 + (LAST_BEAT + 1) * BEAT + 2;
     this.started = true;
     this.strikes.reset();
     this.combo = 0;

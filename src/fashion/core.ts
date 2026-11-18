@@ -152,6 +152,10 @@ const COUNTDOWN = 3;
 const RESULT_SECONDS = 14;
 const RUSH_SECONDS = 10;
 const HANDS_UP_HOLD = 1.0;
+/** 양손 번쩍이 이만큼(초) 안 보여도 게이지를 깎지 않는다. 손을 내리면 이 시간 뒤부터 줄어든다. */
+const HANDS_UP_GRACE = 0.3;
+/** 화면 글자(점수·시간·게이지)를 새로 그리는 간격(ms). 약한 PC는 그리기에 쓰는 힘을 인식에 돌린다. */
+const UI_EVERY_MS = slow(100, 200);
 /** 하다가 떠나면 이 시간 뒤 결과 화면 없이 바로 처음 화면(기록 안 함) — 다음 사람이 14초 결과를 기다리지 않게 */
 const ABSENT_END = 5;
 /** 사람 손이 이만큼 안 보이면 대기 화면에서 시범 손이 나온다. */
@@ -215,6 +219,7 @@ export class FashionGame implements Fx {
   private countT = 0;
   private resultT = 0;
   private handsUpT = 0;
+  private handsUpMissT = 0;
   private absentT = 0;
   private noHandT = 0;
   private lastNow = 0;
@@ -370,6 +375,11 @@ export class FashionGame implements Fx {
     this.phase = "attract";
     this.handsUpT = 0;
     this.mode.reset(this.W, this.H);
+    // 곡이 있는 체험(몽글 드럼)은 대기 화면에서 미리 받아 풀어 둔다: 초읽기 3초 안에 못 풀면 그 판은 곡 없이 돌았다
+    if (this.mode.track) {
+      this.sound.unlock();
+      this.sound.loadTrack(this.mode.track);
+    }
     this.emit(true);
   }
 
@@ -452,6 +462,14 @@ export class FashionGame implements Fx {
     this.camera = camera;
     this.model = model;
     this.emit(true);
+  }
+
+  /** 카메라가 끊겼을 때 부른다. 마지막에 본 사람·손이 그대로 남으면 멈춘 손이 버튼을 누르거나,
+   * 양손을 든 채 끊겼을 때 혼자 시작과 다시 하기를 되풀이한다. */
+  clearPose(): void {
+    this.present = false;
+    this.handsUpNow = false;
+    for (const h of this.real) h.on = false;
   }
 
   /** 카메라 한 장면. 손 위치를 거르고 사람이 있는지 본다. reach는 화면 0~1 → 무대 좌표. */
@@ -673,8 +691,14 @@ export class FashionGame implements Fx {
     if (this.needRelease && !this.handsUpNow) this.needRelease = false;
 
     if (this.phase === "attract") {
-      if (this.handsUpNow && this.present && !this.needRelease) this.handsUpT += dt;
-      else this.handsUpT = Math.max(0, this.handsUpT - dt * 2);
+      if (this.handsUpNow && this.present && !this.needRelease) {
+        this.handsUpT += dt;
+        this.handsUpMissT = 0;
+      } else {
+        // 인식이 한 번 빗나간 것(약한 PC는 한 번이 0.2초)으로 게이지가 깎이지 않게 잠깐 봐준다
+        this.handsUpMissT += dt;
+        if (this.handsUpMissT > HANDS_UP_GRACE) this.handsUpT = Math.max(0, this.handsUpT - dt * 2);
+      }
       if (this.handsUpT >= HANDS_UP_HOLD) this.goCountdown();
       else this.mode.update(dt, this.time, this.hands, this);
       // 아무도 없으면 40초마다 MC가 지나가는 사람을 부른다
@@ -735,8 +759,9 @@ export class FashionGame implements Fx {
         this.lastTick = left;
         this.sound.play("tick");
       }
+      // 인식이 한 번 빗나갔다고 처음부터 다시 차지 않게, 대기 화면처럼 서서히 줄인다
       if (this.handsUpNow && this.present && this.resultT < RESULT_SECONDS - 3) this.handsUpT += dt;
-      else this.handsUpT = 0;
+      else this.handsUpT = Math.max(0, this.handsUpT - dt * 2);
       if (this.handsUpT >= HANDS_UP_HOLD) this.goCountdown();
       else if (this.resultT <= 0) this.goAttract();
     }
@@ -796,7 +821,7 @@ export class FashionGame implements Fx {
         });
     }
 
-    if (nowMs - this.uiAt > 100) this.emit(false);
+    if (nowMs - this.uiAt > UI_EVERY_MS) this.emit(false);
   }
 
   /** 무대 안 그림. 호출하는 쪽에서 무대 위치로 옮기고 확대해 둔다. */
@@ -1453,6 +1478,37 @@ export function drawPalace(
   paintPalace(ctx, W, H, t, wall, art, true);
 }
 const PALACE = new Map<string, HTMLCanvasElement>();
+
+/** 약한 PC: 바뀌지 않는 그림 한 겹(w×h)을 한 번만 그려 두었다가 (x, y)에 한 장으로 찍는다.
+ * 그렸으면 true. 약한 PC가 아니면 false를 돌려주니 호출한 쪽이 평소대로 직접 그린다.
+ * 측정(11/18, CPU 2개에 묶은 브라우저): 매 장면 다시 그리는 고정 그림이 많은 화면일수록 인식이 줄었다(가위질 초당 3~4번, 몽글 드럼 6~7번).
+ * key 는 그림이 달라지는 조건(크기·색·배경 그림이 왔는지)을 다 담아야 한다. */
+export function stampLayer(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  paint: (c: CanvasRenderingContext2D) => void,
+): boolean {
+  if (!SLOW_PC || typeof document === "undefined" || w < 1 || h < 1) return false;
+  let cv = LAYERS.get(key);
+  if (!cv) {
+    // 창 크기가 여러 번 바뀌거나 옷이 많아도 끝없이 쌓이지 않게
+    if (LAYERS.size >= 24) LAYERS.clear();
+    cv = document.createElement("canvas");
+    cv.width = Math.ceil(w);
+    cv.height = Math.ceil(h);
+    const c = cv.getContext("2d");
+    if (!c) return false;
+    paint(c);
+    LAYERS.set(key, cv);
+  }
+  ctx.drawImage(cv, x, y, w, h);
+  return true;
+}
+const LAYERS = new Map<string, HTMLCanvasElement>();
 
 /** 왕궁 방을 그린다. 배경 그림을 다 그렸으면(또는 그림이 없으면) true. */
 function paintPalace(

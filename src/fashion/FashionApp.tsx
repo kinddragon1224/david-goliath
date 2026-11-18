@@ -201,7 +201,10 @@ export function FashionApp({ station }: { station: FashionStation }) {
     };
     const frameStep = (now: number) => {
       const video = videoRef.current;
-      if (pose.takeDisconnect()) game.setReadiness("off", "off");
+      if (pose.takeDisconnect()) {
+        game.clearPose();
+        game.setReadiness("off", "off");
+      }
       let frame: PoseFrame | null = null;
       pose.locked = game.phase === "countdown" || game.phase === "play";
       if (video && pose.status === "live") {
@@ -1237,18 +1240,28 @@ function ResultOverlay({
         )}
         <div className="flex items-center gap-3">
           <button type="button" onClick={onAgain} className="f-btn h-14 flex-1 text-2xl" autoFocus>
-            다시 하기 {ui.resultLeft <= 10 ? ui.resultLeft : ""}
+            다시 하기
           </button>
+          {/* 남은 시간이 끝나면 처음 화면으로 가므로 숫자는 이 버튼에 붙인다 */}
           <button type="button" onClick={onHome} className="f-ghost h-14 flex-1 text-xl">
-            처음으로
+            처음으로 {ui.resultLeft <= 10 ? ui.resultLeft : ""}
           </button>
         </div>
-        <p
-          key={ui.resultLeft}
-          className={`f-serif -mt-2 text-center text-xl ${ui.resultLeft <= 10 ? "animate-pop text-[var(--f-gold)]" : "text-[var(--f-muted)]"}`}
-        >
-          양손을 번쩍 들면 바로 다시 도전!
-        </p>
+        {/* 처음 3초는 양손 번쩍을 받지 않는다(환호하는 손에 바로 다시 시작되지 않게): 그동안은 안내를 숨긴다 */}
+        <div className={`-mt-2 flex flex-col items-center gap-1.5 ${ui.resultLeft > 11 ? "invisible" : ""}`}>
+          <p
+            className={`f-serif text-center text-xl ${ui.resultLeft <= 10 ? "text-[var(--f-gold)]" : "text-[var(--f-muted)]"}`}
+          >
+            양손을 번쩍 들면 바로 다시 도전!
+          </p>
+          {/* 손을 들고 있으면 차오른다 */}
+          <div className="h-2 w-56 overflow-hidden rounded-full bg-white/15">
+            <div
+              className="h-full rounded-full bg-[var(--f-gold)]"
+              style={{ width: `${Math.round(ui.handsUp * 100)}%` }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -71,12 +71,15 @@ const ABSENT_ABORT_MS = 4000;
 const PLAYER_WAIT_SECONDS = 12;
 const PRACTICE_THROWS = 2;
 const PRACTICE_MAX_SECONDS = 15;
-const AIM_ASSIST_PX = 110;
+// 팔을 끝까지 번쩍 든 조준(aimY -1 = 세계 y 330)은 이마(y 430)보다 100 위다: 세로는 1.3배로 재므로 130 이상이어야 이마로 붙는다.
+// 예전 110 이면 "머리 위로 들었다 던지기"를 그대로 한 아이는 급소를 맞힐 수 없었다
+const AIM_ASSIST_PX = 150;
 /** 게임 중 양손을 이만큼(초) 들고 있으면 처음 화면으로. */
 const HOME_SECONDS = 2.5;
 /** 결과 화면을 보여 주는 시간(초). */
 /** 이름을 묻지 않는 판은 점수만 잠깐 보여 주고 대기 화면으로 간다. */
-const RESULT_SECONDS = EDITION.nameTag ? 18 : 6;
+// 이름을 안 묻는 판도 점수·순위·기록을 읽을 시간은 준다(6초는 다 읽기 전에 넘어갔다. 양손 번쩍으로 바로 다시 할 수 있다)
+const RESULT_SECONDS = EDITION.nameTag ? 18 : 10;
 /** 위브온판 골리앗은 판이 길고 튼튼하다. 잘하는 사람이 막판에 겨우 쓰러뜨리는 정도. */
 const GOLIATH_HP = EDITION.id === "weaveon" ? 420 : BASE_HP;
 const SPEAR_AT = EDITION.id === "weaveon" ? [6, 12, 18, 24, 29] : BASE_SPEARS;
@@ -227,6 +230,8 @@ export class Game {
   private pointerY0 = 0;
   private calm = false;
   checkMode = false;
+  /** 카메라가 준비되기 전에 화면을 눌러 저절로 들어간 점검 모드. 카메라가 준비되면 대기 화면에서 풀린다(운영자가 켠 점검 모드는 그대로). */
+  private autoCheck = false;
   private absentHold = 0;
   private motionTime = 0;
   private queued: { ev: ThrowEvent; demo: boolean } | null = null;
@@ -299,6 +304,7 @@ export class Game {
     const cameraReady = this.poseReady && this.cameraState === "live";
     if (!this.checkMode && !cameraReady) {
       this.checkMode = true;
+      this.autoCheck = true;
       this.inputVia = "pointer";
     }
     // 현장 요청: 연습 없이 바로 본 게임(3초 카운트다운)으로
@@ -904,6 +910,13 @@ export class Game {
     this.hitStop = 0;
     this.armed = false;
     this.queued = null;
+    // 하다가 떠난 판의 창·피버·상처가 대기 화면에 남지 않게(goAttract와 같이 지운다)
+    this.spear = null;
+    this.stunLeft = 0;
+    this.fever = false;
+    this.audio.setFast(false);
+    this.damage = 0;
+    this.goliathHp = GOLIATH_HP;
     this.banner = message;
     this.bannerLife = 3.2;
     this.pushUi(true);
@@ -946,6 +959,11 @@ export class Game {
   private goAttract(): void {
     this.audio.stopBeat();
     this.phase = "attract";
+    // 켜지는 몇 초 사이 화면을 눌러 저절로 들어간 점검 모드는 여기서 푼다. 안 풀면 새로고침 전까지 점수가 기록되지 않았다
+    if (this.autoCheck && this.cameraState === "live" && this.poseReady) {
+      this.checkMode = false;
+      this.autoCheck = false;
+    }
     // 쓰러진 골리앗을 다시 세우고 상처도 지운다(다음 사람)
     this.koT = -1;
     this.stagger = 0;

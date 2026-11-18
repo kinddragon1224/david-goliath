@@ -22,6 +22,8 @@ import {
  * 어깨 높이의 손이 화면 63%쯤에 오므로 0.3 이면 어깨보다 조금 아래부터는 아무것도 안 눌린다. */
 const PICK_HOLD = 1.5;
 const REST = 0.3;
+/** 손이 이만큼(ms) 안 보여도 그 자리에 있는 것으로 친다. */
+const HAND_GRACE_MS = 300;
 
 type Tile = {
   key: StationId | "tryon" | "meteor";
@@ -86,15 +88,22 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     const retry = window.setInterval(() => {
       if (pose.status === "off" || pose.status === "denied") start();
     }, 5000);
+    // 인식이 한 번 빗나가 손이 잠깐 사라져도(약한 PC는 한 번이 0.2초) 차던 게이지가 깎이지 않게, 마지막 손을 잠깐 붙들어 둔다
+    let held: { x: number; y: number }[] = [];
+    let heldAt = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const frame = pose.status === "live" ? pose.tick(now) : null;
-      const hands =
+      let hands =
         frame && pose.poseReady
           ? frame.reach.flatMap((h) =>
               h ? [{ x: h.x * window.innerWidth, y: h.y * window.innerHeight }] : [],
             )
           : [];
+      if (hands.length) {
+        held = hands;
+        heldAt = now;
+      } else if (now - heldAt < HAND_GRACE_MS) hands = held;
       setMenuHands(hands);
       setSeen(hands.length > 0);
     };
