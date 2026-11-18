@@ -28,7 +28,7 @@
   - `src/fashion/stations.ts`: 체험 목록, 가상 착장 연결(studio.therumen.kr)
   - `src/fashion/core.ts`: 패션 게임 공통 엔진. 플레이어가 5초 안 보이면 결과 없이 홈으로(`ABSENT_END`)
   - `src/game/*`: 다윗과 골리앗, 공통 인식(`pose.ts`), 약한 PC 판별(`perf.ts`, `?lite=1|0`로 강제), 키오스크(`kiosk.ts`)
-- **커밋 안 된 화면 수정(11/18, 실기기 미검증):**
+- **배포 안 된 로컬 커밋 `2f6a428`·`618aca7` 화면 수정(11/18, 실기기 미검증):**
   - 체험 4종 대기 화면(`src/fashion/FashionApp.tsx`의 `AttractOverlay`): 제목·문구 카드를 한 장으로 합치고, 간판 7초(시범을 어둡게 덮음) ↔ 시범 7초(카드 숨김)로 번갈아 보인다
   - 홈(`src/fashion/StationPicker.tsx`): 칸을 화면 위 70%에만 두고 아래 30%(`REST`)는 버튼 없는 쉬는 자리. 칸은 손을 1.5초(`PICK_HOLD`) 올려야 고른다. 다른 버튼은 그대로 1초(`src/app/HandCursor.tsx`, 버튼에 `data-hold`를 적으면 그 버튼만 바뀜)
 - 확인: `npx tsc --noEmit`, `npm test` (윈도우에서는 scripts 의 symlink 시험 2개가 원래 실패한다)
