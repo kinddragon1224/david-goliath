@@ -1433,7 +1433,7 @@ export function drawArt(
   W: number,
   H: number,
   name: string,
-  dim = 0.58,
+  dim = 0,
 ): boolean {
   const img = artImage(name);
   if (!img) return false;
@@ -1441,6 +1441,8 @@ export function drawArt(
   const w = img.naturalWidth * k;
   const h = img.naturalHeight * k;
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  // 벽 그림이 밝은 광목 벽이 된 뒤로(11/19) 기본은 덮지 않는다. 어둡게 깔 그림만 dim 을 준다
+  if (dim <= 0) return true;
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.7);
   v.addColorStop(0, `rgba(3,16,28,${dim})`);
   v.addColorStop(1, `rgba(3,16,28,${dim * 0.4})`);
@@ -1449,13 +1451,51 @@ export function drawArt(
   return true;
 }
 
+/** 무대 공통 색(11/19): 광목 벽 + 쪽빛 작업대 덮개. 다리미·가위질·바느질이 같은 벽, 같은 덮개 위에서 논다.
+ * 벽은 밝고 흐리게(눈에 안 걸리게), 덮개는 짙게, 그 위의 옷·원단·자수틀이 가장 밝고 또렷하게. */
+export const WALL: [string, string] = ["#ebe4d4", "#ddd3bf"];
+export const MAT = { top: "#2c5a7a", bottom: "#1b3f5b", edge: "#f4eee0", ink: "#1d3a52" };
+
+/** 작업대 덮개 한 장: 쪽빛 천(능직 결) + 광목 가장자리 단 + 그 위의 시침 선. path 가 덮개 모양, y0~y1 은 위아래 끝. */
+export function drawWorkMat(ctx: CanvasRenderingContext2D, path: Path2D, y0: number, y1: number, W: number): void {
+  ctx.save();
+  ctx.shadowColor = "rgba(60,45,20,0.35)";
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 12;
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, MAT.top);
+  g.addColorStop(1, MAT.bottom);
+  ctx.fillStyle = g;
+  ctx.fill(path);
+  ctx.shadowColor = "transparent";
+  ctx.clip(path);
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = 6;
+  for (let x = -(y1 - y0); x < W; x += 22) {
+    ctx.beginPath();
+    ctx.moveTo(x, y1);
+    ctx.lineTo(x + (y1 - y0), y0);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = MAT.edge;
+  ctx.stroke(path);
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.strokeStyle = MAT.ink;
+  ctx.stroke(path);
+  ctx.restore();
+}
+
 /** 왕궁 방(게임 무대 공통): 벽지 색 + 다마스크 무늬 + 양옆 금테 아치 창 + 샹들리에 빛 + 반짝이. */
 export function drawPalace(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
   t: number,
-  wall: [string, string] = ["#141a26", "#06080d"],
+  wall: [string, string] = WALL,
   art?: string,
 ): void {
   // 약한 PC: 벽 전체를 한 번만 그려 두고 한 장으로 찍는다(매 프레임 화면 6장 분량을 칠하던 것)
@@ -1581,8 +1621,8 @@ function paintPalace(
       ctx.restore();
     }
   }
-  // 샹들리에 빛(위에서 내려와 흔들리는 금빛)
-  for (const fx of [0.25, 0.5, 0.75]) {
+  // 샹들리에 빛은 벽 그림이 없을 때만(밝은 벽 그림 위에서는 얼룩으로 보인다)
+  for (const fx of drewArt ? [] : [0.25, 0.5, 0.75]) {
     const lg = ctx.createRadialGradient(W * fx, 0, 0, W * fx, 0, H * 0.85);
     lg.addColorStop(0, `rgba(200,245,255,${0.22 + Math.sin(t * 1.5 + fx * 9) * 0.04})`);
     lg.addColorStop(1, "rgba(200,245,255,0)");

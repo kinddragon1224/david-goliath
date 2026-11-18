@@ -3,6 +3,7 @@ import {
   drawFlare,
   drawHandGlow,
   drawPalace,
+  drawWorkMat,
   fabricTexture,
   propImage,
   TONE,
@@ -231,7 +232,11 @@ export class SewingMode implements Mode {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
-    drawPalace(ctx, this.W, this.H, t, ["#14233a", "#070b14"], "sewing");
+    drawPalace(ctx, this.W, this.H, t, undefined, "sewing");
+    // 다리미·가위질과 같은 쪽빛 작업대 덮개 위에 자수틀을 둔다
+    const mat = new Path2D();
+    mat.roundRect(this.W * 0.15, this.H * 0.03, this.W * 0.7, this.H * 0.94, 18);
+    drawWorkMat(ctx, mat, this.H * 0.03, this.H * 0.97, this.W);
     this.drawSpools(ctx, t);
     this.drawSewn(ctx);
     const shown = this.bloom?.p ?? this.pattern();
@@ -305,10 +310,11 @@ export class SewingMode implements Mode {
   private drawSpools(ctx: CanvasRenderingContext2D, t: number): void {
     const s = Math.min(this.W, this.H) * 0.05;
     const spots: P2[] = [
-      [this.W * 0.07, this.H * 0.18],
-      [this.W * 0.93, this.H * 0.18],
-      [this.W * 0.07, this.H * 0.8],
-      [this.W * 0.93, this.H * 0.8],
+      // 작업대 덮개의 네 귀퉁이(자수틀 원 바깥). 예전 자리(벽 쪽)는 벽의 룩북 사진과 겹쳤다
+      [this.W * 0.205, this.H * 0.16],
+      [this.W * 0.795, this.H * 0.16],
+      [this.W * 0.205, this.H * 0.84],
+      [this.W * 0.795, this.H * 0.84],
     ];
     spots.forEach(([x, y], i) => {
       const on = i === this.pi % SPOOLS.length;

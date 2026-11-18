@@ -2,6 +2,8 @@ import {
   artImage,
   drawHandGlow,
   drawPalace,
+  drawWorkMat,
+  MAT,
   propImage,
   stampLayer,
   TONE,
@@ -683,7 +685,7 @@ export class ScissorsMode implements Mode {
     ctx.save();
     ctx.font = `700 26px "Gowun Batang", serif`;
     ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(255,240,215,0.75)";
+    ctx.fillStyle = MAT.ink;
     ctx.fillText("오린 조각", this.W * 0.915, this.H * 0.1);
     for (let i = 0; i < n; i++) {
       const r = this.rack[i];
@@ -694,11 +696,11 @@ export class ScissorsMode implements Mode {
       ctx.fillStyle = r.color;
       ctx.fill(path);
       ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.strokeStyle = MAT.ink;
       ctx.stroke(path);
       ctx.font = `600 18px sans-serif`;
       ctx.textAlign = "left";
-      ctx.fillStyle = "rgba(255,240,215,0.85)";
+      ctx.fillStyle = MAT.ink;
       ctx.fillText(`${Math.round(r.acc * 100)}%`, x + s * 0.62, y + 6);
       ctx.textAlign = "center";
     }
@@ -888,23 +890,15 @@ function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number)
   paintMat(ctx, W, H, t);
 }
 function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  drawPalace(ctx, W, H, t, ["#1a1626", "#07070c"], "scissors");
+  drawPalace(ctx, W, H, t, undefined, "scissors");
   const x = W * 0.12;
   const y = H * 0.03;
   const w = W * 0.76;
   const h = H * 0.94;
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 30;
-  ctx.shadowOffsetY = 12;
-  const mat = ctx.createLinearGradient(x, y, x + w, y + h);
-  mat.addColorStop(0, "#232a38");
-  mat.addColorStop(1, "#10141d");
-  ctx.fillStyle = mat;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 18);
-  ctx.fill();
-  ctx.restore();
+  // 다리미·바느질과 같은 쪽빛 작업대 덮개(그 위에 재단 눈금)
+  const mat = new Path2D();
+  mat.roundRect(x, y, w, h, 18);
+  drawWorkMat(ctx, mat, y, y + h, W);
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 18);
@@ -932,14 +926,6 @@ function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number
     if (i % 5 === 0) ctx.fillText(String(i), x + i * cell, y + cell * 0.85);
   }
   ctx.restore();
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = "#8ea0b4";
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 18);
-  ctx.stroke();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#e6f6ff";
-  ctx.stroke();
 }
 
 /** 원단 무늬. */

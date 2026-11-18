@@ -4,6 +4,7 @@ import {
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
+  drawWorkMat,
   drawSmoke,
   fabricTexture,
   propImage,
@@ -863,56 +864,18 @@ function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   // 옷(높이 0.82H, 가운데 0.52H)이 판 안에 다 들어오게
   const cy = H * 0.52;
   const hh = H * 0.43;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(x0 + hh * 0.2, cy);
-  ctx.bezierCurveTo(x0 + W * 0.08, cy - hh, x0 + W * 0.2, cy - hh, x0 + W * 0.3, cy - hh);
-  ctx.lineTo(x1 - 40, cy - hh);
-  ctx.quadraticCurveTo(x1, cy - hh, x1, cy - hh + 40);
-  ctx.lineTo(x1, cy + hh - 40);
-  ctx.quadraticCurveTo(x1, cy + hh, x1 - 40, cy + hh);
-  ctx.lineTo(x0 + W * 0.3, cy + hh);
-  ctx.bezierCurveTo(x0 + W * 0.2, cy + hh, x0 + W * 0.08, cy + hh, x0 + hh * 0.2, cy);
-  ctx.closePath();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 30;
-  ctx.shadowOffsetY = 14;
-  const g = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  g.addColorStop(0, "#2a3040");
-  g.addColorStop(1, "#12161f");
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.shadowColor = "transparent";
-  ctx.clip();
-  ctx.strokeStyle = "rgba(200,235,255,0.05)";
-  ctx.lineWidth = 18;
-  for (let x = x0 - H; x < x1 + H; x += 54) {
-    ctx.beginPath();
-    ctx.moveTo(x, cy - hh);
-    ctx.lineTo(x + hh * 2, cy + hh);
-    ctx.stroke();
-  }
-  ctx.restore();
-  // 은 테두리
-  ctx.save();
-  ctx.lineWidth = 10;
-  const chrome = ctx.createLinearGradient(0, cy - hh, 0, cy + hh);
-  chrome.addColorStop(0, "#e6f6ff");
-  chrome.addColorStop(0.5, "#8ea0b4");
-  chrome.addColorStop(1, "#c3cfdc");
-  ctx.strokeStyle = chrome;
-  ctx.beginPath();
-  ctx.moveTo(x0 + hh * 0.2, cy);
-  ctx.bezierCurveTo(x0 + W * 0.08, cy - hh, x0 + W * 0.2, cy - hh, x0 + W * 0.3, cy - hh);
-  ctx.lineTo(x1 - 40, cy - hh);
-  ctx.quadraticCurveTo(x1, cy - hh, x1, cy - hh + 40);
-  ctx.lineTo(x1, cy + hh - 40);
-  ctx.quadraticCurveTo(x1, cy + hh, x1 - 40, cy + hh);
-  ctx.lineTo(x0 + W * 0.3, cy + hh);
-  ctx.bezierCurveTo(x0 + W * 0.2, cy + hh, x0 + W * 0.08, cy + hh, x0 + hh * 0.2, cy);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
+  const board = new Path2D();
+  board.moveTo(x0 + hh * 0.2, cy);
+  board.bezierCurveTo(x0 + W * 0.08, cy - hh, x0 + W * 0.2, cy - hh, x0 + W * 0.3, cy - hh);
+  board.lineTo(x1 - 40, cy - hh);
+  board.quadraticCurveTo(x1, cy - hh, x1, cy - hh + 40);
+  board.lineTo(x1, cy + hh - 40);
+  board.quadraticCurveTo(x1, cy + hh, x1 - 40, cy + hh);
+  board.lineTo(x0 + W * 0.3, cy + hh);
+  board.bezierCurveTo(x0 + W * 0.2, cy + hh, x0 + W * 0.08, cy + hh, x0 + hh * 0.2, cy);
+  board.closePath();
+  // 가위질·바느질과 같은 쪽빛 작업대 덮개
+  drawWorkMat(ctx, board, cy - hh, cy + hh, W);
 }
 
 /** 의상실: 벽 그림 + 검은 다림판 + 위쪽 은 행거에 완성한 옷이 걸린다. */
@@ -932,7 +895,7 @@ function drawBoutique(
     paintRoom(ctx, t);
   // 은 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;
-  ctx.strokeStyle = "#c3cfdc";
+  ctx.strokeStyle = "#9a8a6e";
   ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.moveTo(W * 0.08, ry);

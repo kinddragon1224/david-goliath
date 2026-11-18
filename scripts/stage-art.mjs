@@ -2,7 +2,7 @@
 //   node scripts/stage-art.mjs <룩북 사진 폴더>
 // 사진 폴더: 드라이브 "2026 청년마을 위브온중촌 룩북사진&퍼포먼스 필름 납품 / 룩북 이미지"의 사진을
 // 가로 1600 으로 줄여 <브랜드><번호>.jpg 로 둔 것(eco1.jpg, seolbaek4.jpg …). 원본 사진은 저장소에 넣지 않는다.
-// 그림: 군청 원단 벽에 룩북 사진을 시침핀으로 꽂아 둔 모습. 사진은 군청빛으로 물들여(가운데 게임 그림이 묻히지 않게) 양옆에만 둔다.
+// 그림: 광목 벽에 룩북 사진을 시침핀으로 꽂아 둔 모습. 사진은 쪽빛으로 물들여(가운데 게임 그림이 묻히지 않게) 양옆에만 둔다.
 import { createRequire } from "node:module";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -54,10 +54,10 @@ const out = await page.evaluate(
       const d = x.getImageData(0, 0, w, h);
       const p = d.data;
       const lo = [6, 36, 59];
-      const hi = [188, 212, 230];
+      const hi = [214, 226, 234];
       for (let i = 0; i < p.length; i += 4) {
         const l = (p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11) / 255;
-        for (let j = 0; j < 3; j++) p[i + j] = (lo[j] + (hi[j] - lo[j]) * l) * 0.68 + p[i + j] * 0.32 * 0.85;
+        for (let j = 0; j < 3; j++) p[i + j] = (lo[j] + (hi[j] - lo[j]) * l) * 0.6 + p[i + j] * 0.4;
       }
       x.putImageData(d, 0, 0);
       return c;
@@ -68,50 +68,32 @@ const out = await page.evaluate(
       cv.width = W;
       cv.height = H;
       const ctx = cv.getContext("2d");
-      // 군청 원단 벽
+      // 광목 벽(밝고 흐리게: 놀이판보다 눈에 덜 띄어야 한다). 색은 src/fashion/core.ts 의 WALL 과 같게
       const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, "#0d4168");
-      g.addColorStop(0.85, "#07304f");
-      g.addColorStop(1, "#052339");
+      g.addColorStop(0, "#ebe4d4");
+      g.addColorStop(1, "#ddd3bf");
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
-      // 능직 결 + 옷본 모눈
-      ctx.strokeStyle = "rgba(255,255,255,0.03)";
-      ctx.lineWidth = 2;
-      for (let x = -H; x < W; x += 9) {
-        ctx.beginPath();
-        ctx.moveTo(x, H);
-        ctx.lineTo(x + H, 0);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = "rgba(246,240,226,0.06)";
-      ctx.lineWidth = 1.5;
-      for (let x = 80; x < W; x += 80) ctx.strokeRect(x, -2, 0, H + 4);
-      for (let y = 80; y < H; y += 80) ctx.strokeRect(-2, y, W + 4, 0);
-      // 바닥: 짙은 마루와 초크 시침 선
-      const fy = 628;
-      const fg = ctx.createLinearGradient(0, fy, 0, H);
-      fg.addColorStop(0, "#041a2b");
-      fg.addColorStop(1, "#020e18");
-      ctx.fillStyle = fg;
+      // 광목의 올(아주 옅게)
+      ctx.strokeStyle = "rgba(120,100,70,0.05)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 6) ctx.strokeRect(x, -2, 0, H + 4);
+      for (let y = 0; y < H; y += 6) ctx.strokeRect(-2, y, W + 4, 0);
+      // 바닥 걸레받이 한 줄
+      const fy = 640;
+      ctx.fillStyle = "#cdbfa4";
       ctx.fillRect(0, fy, W, H - fy);
-      ctx.setLineDash([14, 10]);
-      ctx.strokeStyle = "rgba(246,240,226,0.4)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(0, fy);
-      ctx.lineTo(W, fy);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(90,70,40,0.18)";
+      ctx.fillRect(0, fy, W, 3);
       // 룩북 사진: 종이 테두리 + 그림자 + 주황 시침핀
       for (const [n, x, y, w, h, rot, zoom, fx, fy2] of wall) {
         ctx.save();
         ctx.translate(x + w / 2, y + h / 2);
         ctx.rotate((rot * Math.PI) / 180);
-        ctx.shadowColor = "rgba(0,0,0,0.55)";
-        ctx.shadowBlur = 22;
+        ctx.shadowColor = "rgba(70,50,20,0.3)";
+        ctx.shadowBlur = 16;
         ctx.shadowOffsetY = 10;
-        ctx.fillStyle = "#c9d6de";
+        ctx.fillStyle = "#f8f5ee";
         ctx.fillRect(-w / 2, -h / 2, w, h);
         ctx.shadowColor = "transparent";
         ctx.drawImage(tint(imgs[n], w - 14, h - 14, zoom, fx, fy2), -w / 2 + 7, -h / 2 + 7);
