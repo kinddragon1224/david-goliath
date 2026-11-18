@@ -45,7 +45,8 @@
 ### 2) 가상 착장: `C:\Users\sunyo\weaveon\vton`
 - 이 PC에서 돈다: `server\server.py`(FastAPI), Cloudflare 터널로 https://studio.therumen.kr, 화면은 `/app`
 - 화면 `app\`은 빌드된 번들만 있음(소스 없음). 고칠 땐 node 스크립트로 정확한 문자열을 바꿔 **새 파일**로 쓰고 `index.html`이 그 파일을 가리키게 한다. 원본 `-b.js`는 건드리지 않음
-- 현재: `app\assets\vton-DRvWkagp-d.js` (대기 놀이: 룩북 잡기 + 몸을 노리는 바늘 피하기). 되돌리기용 백업 `index.html.bak1116needle`(원본), `index.html.bak1116needle2`
+- 현재(11/18 16시): `app\index.html` 이 번들을 골라 싣는다. 기본 `vton-DRvWkagp-b.js`(룩북 잡기) + 대기 중 **포즈 따라 하기**(index.html 안의 스크립트). 주소에 `wait=needle` 이면 `-d.js`(룩북 잡기 + 바늘 피하기). 되돌리기 백업 `index.html.bak1118pose`(바로 전), `index.html.bak1116needle`(원본), `index.html.bak1116needle2`. 자세한 내용은 `vton\CLAUDE.md` 의 11/18 줄
+- 11/18: `server.py` 코덱스 제한 시간 버그 수정·모델 `gpt-6.1-terra` 고정(재시작해 적용함). 코덱스 계정은 therumen.edu@gmail.com(Plus). `gpt-6.2-sol` 은 더 느리고 `gpt-6-luna` 는 사진을 못 남겨 둘 다 쓰지 않는다
 - 바늘 조절값: 나오는 비율 `.4`, 속도 `1.9`배. 실제 부스 시험 후 조절 필요
 - 접속 PIN은 유료 AI 생성 보호용(한 번 입력하면 30일 유지). PIN·KEY·토큰은 `booth.ini`/`UNLOCK_URL.txt`에 있고 **절대 출력·공유하지 않는다**
 - 이 저장소는 git push 하지 않음. 바꾸기 전에 `.bak날짜` 백업. 추가 유료 API 쓰지 않음. 룩북 사진은 로컬에만
