@@ -191,7 +191,7 @@ const CONFETTI_COLORS = [
   "#d8ccff",
   "#c4f4ea",
   "#ffffff",
-  "#ffc93c",
+  "#ff8822",
   "#ff9fcb",
   "#ffffff",
 ];
@@ -199,7 +199,7 @@ const CONFETTI_COLORS = [
 type Spark = { x: number; y: number; vx: number; vy: number; t: number; life: number; tone: Tone };
 
 export const TONE: Record<Tone, string> = {
-  gold: "#ffc93c",
+  gold: "#ff8822",
   pink: "#ffb8dc",
   mint: "#a8f0e0",
   white: "#ffffff",
@@ -1004,8 +1004,8 @@ export class FashionGame implements Fx {
       ctx.lineWidth = (rush ? 16 : 10) + pulse * 8;
       ctx.strokeStyle = rush
         ? `rgba(255,111,168,${0.6 + pulse * 0.4})`
-        : `rgba(255, 201, 60,${0.5 + pulse * 0.4})`;
-      ctx.shadowColor = rush ? "#ff6fa8" : "#ffc93c";
+        : `rgba(255, 136, 34,${0.5 + pulse * 0.4})`;
+      ctx.shadowColor = rush ? "#ff6fa8" : "#ff8822";
       ctx.shadowBlur = 40;
       ctx.stroke();
       ctx.restore();
@@ -1060,21 +1060,21 @@ export class FashionGame implements Fx {
 
 /* ───────── 공통 그림 ───────── */
 
-/** 화면 전체 배경(포스터 톤): 검정 위에 얼음빛 번짐과 은빛 실크 리본. */
+/** 화면 전체 배경: 군청 원단 위에 주황·초크빛 번짐과 초크빛 리본. */
 export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   if (SLOW_PC) {
     // 약한 PC: 번짐·리본 없이 한 색(화면 전체를 7번 칠하던 것)
-    ctx.fillStyle = "#101830";
+    ctx.fillStyle = "#0a2f4c";
     ctx.fillRect(0, 0, W, H);
     return;
   }
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#1a2550");
-  g.addColorStop(1, "#0b1024");
+  g.addColorStop(0, "#0d4168");
+  g.addColorStop(1, "#052339");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   const glows: [number, number, string][] = [
-    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255, 201, 60,0.16)"],
+    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255, 136, 34,0.16)"],
     [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(246,240,226,0.10)"],
     [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(246,240,226,0.14)"],
   ];
@@ -1267,7 +1267,7 @@ export function drawHandGlow(
 ): void {
   if (!h.on) return;
   const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
-  g.addColorStop(0, h.ghost ? "rgba(255, 201, 60,0.3)" : "rgba(255,255,255,0.35)");
+  g.addColorStop(0, h.ghost ? "rgba(255, 136, 34,0.3)" : "rgba(255,255,255,0.35)");
   g.addColorStop(0.6, TONE[tone] + "33");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
@@ -1442,8 +1442,8 @@ export function drawArt(
   const h = img.naturalHeight * k;
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.7);
-  v.addColorStop(0, `rgba(20,10,32,${dim})`);
-  v.addColorStop(1, `rgba(20,10,32,${dim * 0.4})`);
+  v.addColorStop(0, `rgba(3,16,28,${dim})`);
+  v.addColorStop(1, `rgba(3,16,28,${dim * 0.4})`);
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
   return true;

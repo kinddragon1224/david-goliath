@@ -961,7 +961,7 @@ function drawBoutique(
     );
     ctx.closePath();
     ctx.fillStyle = gm.color;
-    ctx.shadowColor = "#ffc93c";
+    ctx.shadowColor = "#ff8822";
     ctx.shadowBlur = 16;
     ctx.fill();
     ctx.shadowBlur = 0;

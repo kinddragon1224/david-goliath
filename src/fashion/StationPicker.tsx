@@ -215,7 +215,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         style={{ height: `${REST * 100}%` }}
       >
         <ol className="flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
-          {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "노란빛이 다 차면 시작!"].map((s, i) => (
+          {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "주황빛이 다 차면 시작!"].map((s, i) => (
             <li
               key={s}
               className={`f-step f-serif flex items-center gap-[1.2vmin] rounded-full py-[0.7vmin] pr-[2.4vmin] pl-[0.7vmin] ${(i === 0) !== seen ? "f-step-on" : ""}`}
@@ -231,7 +231,11 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
           <i className="h-[3.4vmin] w-px bg-black/15" />
           <img src="/brand/logo-bargium.png" alt="BARGIUM" className="h-[3vmin] w-auto" />
           <i className="h-[3.4vmin] w-px bg-black/15" />
-          <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-[3vmin] w-auto" />
+          {/* 제작사는 함께하는 곳과 구분해 '제작'을 붙여 작게 */}
+          <span className="flex items-center gap-[1vmin] text-[1.5vmin] font-bold text-black/55">
+            제작
+            <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-[2.5vmin] w-auto" />
+          </span>
         </div>
       </footer>
     </div>
