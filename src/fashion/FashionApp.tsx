@@ -1232,7 +1232,8 @@ function ResultOverlay({
     const at = performance.now();
     let raf = 0;
     const step = (now: number) => {
-      const k = Math.min(1, (now - at) / 1100);
+      // 첫 장면은 now 가 at 보다 이를 수 있다(그대로 두면 점수가 잠깐 음수로 보인다)
+      const k = Math.max(0, Math.min(1, (now - at) / 1100));
       setShown(Math.round(ui.score * (1 - Math.pow(1 - k, 3))));
       if (k < 1) raf = requestAnimationFrame(step);
     };
@@ -1249,61 +1250,30 @@ function ResultOverlay({
           : "다시 도전해 보세요!";
   return (
     <div className="absolute inset-0 flex items-center justify-center rounded-[2rem] bg-black/55 p-[3%]">
-      <div className="f-card animate-pop pointer-events-auto flex max-h-full w-full max-w-[52rem] flex-col gap-5 overflow-hidden p-7">
-        <div className="flex items-center gap-6">
-          <div className="f-slam">
-            <GradeBadge grade={ui.grade} />
-          </div>
-          <div className="f-slam min-w-0 flex-1">
-            <p className="text-sm tracking-[0.3em] text-[var(--f-muted)]">오늘의 등급</p>
-            <p className="f-serif f-pearl text-5xl leading-tight">{GRADE_NAMES[ui.grade]}</p>
-            <p className="f-serif mt-1 text-lg text-[var(--f-muted)]">{GRADE_LINES[ui.grade]}</p>
-          </div>
-          <div className="text-right">
-            <p className="f-serif text-6xl leading-none tabular-nums">
-              {shown.toLocaleString("ko-KR")}
+      {/* 결과는 세 가지만: 등급 · 점수 · 다시 하기(11/19 줄임. 통계 네 칸과 컬렉션은 뺐다) */}
+      <div className="f-card animate-pop pointer-events-auto flex max-h-full w-full max-w-[38rem] flex-col items-stretch gap-5 overflow-hidden px-9 py-7 text-center">
+        <div className="f-slam flex flex-col items-center">
+          <GradeBadge grade={ui.grade} />
+          <p className="f-serif f-pearl mt-3 text-6xl leading-tight">{GRADE_NAMES[ui.grade]}</p>
+          <p className="f-serif mt-1 text-xl text-[var(--f-muted)]">{GRADE_LINES[ui.grade]}</p>
+        </div>
+        <div>
+          <p className="f-serif text-[6.5rem] leading-none tabular-nums">
+            {shown.toLocaleString("ko-KR")}
+          </p>
+          <p className="f-serif mt-2 text-3xl text-[var(--f-gold)]">{goal}</p>
+          {ui.rank > 0 && (
+            <p className="mt-1 text-base text-[var(--f-muted)]">
+              오늘 {ui.todayCount}명 중 {ui.rank}위
             </p>
-            <p className="f-serif mt-2 text-2xl text-[var(--f-gold)]">{goal}</p>
-            {ui.rank > 0 && (
-              <p className="text-sm text-[var(--f-muted)]">
-                오늘 {ui.todayCount}명 중 {ui.rank}위
-              </p>
-            )}
-          </div>
+          )}
         </div>
-        <div className="flex gap-3">
-          {ui.stats.map((s) => (
-            <div
-              key={s.label}
-              className="flex-1 rounded-2xl border border-white/20 bg-white/5 px-4 py-2.5 text-center"
-            >
-              <p className="text-sm text-[var(--f-muted)]">{s.label}</p>
-              <p className="f-serif text-3xl">{s.value}</p>
-            </div>
-          ))}
-        </div>
-        {ui.collection.length > 0 && (
-          <div>
-            <p className="f-serif mb-2 text-xl">나의 컬렉션</p>
-            <div className="flex flex-wrap gap-3">
-              {/* 너무 많으면 최근 6개만, 나머지는 +N */}
-              {ui.collection.slice(-6).map((c, i) => (
-                <CollectionCard key={`${c.label}-${i}`} item={c} />
-              ))}
-              {ui.collection.length > 6 && (
-                <div className="f-serif flex w-[6.5rem] items-center justify-center rounded-2xl border border-white/20 bg-white/5 text-2xl text-[var(--f-gold)]">
-                  +{ui.collection.length - 6}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
         <div className="flex items-center gap-3">
-          <button type="button" onClick={onAgain} className="f-btn h-14 flex-1 text-2xl" autoFocus>
+          <button type="button" onClick={onAgain} className="f-btn h-16 flex-[1.6] text-3xl" autoFocus>
             다시 하기
           </button>
           {/* 남은 시간이 끝나면 처음 화면으로 가므로 숫자는 이 버튼에 붙인다 */}
-          <button type="button" onClick={onHome} className="f-ghost h-14 flex-1 text-xl">
+          <button type="button" onClick={onHome} className="f-ghost h-16 flex-1 text-xl">
             처음으로 {ui.resultLeft <= 10 ? ui.resultLeft : ""}
           </button>
         </div>
