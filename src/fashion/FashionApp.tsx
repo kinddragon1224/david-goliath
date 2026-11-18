@@ -1013,6 +1013,16 @@ function AttractOverlay({
   // 시범 차례에는 문구를 바꾸지 않는다(사라지는 도중에 글자가 바뀌어 보이지 않게)
   const tn = (ui.demo ? Math.floor(ti / 4) * 2 + Math.min(ti % 4, 1) : ti) % teasers.length;
   const fade = `transition-opacity duration-500 ${sign ? "" : "opacity-0"}`;
+  // 간판 옆 퍼포먼스 필름(브랜드별 쇼츠, 소리 없음): 간판이 보일 때만 돌고, 한 편이 끝나면 다음 브랜드로
+  const [filmNo, setFilmNo] = useState(0);
+  const film = FILMS[filmNo % FILMS.length];
+  const filmRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = filmRef.current;
+    if (!v) return;
+    if (sign) void v.play().catch(() => {});
+    else v.pause();
+  }, [sign, film]);
   return (
     <div
       className={`absolute inset-0 flex flex-col items-center overflow-hidden rounded-[2rem] p-[3%] ${compact ? "gap-3" : ""}`}
@@ -1046,10 +1056,11 @@ function AttractOverlay({
       </div>
       {/* 간판 한 장: 제목 아래에서 문구만 바뀐다. 가로 화면은 남는 자리의 가운데, 세로 화면은 위쪽 */}
       <div
-        className={`relative flex min-h-0 w-full flex-1 flex-col items-center ${compact ? "justify-start" : "justify-center"} ${fade}`}
+        // 가로 화면은 양옆 '다른 체험' 탭(무대 폭의 12%) 사이에 간판과 필름이 들어가게 옆을 비운다
+        className={`relative flex min-h-0 w-full flex-1 items-center gap-4 ${compact ? "flex-col justify-start" : "justify-center px-[10%]"} ${fade}`}
       >
         <div
-          className={`f-card max-w-full text-center ${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
+          className={`f-card max-w-full min-w-0 text-center [word-break:keep-all]${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
         >
           <div className="flex items-center justify-center gap-3">
             <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
@@ -1068,8 +1079,8 @@ function AttractOverlay({
           >
             {teasers[tn]}
           </p>
-          {station === "iron" && tn === 1 && (
-            // 6팀 룩북 사진을 부채처럼
+          {station === "iron" && tn === 1 && SLOW_PC && (
+            // 6팀 룩북 사진을 부채처럼(필름이 없는 약한 PC에서만. 필름이 있으면 자리가 모자라고 필름이 브랜드를 보여 준다)
             <div className="mt-3 flex justify-center gap-2">
               {BRANDS.map((g, i) => (
                 <figure key={g.name} className="w-[6.5rem]" style={{ rotate: `${(i - 2.5) * 3}deg` }}>
@@ -1090,6 +1101,20 @@ function AttractOverlay({
             창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
           </p>
         </div>
+        {/* 약한 PC는 영상 풀기가 인식 몫의 CPU를 깎아서 뺀다 */}
+        {!SLOW_PC && (
+          <video
+            ref={filmRef}
+            key={film}
+            src={`/film/${film}.mp4`}
+            muted
+            playsInline
+            autoPlay
+            onEnded={() => setFilmNo((n) => n + 1)}
+            onError={() => setFilmNo((n) => n + 1)}
+            className={`aspect-[9/16] min-h-0 shrink-0 rounded-xl border-[0.25rem] border-[var(--f-frame)] bg-black object-cover shadow-2xl ${compact ? "h-[40%]" : "h-[86%] max-h-[30rem]"}`}
+          />
+        )}
       </div>
       <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
@@ -1115,6 +1140,9 @@ function AttractOverlay({
     </div>
   );
 }
+
+/** 대기 화면에 도는 퍼포먼스 필름 쇼츠(public/film/<이름>.mp4, 432×768 무음 24초). 드라이브 납품 폴더의 쇼츠 01편을 줄인 것. */
+const FILMS = ["tailoring", "silua", "restitch", "eco", "seolbaek", "lumino"];
 
 const TEASER: Record<FashionStation, string> = {
   iron: "세탁소 손님 옷의 주름을 쫙 펴 주세요!",
