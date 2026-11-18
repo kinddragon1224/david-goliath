@@ -871,8 +871,8 @@ export class FashionGame implements Fx {
       drawGuide(ctx, from.x, from.y, tgt.x, tgt.y, this.time);
     }
 
-    // 떠다니는 반짝이(약한 PC는 뺀다)
-    for (const g of SLOW_PC ? [] : this.glitter) {
+    // 떠다니는 반짝이(약한 PC는 뺀다. 한 판을 하는 동안에도 뺀다: 놀이판 위에서 눈길을 흩뜨린다)
+    for (const g of SLOW_PC || this.phase === "play" || this.phase === "countdown" ? [] : this.glitter) {
       const tw = (Math.sin(this.time * g.sp * 2 + g.ph) + 1) / 2;
       if (tw < 0.55) continue;
       drawFlare(
@@ -1433,7 +1433,7 @@ export function drawArt(
   W: number,
   H: number,
   name: string,
-  dim = 0.42,
+  dim = 0.58,
 ): boolean {
   const img = artImage(name);
   if (!img) return false;
@@ -1475,7 +1475,8 @@ export function drawPalace(
       return;
     }
   }
-  paintPalace(ctx, W, H, t, wall, art, true);
+  // 늘 떠 있던 반짝이 가루는 뺐다(11/19): 놀이판 위에서 눈길을 흩뜨린다. 반짝임은 성공한 순간의 효과만
+  paintPalace(ctx, W, H, t, wall, art, false);
 }
 const PALACE = new Map<string, HTMLCanvasElement>();
 

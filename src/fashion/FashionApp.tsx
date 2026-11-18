@@ -99,11 +99,22 @@ const initialUi: FashionUi = {
 };
 
 type Rect = { x: number; y: number; w: number; h: number };
-type Layout = { landscape: boolean; mirror: Rect; side: Rect; hud: Rect; stage: Rect };
+type Layout = { landscape: boolean; focus: boolean; mirror: Rect; side: Rect; hud: Rect; stage: Rect };
 
-/** 화면 나누기. 가로: 왼쪽 거울 열 + 오른쪽 무대. 세로(TV를 세웠을 때): 위 거울 줄 + 아래 무대. */
-function computeLayout(W: number, H: number): Layout {
+/** 화면 나누기. 가로: 왼쪽 거울 열 + 오른쪽 무대. 세로(TV를 세웠을 때): 위 거울 줄 + 아래 무대.
+ * focus(가로 화면에서 한 판을 하는 동안): 놀이판 하나만 보이게 무대를 화면 가득 키우고, 거울은 왼쪽 아래 작은 창, 위에는 점수만 얹는다. */
+function computeLayout(W: number, H: number, focus = false): Layout {
   const landscape = W / Math.max(1, H) >= 1.15;
+  if (landscape && focus) {
+    const pad = H * 0.025;
+    const stage = { x: pad, y: pad, w: W - pad * 2, h: H - pad * 2 };
+    const mw = H * 0.19;
+    const mirror = { x: pad * 2.2, y: H - pad * 2.2 - mw * (4 / 3), w: mw, h: mw * (4 / 3) };
+    // 점수는 오른쪽 아래(거울과 마주 보는 자리): 위쪽 구석은 가위질의 작업지시서·오린 조각이 쓴다
+    const hud = { x: pad * 2.4, y: H - pad * 2.2 - H * 0.09, w: W - pad * 4.8, h: H * 0.09 };
+    return { landscape, focus, mirror, side: { x: 0, y: 0, w: 0, h: 0 }, hud, stage };
+  }
+  focus = false;
   if (landscape) {
     const pad = H * 0.025;
     const colW = Math.min(W * 0.24, H * 0.44);
@@ -114,7 +125,7 @@ function computeLayout(W: number, H: number): Layout {
     hud.w = W - hud.x - pad;
     const stage = { x: hud.x, y: hud.y + hud.h + pad * 0.6, w: hud.w, h: 0 };
     stage.h = H - stage.y - pad;
-    return { landscape, mirror, side, hud, stage };
+    return { landscape, focus, mirror, side, hud, stage };
   }
   const pad = W * 0.03;
   const mh = H * 0.25;
@@ -124,7 +135,7 @@ function computeLayout(W: number, H: number): Layout {
   const hud = { x: pad, y: pad + mh + pad * 0.6, w: W - pad * 2, h: H * 0.075 };
   const stage = { x: pad, y: hud.y + hud.h + pad * 0.5, w: W - pad * 2, h: 0 };
   stage.h = H - stage.y - pad;
-  return { landscape, mirror, side, hud, stage };
+  return { landscape, focus, mirror, side, hud, stage };
 }
 
 const box = (r: Rect) => ({ left: r.x, top: r.y, width: r.w, height: r.h });
@@ -141,6 +152,14 @@ export function FashionApp({ station }: { station: FashionStation }) {
   const [admin, setAdmin] = useState(false);
   const [layout, setLayout] = useState<Layout>(() => computeLayout(1920, 1080));
   const layoutRef = useRef(layout);
+  // 한 판을 하는 동안(초읽기~결과)은 놀이판만 크게. 대기 화면으로 돌아오면 원래 나눔으로
+  const focus = ui.phase === "countdown" || ui.phase === "play" || ui.phase === "result";
+  const focusRef = useRef(focus);
+  const resizeRef = useRef(() => {});
+  useEffect(() => {
+    focusRef.current = focus;
+    resizeRef.current();
+  }, [focus]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -162,7 +181,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
       dpr = screenDpr();
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
-      const L = computeLayout(w, h);
+      const L = computeLayout(w, h, focusRef.current);
       layoutRef.current = L;
       (window as unknown as { __stage: Rect }).__stage = L.stage;
       setLayout(L);
@@ -179,6 +198,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
       document.documentElement.style.fontSize = `${(16 * k).toFixed(2)}px`;
     };
     resize();
+    resizeRef.current = resize;
     window.addEventListener("resize", resize);
 
     const mirrorState: MirrorState = { cx: 0.5 };
@@ -385,18 +405,25 @@ export function FashionApp({ station }: { station: FashionStation }) {
         )}
       </div>
 
-      {/* 거울 아래 패널 */}
-      <div className="absolute z-10 overflow-hidden" style={box(layout.side)}>
-        {ui.phase === "play" || ui.phase === "countdown" ? (
-          <MeterCard ui={ui} landscape={layout.landscape} step={STEPS[station][1]} />
-        ) : ui.phase === "result" ? (
-          <Ranking ui={ui} highlight={ui.lastAt} compact={!layout.landscape} />
-        ) : (
-          <AttractSide station={station} ui={ui} compact={!layout.landscape} />
-        )}
-      </div>
+      {/* 거울 아래 패널(놀이판만 보이는 동안에는 없다) */}
+      {!layout.focus && (
+        <div className="absolute z-10 overflow-hidden" style={box(layout.side)}>
+          {ui.phase === "play" || ui.phase === "countdown" ? (
+            <MeterCard ui={ui} landscape={layout.landscape} step={STEPS[station][1]} />
+          ) : ui.phase === "result" ? (
+            <Ranking ui={ui} highlight={ui.lastAt} compact={!layout.landscape} />
+          ) : (
+            <AttractSide station={station} ui={ui} compact={!layout.landscape} />
+          )}
+        </div>
+      )}
 
-      {/* 위쪽: 체험 이름 · 진행 줄 · 점수 · 시간 */}
+      {/* 위쪽: 체험 이름 · 진행 줄 · 점수 · 시간. 놀이판만 보이는 동안에는 점수만(시간은 무대 위쪽 줄이 보여 준다) */}
+      {layout.focus ? (
+        <div className="pointer-events-none absolute z-30 flex items-end justify-end" style={box(layout.hud)}>
+          {ui.phase !== "result" && <ScoreBox score={ui.score} hot={ui.rush} />}
+        </div>
+      ) : (
       <div className="absolute z-10 flex items-center gap-4" style={box(layout.hud)}>
         <TitleBadge no={info.no} title={info.title} onLong={() => setAdmin(true)} />
         {/* 줄이 길어 양끝이 잘릴 때 글자가 뚝 끊기지 않고 흐려지게 */}
@@ -420,6 +447,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
           <p className="shrink-0 text-sm text-[var(--f-muted)]">오늘 {ui.todayCount}명 참여</p>
         )}
       </div>
+      )}
 
       {/* 무대 위 안내 */}
       <div className="pointer-events-none absolute z-20" style={box(layout.stage)}>
@@ -451,7 +479,10 @@ export function FashionApp({ station }: { station: FashionStation }) {
               pct={ui.seconds > 0 ? ui.timeLeft / ui.seconds : 0}
               urgent={ui.rush || ui.timeLeft <= 5}
             />
-            <div className="absolute inset-x-0 bottom-4 flex justify-center px-4">
+            {/* 안내는 시작하고 4초만(그 뒤로는 무대 안 그림이 알려 준다). 막판 2배 알림은 계속 */}
+            <div
+              className={`absolute inset-x-0 bottom-4 flex justify-center px-4 transition-opacity duration-700 ${ui.rush || ui.seconds - ui.timeLeft < 4 ? "" : "opacity-0"}`}
+            >
               <p
                 className={`f-serif max-w-full truncate px-7 py-2.5 text-center ${ui.rush ? "animate-throb rounded-3xl bg-[var(--f-pink)] text-3xl text-[#1b1526] shadow-2xl" : "f-card text-xl"}`}
               >
@@ -1061,7 +1092,7 @@ function AttractOverlay({
         className={`relative flex min-h-0 w-full flex-1 items-center gap-4 ${compact ? "flex-col justify-start" : "justify-center px-[10%]"} ${fade}`}
       >
         <div
-          className={`f-card max-w-full min-w-0 text-center [word-break:keep-all]${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
+          className={`f-card max-w-full min-w-0 text-center [word-break:keep-all] ${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
         >
           <div className="flex items-center justify-center gap-3">
             <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
