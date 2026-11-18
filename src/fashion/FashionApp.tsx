@@ -1013,8 +1013,9 @@ function AttractOverlay({
   // 시범 차례에는 문구를 바꾸지 않는다(사라지는 도중에 글자가 바뀌어 보이지 않게)
   const tn = (ui.demo ? Math.floor(ti / 4) * 2 + Math.min(ti % 4, 1) : ti) % teasers.length;
   const fade = `transition-opacity duration-500 ${sign ? "" : "opacity-0"}`;
-  // 간판 옆 퍼포먼스 필름(브랜드별 쇼츠, 소리 없음): 간판이 보일 때만 돌고, 한 편이 끝나면 다음 브랜드로
-  const [filmNo, setFilmNo] = useState(0);
+  // 간판 옆 퍼포먼스 필름(브랜드별 쇼츠, 소리 없음): 간판이 보일 때만 돌고, 한 편이 끝나면 다음 브랜드로.
+  // 대기 화면이 뜰 때마다(체험을 고르거나 한 판이 끝난 뒤) 아무 편에서나 시작한다: 늘 같은 브랜드만 먼저 나오지 않게
+  const [filmNo, setFilmNo] = useState(() => Math.floor(Math.random() * FILMS.length));
   const film = FILMS[filmNo % FILMS.length];
   const filmRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
