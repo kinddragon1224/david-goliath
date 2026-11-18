@@ -16,7 +16,7 @@ export function setMenuOpen(open: boolean): void {
   menuOpen = open;
 }
 
-/** 손을 이만큼(초) 올려 두면 누른다. */
+/** 손을 이만큼(초) 올려 두면 누른다. 버튼에 data-hold="1.5" 를 적으면 그 버튼만 그만큼 기다린다(잘못 눌리면 곤란한 버튼용). */
 const HOLD = 1;
 /** 누른 뒤 이만큼(초)은 쉰다. 판이 바뀌자마자 그 자리의 버튼이 눌리지 않게. */
 const COOL = 0.6;
@@ -71,7 +71,7 @@ export function HandCursor() {
           : held && on.some((p) => nearButton(p, held))
             ? held
             : (hits.find(Boolean) ?? null);
-      const { next, fired } = stepDwell(dwell, over, dt, HOLD);
+      const { next, fired } = stepDwell(dwell, over, dt, Number(over?.dataset.hold) || HOLD);
       dwell = next;
       if (fired) {
         cool = COOL;

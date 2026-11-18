@@ -13,6 +13,13 @@ import {
   type StationId,
 } from "./stations";
 
+/** 손으로 고를 때 덜 예민하게 하는 두 값. 현장에서 여전히 잘못 눌리면 둘 다 조금씩 올린다.
+ * PICK_HOLD: 칸 위에 손을 이만큼(초) 올려 둬야 고른다(다른 버튼은 1초).
+ * REST: 화면 아래 이 비율은 버튼이 없는 쉬는 자리. 손 높이는 어깨 폭 기준으로 화면에 펼쳐지는데(game/reach.ts),
+ * 어깨 높이의 손이 화면 63%쯤에 오므로 0.3 이면 어깨보다 조금 아래부터는 아무것도 안 눌린다. */
+const PICK_HOLD = 1.5;
+const REST = 0.3;
+
 type Tile = {
   key: StationId | "tryon";
   no: string;
@@ -94,12 +101,12 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     <div className="f-root fixed inset-0 flex flex-col overflow-hidden">
       <img src="/art/iron.webp" alt="" className="f-pick-bg absolute inset-0 size-full object-cover" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(7,8,12,0.35),rgba(7,8,12,0.92)_75%)]" />
-      {/* 머리: 왼쪽 행사 로고 · 가운데 제목 · 오른쪽 고르는 법(지금 할 단계가 밝게 켜진다) */}
-      <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2.5vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
+      {/* 머리: 왼쪽 행사 로고 · 가운데 제목 */}
+      <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2.2vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
         <img
           src="/brand/logo-weaveon.png"
           alt="위브온 중촌"
-          className="h-[13vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.8)] landscape:justify-self-start"
+          className="h-[10.5vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.8)] landscape:justify-self-start"
         />
         <div>
           <p className="text-[1.7vmin] tracking-[0.5em] text-[var(--f-gold)]">
@@ -108,24 +115,11 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
           <h1 className="f-serif mt-[0.6vmin] text-[6vmin] leading-tight">
             몸으로 즐기는 <span className="f-pearl">AX 체험</span>
           </h1>
-          <p className="f-pick-cta f-serif mt-[0.8vmin] text-[2.4vmin] text-[var(--f-ink)]">
-            ◆ 체험을 골라 주세요 ◆
-          </p>
         </div>
-        <ol className="flex gap-[1vmin] text-left text-[1.8vmin] landscape:flex-col landscape:justify-self-end">
-          {["카메라 앞에 서요", "하고 싶은 체험에 손을 올려요", "1초 기다리면 시작!"].map((s, i) => (
-            <li
-              key={s}
-              className={`f-step flex items-center gap-[1vmin] rounded-full py-[0.5vmin] pr-[1.8vmin] pl-[0.5vmin] ${(i === 0) !== seen ? "f-step-on" : ""}`}
-            >
-              <b className="f-serif grid size-[3vmin] place-items-center rounded-full">{i + 1}</b>
-              {s}
-            </li>
-          ))}
-        </ol>
         <video ref={videoRef} className="pointer-events-none absolute size-px opacity-0" playsInline muted autoPlay />
       </header>
-      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] px-[3vmin] py-[2.5vmin] landscape:grid-cols-6">
+      {/* 칸은 화면 위쪽에만 둔다: 손을 내리고 서 있거나 가슴 높이에서 움직이는 손은 아래 쉬는 자리에 떨어져 아무것도 눌리지 않는다 */}
+      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-[2vmin] px-[3vmin] pt-[2vmin] landscape:grid-cols-6">
         {tiles.map((t, i) => {
           const a = STATION_ART[t.key];
           return (
@@ -135,6 +129,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
               autoFocus={i === 1}
               disabled={t.off}
               onClick={t.go}
+              data-hold={PICK_HOLD}
               className="f-pick hand-fill group text-left"
               style={{ "--i": i } as React.CSSProperties}
             >
@@ -155,27 +150,45 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
               <span className="f-serif f-pearl absolute top-[2%] left-[6%] text-[6vmin] leading-none">
                 {t.no}
               </span>
-              <span className="absolute inset-x-0 bottom-0 block p-[1.8vmin]">
+              {/* 좁은 칸(4:3 태블릿)에서 "챌린/지"처럼 낱말 가운데서 끊기지 않게 낱말 단위로 줄을 바꾼다 */}
+              <span className="absolute inset-x-0 bottom-0 block p-[1.8vmin] [word-break:keep-all]">
                 <span className="f-serif block text-[3.1vmin] leading-tight">{t.title}</span>
                 <span className="mt-[0.6vmin] block text-[1.7vmin] leading-snug text-[var(--f-muted)]">
                   {t.line}
                 </span>
-                <span className="f-pick-go f-serif mt-[1.2vmin] inline-block rounded-full px-[1.6vmin] py-[0.5vmin] text-[1.8vmin]">
-                  {t.off ? "준비 중" : "시작 ▶"}
-                </span>
+                {t.off && (
+                  <span className="f-pick-go f-serif mt-[1.2vmin] inline-block rounded-full px-[1.6vmin] py-[0.5vmin] text-[1.8vmin]">
+                    준비 중
+                  </span>
+                )}
               </span>
             </button>
           );
         })}
       </div>
-      {/* 함께하는 곳: 로고가 짙은 색이라 흰 띠 위에 원래 색 그대로 둔다 */}
-      <footer className="pointer-events-none relative flex justify-center pb-[2vmin]">
-        <div className="flex items-center gap-[3.5vmin] rounded-full bg-white/95 px-[4.5vmin] py-[1vmin] shadow-[0_0.8vmin_2.4vmin_rgba(0,0,0,0.6)]">
-          <img src="/brand/logo-youth.png" alt="청년마을" className="h-[5.4vmin] w-auto" />
+      {/* 쉬는 자리(화면 아래 REST): 버튼 없이 고르는 법과 함께하는 곳만. 지금 할 단계가 밝게 켜진다 */}
+      <footer
+        className="pointer-events-none relative flex shrink-0 flex-col items-center justify-center gap-[2vmin] px-[3vmin]"
+        style={{ height: `${REST * 100}%` }}
+      >
+        <ol className="flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
+          {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "노란빛이 다 차면 시작!"].map((s, i) => (
+            <li
+              key={s}
+              className={`f-step f-serif flex items-center gap-[1.2vmin] rounded-full py-[0.7vmin] pr-[2.4vmin] pl-[0.7vmin] ${(i === 0) !== seen ? "f-step-on" : ""}`}
+            >
+              <b className="grid size-[4vmin] place-items-center rounded-full">{i + 1}</b>
+              {s}
+            </li>
+          ))}
+        </ol>
+        {/* 함께하는 곳: 로고가 짙은 색이라 흰 띠 위에 원래 색 그대로 둔다 */}
+        <div className="flex items-center gap-[3.5vmin] rounded-full bg-white/95 px-[4.5vmin] py-[0.9vmin] shadow-[0_0.8vmin_2.4vmin_rgba(0,0,0,0.6)]">
+          <img src="/brand/logo-youth.png" alt="청년마을" className="h-[5vmin] w-auto" />
           <i className="h-[3.4vmin] w-px bg-black/15" />
-          <img src="/brand/logo-bargium.png" alt="BARGIUM" className="h-[3.2vmin] w-auto" />
+          <img src="/brand/logo-bargium.png" alt="BARGIUM" className="h-[3vmin] w-auto" />
           <i className="h-[3.4vmin] w-px bg-black/15" />
-          <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-[3.2vmin] w-auto" />
+          <img src={PRODUCER.logo} alt={PRODUCER.name} className="h-[3vmin] w-auto" />
         </div>
       </footer>
     </div>
