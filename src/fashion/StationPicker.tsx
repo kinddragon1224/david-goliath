@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { setMenuHands } from "@/app/HandCursor";
 import { PRODUCER } from "@/game/constants";
 import { PoseController } from "@/game/pose";
+import { BRANDS } from "./garments";
 import {
   METEOR,
   STATIONS,
@@ -116,26 +117,25 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
     };
   }, []);
   return (
-    <div className="f-root fixed inset-0 flex flex-col overflow-hidden">
-      <img src="/art/iron.webp" alt="" className="f-pick-bg absolute inset-0 size-full object-cover" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(7,8,12,0.35),rgba(7,8,12,0.92)_75%)]" />
-      {/* 머리: 왼쪽 행사 로고 · 가운데 제목 */}
-      <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2.2vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
+    // 바탕은 남색 원단 + 옷본 모눈(styles.css 의 .f-cloth). 예전의 홀로그램 배경 그림은 쓰지 않는다
+    <div className="f-root f-cloth fixed inset-0 flex flex-col overflow-hidden">
+      {/* 머리: 왼쪽 행사 로고 · 가운데 제목과 때·곳 */}
+      <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
         <img
           src="/brand/logo-weaveon.png"
           alt="위브온 중촌"
-          className="h-[10.5vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.8)] landscape:justify-self-start"
+          className="h-[9.5vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.6)] landscape:justify-self-start"
         />
         <div>
-          <p className="text-[1.7vmin] tracking-[0.5em] text-[var(--f-gold)]">
-            2026 WEAVE ON FESTIVAL
+          <h1 className="f-serif f-pearl text-[5.8vmin] leading-tight">몸으로 즐기는 AX 체험</h1>
+          <p className="mt-[0.4vmin] text-[1.9vmin] text-[var(--f-muted)]">
+            위브온 페스티벌 · 11월 20일(금) 오후 2시~6시 · 대전 중구 중촌동 맞춤패션 플랫폼
           </p>
-          <h1 className="f-serif mt-[0.6vmin] text-[6vmin] leading-tight">
-            몸으로 즐기는 <span className="f-pearl">AX 체험</span>
-          </h1>
         </div>
         <video ref={videoRef} className="pointer-events-none absolute size-px opacity-0" playsInline muted autoPlay />
       </header>
+      {/* 줄자 띠: 맞춤패션거리 행사의 표식 */}
+      <div className="f-tape relative mt-[1.6vmin]" />
       {/* 칸은 화면 위쪽에만 둔다: 손을 내리고 서 있거나 가슴 높이에서 움직이는 손은 아래 쉬는 자리에 떨어져 아무것도 눌리지 않는다 */}
       <div className="relative grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-[2vmin] px-[3vmin] pt-[2vmin] landscape:grid-cols-[1.2fr_1fr_1fr_1fr] landscape:grid-rows-2">
         {tiles.map((t, i) => {
@@ -151,31 +151,43 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
               className={`f-pick hand-fill group text-left ${t.big ? "col-span-2 landscape:col-span-1 landscape:row-span-2" : ""}`}
               style={{ "--i": i } as React.CSSProperties}
             >
-              <img
-                src={a.art}
-                alt=""
-                className="f-pick-art absolute inset-0 size-full object-cover"
-                style={{ objectPosition: a.at }}
-              />
-              {/* 글자 자리만 어둡게: 큰 칸은 아래쪽, 옆으로 긴 칸은 왼쪽(오른쪽에 소품·그림이 온다) */}
-              <span
-                className={`absolute inset-0 ${t.big ? "bg-[linear-gradient(180deg,rgba(7,8,12,0.1)_0%,rgba(7,8,12,0.25)_45%,rgba(7,8,12,0.96)_85%)]" : "bg-[linear-gradient(78deg,rgba(7,8,12,0.96)_22%,rgba(7,8,12,0.5)_58%,rgba(7,8,12,0.08)_100%)]"}`}
-              />
-              {a.prop && (
+              {/* 칸은 원단 조각(바탕은 styles.css 의 .f-pick). 그림은 세 가지 중 하나:
+                  큰 칸(가상 착장) = 옷걸이에 건 룩북 옷 세 벌 / 소품이 있는 칸 = 오른쪽에 소품 / 소품이 없는 칸(꿈돌이) = 오른쪽에 게임 화면 */}
+              {t.big ? (
+                <span className="absolute inset-x-[8%] top-[19%] flex h-[48%] items-start justify-center">
+                  {BRANDS.slice(0, 3).map((g, k) => (
+                    <img
+                      key={g.photo}
+                      src={`/brand/${g.photo}.webp`}
+                      alt=""
+                      className="h-full w-[36%] rounded-[1.4vmin] border-[0.3vmin] border-[var(--f-frame)] bg-[#f3efe6] object-contain p-[0.6vmin] shadow-[0_1vmin_2.4vmin_rgba(0,0,0,0.5)]"
+                      style={{ rotate: `${(k - 1) * 5}deg`, marginLeft: k ? "-6%" : 0, translate: `0 ${k === 1 ? "-4%" : "3%"}` }}
+                    />
+                  ))}
+                </span>
+              ) : a.prop ? (
                 <img
                   src={a.prop}
                   alt=""
                   className="f-pick-prop f-pick-side absolute top-[7%] right-[3%] h-[86%] w-[40%] object-contain"
                 />
+              ) : (
+                <img
+                  src={a.art}
+                  alt=""
+                  className="absolute inset-y-0 right-0 h-full w-[62%] object-cover [mask-image:linear-gradient(90deg,transparent,#000_45%)]"
+                  style={{ objectPosition: a.at }}
+                />
               )}
+              <span className="f-stitch" />
               <span
-                className={`f-serif f-pearl absolute leading-none ${t.big ? "top-[2.5%] left-[6%] text-[9vmin]" : "top-[5%] left-[4.5%] text-[5.4vmin]"}`}
+                className={`f-serif absolute leading-none text-[var(--f-gold)] ${t.big ? "top-[3%] left-[7%] text-[8vmin]" : "top-[9%] left-[6%] text-[5vmin]"}`}
               >
                 {t.no}
               </span>
               {/* 좁은 칸(4:3 태블릿)에서 "챌린/지"처럼 낱말 가운데서 끊기지 않게 낱말 단위로 줄을 바꾼다 */}
               <span
-                className={`absolute bottom-0 left-0 block [word-break:keep-all] ${t.big ? "w-full p-[2.4vmin]" : "w-[66%] p-[1.8vmin]"}`}
+                className={`absolute bottom-0 left-0 block [word-break:keep-all] ${t.big ? "w-full px-[3.2vmin] pb-[3vmin]" : "w-[66%] px-[2.6vmin] pb-[2.4vmin]"}`}
               >
                 <span
                   className={`f-serif block leading-tight ${t.big ? "text-[4.8vmin]" : "text-[3.1vmin]"}`}

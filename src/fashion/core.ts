@@ -191,7 +191,7 @@ const CONFETTI_COLORS = [
   "#d8ccff",
   "#c4f4ea",
   "#ffffff",
-  "#9ff3ff",
+  "#ffc93c",
   "#ff9fcb",
   "#ffffff",
 ];
@@ -199,7 +199,7 @@ const CONFETTI_COLORS = [
 type Spark = { x: number; y: number; vx: number; vy: number; t: number; life: number; tone: Tone };
 
 export const TONE: Record<Tone, string> = {
-  gold: "#9ff3ff",
+  gold: "#ffc93c",
   pink: "#ffb8dc",
   mint: "#a8f0e0",
   white: "#ffffff",
@@ -1004,8 +1004,8 @@ export class FashionGame implements Fx {
       ctx.lineWidth = (rush ? 16 : 10) + pulse * 8;
       ctx.strokeStyle = rush
         ? `rgba(255,111,168,${0.6 + pulse * 0.4})`
-        : `rgba(159,243,255,${0.5 + pulse * 0.4})`;
-      ctx.shadowColor = rush ? "#ff6fa8" : "#9ff3ff";
+        : `rgba(255, 201, 60,${0.5 + pulse * 0.4})`;
+      ctx.shadowColor = rush ? "#ff6fa8" : "#ffc93c";
       ctx.shadowBlur = 40;
       ctx.stroke();
       ctx.restore();
@@ -1064,19 +1064,19 @@ export class FashionGame implements Fx {
 export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
   if (SLOW_PC) {
     // 약한 PC: 번짐·리본 없이 한 색(화면 전체를 7번 칠하던 것)
-    ctx.fillStyle = "#0a0d14";
+    ctx.fillStyle = "#101830";
     ctx.fillRect(0, 0, W, H);
     return;
   }
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#10141d");
-  g.addColorStop(1, "#040509");
+  g.addColorStop(0, "#1a2550");
+  g.addColorStop(1, "#0b1024");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   const glows: [number, number, string][] = [
-    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(159,243,255,0.16)"],
-    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(220,228,240,0.10)"],
-    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(200,245,255,0.14)"],
+    [0.1 + Math.sin(t * 0.2) * 0.03, 0.15, "rgba(255, 201, 60,0.16)"],
+    [0.9, 0.2 + Math.cos(t * 0.17) * 0.04, "rgba(246,240,226,0.10)"],
+    [0.55 + Math.sin(t * 0.13) * 0.05, 1.05, "rgba(246,240,226,0.14)"],
   ];
   for (const [x, y, c] of glows) {
     const r = Math.max(W, H) * 0.55;
@@ -1093,11 +1093,11 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D, W: number, H: number
     const amp = H * (0.12 + i * 0.03);
     const thick = H * (0.05 + i * 0.015);
     const g2 = ctx.createLinearGradient(0, 0, W, 0);
-    g2.addColorStop(0, "rgba(200,245,255,0)");
-    g2.addColorStop(0.3, "rgba(200,245,255,0.10)");
-    g2.addColorStop(0.55, "rgba(230,236,245,0.12)");
-    g2.addColorStop(0.8, "rgba(200,245,255,0.10)");
-    g2.addColorStop(1, "rgba(200,245,255,0)");
+    g2.addColorStop(0, "rgba(246,240,226,0)");
+    g2.addColorStop(0.3, "rgba(246,240,226,0.10)");
+    g2.addColorStop(0.55, "rgba(246,240,226,0.12)");
+    g2.addColorStop(0.8, "rgba(246,240,226,0.10)");
+    g2.addColorStop(1, "rgba(246,240,226,0)");
     ctx.fillStyle = g2;
     ctx.beginPath();
     const N = 24;
@@ -1267,7 +1267,7 @@ export function drawHandGlow(
 ): void {
   if (!h.on) return;
   const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
-  g.addColorStop(0, h.ghost ? "rgba(159,243,255,0.3)" : "rgba(255,255,255,0.35)");
+  g.addColorStop(0, h.ghost ? "rgba(255, 201, 60,0.3)" : "rgba(255,255,255,0.35)");
   g.addColorStop(0.6, TONE[tone] + "33");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;

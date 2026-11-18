@@ -428,7 +428,7 @@ export class RhythmMode implements Mode {
     }
     const beat = this.flash[0] || this.flash[1];
     ctx.lineWidth = 7;
-    ctx.fillStyle = "rgba(159,243,255,0.16)";
+    ctx.fillStyle = "rgba(255, 201, 60,0.16)";
     ctx.strokeStyle = TONE.gold;
     ctx.beginPath();
     ctx.arc(tx, y, r * (1.35 + beat * 0.2 + pump * 0.05), 0, Math.PI * 2);
@@ -626,7 +626,7 @@ function drawNight(
     const spread = W * 0.1;
     const g = ctx.createLinearGradient(0, 0, 0, H);
     const a = 0.1 + pump * 0.16;
-    const c = fever ? "255,211,77" : i % 2 ? "159,243,255" : "255,184,220";
+    const c = fever ? "255,211,77" : i % 2 ? "255, 201, 60" : "255,184,220";
     g.addColorStop(0, `rgba(${c},${a})`);
     g.addColorStop(1, `rgba(${c},0)`);
     ctx.fillStyle = g;

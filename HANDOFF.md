@@ -20,7 +20,8 @@
 ## 두 저장소
 ### 1) 게임: `C:\Users\sunyo\Documents\david-goliath` (이 폴더)
 - 사이트: https://wvn.vercel.app (`/version.txt`로 배포 버전 확인). **main에 push하면 Vercel 배포 + GitHub Actions로 APK·zip 빌드**
-- 지금 배포된 버전: **v1.17.0** (11/18 푸시, `src/game/constants.ts`의 `APP_VERSION`). 대표님 지시(11/18): 개발이 끝나면 승인 없이 바로 커밋·푸시한다
+- **v1.18.0 행사 디자인(11/18 저녁):** 포스터 톤(검정 + 얼음빛 홀로그램) → **맞춤패션거리 톤**(남색 원단 + 초크빛 글자·시침 점선 + 줄자 노랑). 색은 `src/styles.css`의 `.f-root` 변수와 `core.ts`의 `TONE.gold`. 홈은 배경 그림을 빼고 원단 바탕(`.f-cloth`) + 줄자 띠(`.f-tape`) + 시침 선 칸(`.f-stitch`), 01 칸은 룩북 옷 세 벌. 체험 화면은 틀(판·버튼·거울·탭)과 바탕색만 바뀌고 무대 안의 벽 그림(`public/art/*.webp`, 홀로그램풍)은 그대로다. 다윗과 골리앗·꿈돌이 게임은 자기 디자인 그대로. 대전 중구·대전시 로고는 파일이 없어 넣지 않았다(행사 때·곳은 글자로 적음)
+- 지금 배포된 버전: **v1.18.0** (그 전 v1.17.0 은 11/18 푸시, `src/game/constants.ts`의 `APP_VERSION`). 대표님 지시(11/18): 개발이 끝나면 승인 없이 바로 커밋·푸시한다
 - **v1.17.0 약한 PC(HD 520) 인식 속도 (실기기 미검증 — 화면 왼쪽 아래 속도 표시로 확인할 것):**
   - 원인 정리: 무거운 것은 사람 관절을 읽는 신경망(초당 5~8번이 이 CPU의 한계에 가깝다)이고, 그 위에 (1) 인식이 화면 장면에 묶여 쉬는 시간, (2) GPU·CPU 고르기가 틀릴 수 있는 방식, (3) 매 장면 다시 그리는 고정 그림이 인식 몫의 CPU를 깎고 있었다
   - `src/game/pose.ts`: 결과가 오거나 카메라가 새 장면을 주면 바로 다음 인식(`pump`·`watchFrames`). 첫 실행 때 같은 그림(`/goliath-idle.png`)으로 GPU·CPU를 재서 고른다(`benchDelegates`, 저장 키 `weaveon-delegate-v2`). 주소에 `?delegate=cpu|gpu` 로 고정 가능

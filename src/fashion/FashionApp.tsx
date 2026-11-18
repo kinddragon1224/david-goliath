@@ -668,7 +668,7 @@ function QueueChip({ q }: { q: QueueItem }) {
     <div
       className={`relative flex shrink-0 items-center gap-2 rounded-2xl border px-2.5 py-1.5 transition-all ${
         now
-          ? "border-[var(--f-gold)] bg-white/12 shadow-[0_0_1.2rem_rgba(159,243,255,0.35)]"
+          ? "border-[var(--f-gold)] bg-white/12 shadow-[0_0_1.2rem_rgba(255, 201, 60,0.35)]"
           : q.state === "done"
             ? "border-[var(--f-mint)]/60 bg-white/5"
             : "border-white/15 bg-white/[0.03] opacity-60"
@@ -807,7 +807,7 @@ function HandsUpRing({ value }: { value: number }) {
             cy="50"
             r={r}
             fill="none"
-            stroke="#9ff3ff"
+            stroke="#ffc93c"
             strokeWidth="7"
             strokeLinecap="round"
             strokeDasharray={c}
@@ -848,7 +848,7 @@ function MeterCard({
             <p className={`f-serif text-2xl ${m.hot ? "f-pearl" : ""}`}>{m.label}</p>
           </div>
           <div
-            className={`mt-2 h-4 overflow-hidden rounded-full bg-white/10 ${m.hot ? "shadow-[0_0_1rem_rgba(159,243,255,0.6)]" : ""}`}
+            className={`mt-2 h-4 overflow-hidden rounded-full bg-white/10 ${m.hot ? "shadow-[0_0_1rem_rgba(255, 201, 60,0.6)]" : ""}`}
           >
             <div
               className={`h-full rounded-full transition-[width] duration-150 ${m.hot ? "animate-pulse bg-[var(--f-gold)]" : "bg-gradient-to-r from-[var(--f-pink)] via-[var(--f-lilac)] to-[var(--f-mint)]"}`}
@@ -1301,7 +1301,7 @@ function CollectionCard({ item }: { item: Item }) {
 }
 
 function GradeBadge({ grade }: { grade: number }) {
-  const ring = ["#9ff3ff", "#d8ccff", "#c4f4ea", "#ffd6ea"][grade];
+  const ring = ["#ffc93c", "#d8ccff", "#c4f4ea", "#ffd6ea"][grade];
   const stars = 3 - Math.min(3, grade);
   return (
     <div
@@ -1396,7 +1396,7 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           strokeDasharray="5 5"
           fill="none"
         />
-        <circle cx="8" cy="38" r="4" fill="#9ff3ff" />
+        <circle cx="8" cy="38" r="4" fill="#ffc93c" />
       </>
     ),
     needle: (
@@ -1412,15 +1412,15 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           strokeWidth="2"
           fill="none"
         />
-        <circle cx="12" cy="20" r="3" fill="#9ff3ff" />
-        <circle cx="22" cy="40" r="3" fill="#9ff3ff" />
+        <circle cx="12" cy="20" r="3" fill="#ffc93c" />
+        <circle cx="22" cy="40" r="3" fill="#ffc93c" />
       </>
     ),
     combo: (
       <>
         <path
           d="M6 30 Q14 18 20 30 Q26 42 32 30 Q38 18 44 30"
-          stroke="#9ff3ff"
+          stroke="#ffc93c"
           strokeWidth="4"
           fill="none"
           strokeLinecap="round"
@@ -1443,7 +1443,7 @@ function StepGlyph({ icon, className }: { icon: StepIcon; className?: string }) 
           opacity="0.6"
         />
         <circle cx="24" cy="24" r="10" stroke="currentColor" strokeWidth="3.5" fill="none" />
-        <circle cx="24" cy="24" r="4" fill="#9ff3ff" />
+        <circle cx="24" cy="24" r="4" fill="#ffc93c" />
       </>
     ),
     music: (
