@@ -396,7 +396,8 @@ export function FashionApp({ station }: { station: FashionStation }) {
       {/* 위쪽: 체험 이름 · 진행 줄 · 점수 · 시간 */}
       <div className="absolute z-10 flex items-center gap-4" style={box(layout.hud)}>
         <TitleBadge no={info.no} title={info.title} onLong={() => setAdmin(true)} />
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden">
+        {/* 줄이 길어 양끝이 잘릴 때 글자가 뚝 끊기지 않고 흐려지게 */}
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_7%,#000_93%,transparent)]">
           {ui.queue.map((q, i) => (
             <QueueChip key={`${q.label}-${i}`} q={q} />
           ))}
@@ -1003,14 +1004,18 @@ function AttractOverlay({
     const id = window.setInterval(() => setTi((i) => i + 1), 3500);
     return () => window.clearInterval(id);
   }, []);
-  // 오락실 대기 화면처럼: 아무도 없으면 글자를 잠깐 치우고 시범 플레이를 보여 준다
-  const fade = `transition-opacity duration-500 ${ui.demo && ti % 4 === 3 ? "opacity-0" : ""}`;
+  // 오락실 대기 화면처럼 번갈아 보여 준다: 7초는 간판(시범을 어둡게 덮고 제목·문구), 7초는 시범 플레이만 또렷하게.
+  // 둘을 겹쳐 두면 간판 글자와 시범 화면의 글자가 부딪혀 둘 다 안 읽힌다. 사람이 서 있으면(시범이 꺼지면) 간판만.
+  const sign = !ui.demo || ti % 4 < 2;
+  // 시범 차례에는 문구를 바꾸지 않는다(사라지는 도중에 글자가 바뀌어 보이지 않게)
+  const tn = (ui.demo ? Math.floor(ti / 4) * 2 + Math.min(ti % 4, 1) : ti) % teasers.length;
+  const fade = `transition-opacity duration-500 ${sign ? "" : "opacity-0"}`;
   return (
     <div
-      className={`absolute inset-0 flex flex-col items-center overflow-hidden rounded-[2rem] p-[3%] ${compact ? "justify-start gap-3" : "justify-between"}`}
+      className={`absolute inset-0 flex flex-col items-center overflow-hidden rounded-[2rem] p-[3%] ${compact ? "gap-3" : ""}`}
     >
-      {/* 무대 조명 빛줄기 + 반짝이 */}
-      <div className="pointer-events-none absolute inset-0">
+      {/* 간판 뒤 어둠 + 무대 조명 빛줄기 + 반짝이: 간판과 함께 나타났다 사라진다 */}
+      <div className={`pointer-events-none absolute inset-0 bg-[#07080c]/75 ${fade}`}>
         {[8, 30, 52, 74].map((l, i) => (
           <div
             key={l}
@@ -1036,51 +1041,54 @@ function AttractOverlay({
           </span>
         ))}
       </div>
-      <div className={`f-card pointer-events-auto relative px-8 py-3 text-center ${fade}`}>
-        <div className="flex items-center justify-center gap-3">
-          <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
-          <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
-            ×{" "}
-            <span className="f-serif text-base tracking-[0.2em] text-[var(--f-ink)]">바르지음</span>{" "}
-            · AX 패션체험 {info.no}
+      {/* 간판 한 장: 제목 아래에서 문구만 바뀐다. 가로 화면은 남는 자리의 가운데, 세로 화면은 위쪽 */}
+      <div
+        className={`relative flex min-h-0 w-full flex-1 flex-col items-center ${compact ? "justify-start" : "justify-center"} ${fade}`}
+      >
+        <div
+          className={`f-card max-w-full text-center ${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
+        >
+          <div className="flex items-center justify-center gap-3">
+            <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
+            <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
+              ×{" "}
+              <span className="f-serif text-base tracking-[0.2em] text-[var(--f-ink)]">바르지음</span>{" "}
+              · AX 패션체험 {info.no}
+            </p>
+          </div>
+          <h1 className={`f-serif f-pearl mt-1 leading-tight ${compact ? "text-5xl" : "text-6xl"}`}>
+            {info.title}
+          </h1>
+          <p
+            key={tn}
+            className={`f-serif animate-pop mt-2 leading-snug text-balance text-[var(--f-ink)] ${compact ? "text-2xl" : "text-3xl"}`}
+          >
+            {teasers[tn]}
+          </p>
+          {station === "iron" && tn === 1 && (
+            // 6팀 룩북 사진을 부채처럼
+            <div className="mt-3 flex justify-center gap-2">
+              {BRANDS.map((g, i) => (
+                <figure key={g.name} className="w-[6.5rem]" style={{ rotate: `${(i - 2.5) * 3}deg` }}>
+                  <img
+                    src={`/brand/${g.photo}.webp`}
+                    alt=""
+                    className="aspect-[3/4] w-full rounded-xl border-[0.2rem] border-[var(--f-frame)] bg-[#eef2f6] object-contain p-1 shadow-lg"
+                  />
+                  <figcaption className="mt-1 text-center text-xs whitespace-nowrap text-[var(--f-muted)]">
+                    {g.brand}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+          {/* 포스터 문구 그대로 */}
+          <p className="mt-3 text-sm tracking-[0.2em] text-[var(--f-gold)]">
+            창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
           </p>
         </div>
-        <h1 className="f-serif f-pearl mt-0.5 text-5xl leading-tight">{info.title}</h1>
-        <p className="f-serif mt-1 text-xl text-[var(--f-muted)]">{info.line}</p>
-        {/* 포스터 문구 그대로 */}
-        <p className="mt-1.5 text-sm tracking-[0.2em] text-[var(--f-gold)]">
-          창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
-        </p>
       </div>
-      {/* 세로 화면: 글자를 줄여 제목 바로 아래에 둔다 */}
-      <div
-        key={ti}
-        className={`f-card animate-pop relative py-3 ${compact ? "px-5" : "px-8"} ${fade}`}
-      >
-        <p
-          className={`f-serif f-pearl text-center leading-tight ${compact ? "text-4xl" : "text-5xl"}`}
-        >
-          {teasers[ti % teasers.length]}
-        </p>
-        {station === "iron" && ti % teasers.length === 1 && (
-          // 6팀 룩북 사진을 부채처럼
-          <div className="mt-3 flex justify-center gap-2">
-            {BRANDS.map((g, i) => (
-              <figure key={g.name} className="w-[6.5rem]" style={{ rotate: `${(i - 2.5) * 3}deg` }}>
-                <img
-                  src={`/brand/${g.photo}.webp`}
-                  alt=""
-                  className="aspect-[3/4] w-full rounded-xl border-[0.2rem] border-[var(--f-frame)] bg-[#eef2f6] object-contain p-1 shadow-lg"
-                />
-                <figcaption className="mt-1 text-center text-xs whitespace-nowrap text-[var(--f-muted)]">
-                  {g.brand}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className={`relative w-full max-w-[56rem] ${compact ? "mt-auto" : ""}`}>
+      <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
           <HandsUpFigure />
           <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#0a0d14]/90 px-5 py-2.5 text-center text-2xl">
