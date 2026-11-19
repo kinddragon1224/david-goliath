@@ -144,6 +144,10 @@ export class IronMode implements Mode {
   private time = 0;
   private pair = false;
   private pairT = 0;
+  /** 이번 판에 양손 다림질·스팀 부스트를 이미 알렸나. */
+  private steamSfxAt = 0;
+  private pairTold = false;
+  private boostTold = false;
   /** 손마다 지금 미는 방향과 마지막 '쓱!' 시각. */
   private dir = [0, 0];
   private strokeAt = [0, 0];
@@ -162,6 +166,9 @@ export class IronMode implements Mode {
     this.boost = 0;
     this.pair = false;
     this.pairT = 0;
+    this.pairTold = false;
+    this.boostTold = false;
+    this.steamSfxAt = 0;
     this.rand = rng(7);
     this.caught = 0;
     this.thanks = null;
@@ -343,10 +350,11 @@ export class IronMode implements Mode {
       hands.filter((h) => h.on && h.speed > this.W * 0.04 && this.onCloth(h)).length >= 2;
     this.pairT = both ? 0.6 : Math.max(0, this.pairT - dt);
     const pair = this.pairT > 0 && hands.filter((h) => h.on).length >= 2;
-    if (pair && !this.pair) {
+    // 알림은 한 판에 한 번만(11/19): 양손이 잠깐 끊겼다 이어질 때마다 글자·효과음·음성이 겹쳐 나와 시끄러웠다. 음성은 뺐다
+    if (pair && !this.pair && !this.pairTold) {
+      this.pairTold = true;
       fx.score(0, this.W / 2, this.H * 0.18, "양손 다림질! 점수 2배", "gold");
       fx.sfx("perfect");
-      fx.say("iron-pair", true);
     }
     this.pair = pair;
     let ironing = false;
@@ -367,7 +375,11 @@ export class IronMode implements Mode {
                 t: 0,
                 vx: (this.rand() - 0.5) * 180 - d * 90,
               });
-            fx.sfx("steam");
+            // 김 소리는 두 손을 합쳐 0.35초에 한 번만(11/19: 두 손이 번갈아 틀 때마다 겹쳐 울렸다)
+            if (t - this.steamSfxAt > 0.35) {
+              this.steamSfxAt = t;
+              fx.sfx("steam");
+            }
           }
           this.dir[hi] = d;
         }
@@ -403,7 +415,7 @@ export class IronMode implements Mode {
               t: 0,
               vx: (this.rand() - 0.5) * 60,
             });
-            fx.sfx("steam");
+            // 여기서도 김 소리를 냈는데(초당 최대 16번, 손마다) 겹쳐서 시끄러워 뺐다. 김 그림만 남긴다
           }
         }
       }
@@ -443,10 +455,12 @@ export class IronMode implements Mode {
       if (this.steam >= 1) {
         this.steam = 0;
         this.boost = BOOST_SECONDS;
-        fx.sfx("perfect");
-        fx.say("steam", true);
-        fx.stamp("스팀 부스트!", this.W / 2, this.H * 0.2, "mint");
-        fx.shake(0.3);
+        // 스팀 부스트 알림도 한 판에 한 번만(양손이면 몇 초마다 다시 켜져 계속 울렸다). 김 올라오는 그림과 큰 다리미로 충분히 보인다
+        if (!this.boostTold) {
+          this.boostTold = true;
+          fx.sfx("perfect");
+          fx.stamp("스팀 부스트!", this.W / 2, this.H * 0.2, "mint");
+        }
         // 다림판 아래에서 김이 확 올라온다
         const b = this.box;
         for (let k = 0; k < 18; k++)
