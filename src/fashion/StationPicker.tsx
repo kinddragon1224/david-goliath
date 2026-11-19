@@ -217,9 +217,10 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         className="pointer-events-none relative flex shrink-0 flex-col items-center justify-center gap-[2vmin] px-[3vmin]"
         style={{ height: `${REST * 100}%` }}
       >
-        {/* 거리의 재단사 둘: 왼쪽은 인사, 오른쪽은 양손 번쩍(가로 화면에서만. 세로는 자리가 없다) */}
-        <img src="/art/tailor-hi.webp" alt="" className="absolute bottom-0 left-[5%] hidden h-[96%] w-auto drop-shadow-[0_1vmin_1.6vmin_rgba(0,0,0,0.35)] landscape:block" />
-        <img src="/art/tailor-up.webp" alt="" className="absolute right-[5%] bottom-0 hidden h-[96%] w-auto drop-shadow-[0_1vmin_1.6vmin_rgba(0,0,0,0.35)] landscape:block" />
+        {/* 거리의 주민 둘: 대전 중구 SNS 캐릭터 중구할매(왼쪽)와 손자 중구(오른쪽). 대표님이 준 공식 그림(11/19).
+            그림 둘레에 빈 자리가 많아 크게 깔고 아래로 내린다. 가로 화면에서만(세로는 자리가 없다) */}
+        <img src="/art/junggu-halmae.webp" alt="" className="absolute bottom-[-13%] left-[1%] hidden h-[112%] w-auto landscape:block" />
+        <img src="/art/junggu-son.webp" alt="" className="absolute right-[1%] bottom-[-13%] hidden h-[112%] w-auto landscape:block" />
         <ol className="relative flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
           {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "주황빛이 다 차면 시작!"].map((s, i) => (
             <li
