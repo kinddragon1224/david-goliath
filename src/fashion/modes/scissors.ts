@@ -885,12 +885,12 @@ function paintCloth(
 
 /** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  const key = `mat|${W}x${H}|${artImage("scissors") ? 1 : 0}`;
+  const key = `mat|${W}x${H}|${artImage("atelier") ? 1 : 0}`;
   if (stampLayer(ctx, key, 0, 0, W, H, (c) => paintMat(c, W, H, 0))) return;
   paintMat(ctx, W, H, t);
 }
 function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  drawPalace(ctx, W, H, t, undefined, "scissors");
+  drawPalace(ctx, W, H, t, undefined, "atelier");
   const x = W * 0.12;
   const y = H * 0.03;
   const w = W * 0.76;

@@ -859,8 +859,9 @@ function drawProgress(
 
 /** 다림판: 한쪽이 뾰족한 긴 판 + 덮개 줄무늬. */
 function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
-  const x0 = W * 0.06;
-  const x1 = W * 0.94;
+  // 양옆은 의상실 벽(선반·재봉틀)이 보이게 남긴다
+  const x0 = W * 0.13;
+  const x1 = W * 0.87;
   // 옷(높이 0.82H, 가운데 0.52H)이 판 안에 다 들어오게
   const cy = H * 0.52;
   const hh = H * 0.43;
@@ -888,10 +889,10 @@ function drawBoutique(
 ): void {
   // 벽과 다림판은 바뀌지 않는다: 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다)
   const paintRoom = (c: CanvasRenderingContext2D, tt: number) => {
-    drawPalace(c, W, H, tt, undefined, "iron");
+    drawPalace(c, W, H, tt, undefined, "atelier");
     drawBoard(c, W, H);
   };
-  if (!stampLayer(ctx, `room|${W}x${H}|${artImage("iron") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
+  if (!stampLayer(ctx, `room|${W}x${H}|${artImage("atelier") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
     paintRoom(ctx, t);
   // 은 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;

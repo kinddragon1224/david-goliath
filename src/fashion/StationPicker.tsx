@@ -119,6 +119,9 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
   return (
     // 바탕은 남색 원단 + 옷본 모눈(styles.css 의 .f-cloth). 예전의 홀로그램 배경 그림은 쓰지 않는다
     <div className="f-root f-cloth fixed inset-0 flex flex-col overflow-hidden">
+      {/* 바탕: 맞춤패션거리 풍경(GPT로 그린 그림, scripts/gpt-art.mjs). 위쪽은 제목이 읽히게 군청으로 덮는다 */}
+      <img src="/art/street.webp" alt="" className="absolute inset-0 size-full object-cover object-bottom" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,47,76,0.94)_0%,rgba(10,47,76,0.7)_24%,rgba(10,47,76,0.25)_62%,rgba(10,47,76,0.1)_100%)]" />
       {/* 머리: 왼쪽 행사 로고 · 가운데 제목과 때·곳 */}
       <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
         <img
@@ -214,7 +217,10 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         className="pointer-events-none relative flex shrink-0 flex-col items-center justify-center gap-[2vmin] px-[3vmin]"
         style={{ height: `${REST * 100}%` }}
       >
-        <ol className="flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
+        {/* 거리의 재단사 둘: 왼쪽은 인사, 오른쪽은 양손 번쩍(가로 화면에서만. 세로는 자리가 없다) */}
+        <img src="/art/tailor-hi.webp" alt="" className="absolute bottom-0 left-[5%] hidden h-[96%] w-auto drop-shadow-[0_1vmin_1.6vmin_rgba(0,0,0,0.35)] landscape:block" />
+        <img src="/art/tailor-up.webp" alt="" className="absolute right-[5%] bottom-0 hidden h-[96%] w-auto drop-shadow-[0_1vmin_1.6vmin_rgba(0,0,0,0.35)] landscape:block" />
+        <ol className="relative flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
           {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "주황빛이 다 차면 시작!"].map((s, i) => (
             <li
               key={s}

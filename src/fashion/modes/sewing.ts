@@ -232,7 +232,7 @@ export class SewingMode implements Mode {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
-    drawPalace(ctx, this.W, this.H, t, undefined, "sewing");
+    drawPalace(ctx, this.W, this.H, t, undefined, "atelier");
     // 다리미·가위질과 같은 쪽빛 작업대 덮개 위에 자수틀을 둔다
     const mat = new Path2D();
     mat.roundRect(this.W * 0.15, this.H * 0.03, this.W * 0.7, this.H * 0.94, 18);

@@ -1150,7 +1150,8 @@ function AttractOverlay({
       </div>
       <div className="relative w-full max-w-[56rem]">
         <div className="flex items-center gap-4">
-          <HandsUpFigure />
+          {/* 양손 번쩍을 보여 주는 재단사(GPT로 그린 그림) */}
+          <img src="/art/tailor-up.webp" alt="" className="-my-8 h-28 w-auto shrink-0 drop-shadow-lg" />
           <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#0a0d14]/90 px-5 py-2.5 text-center text-2xl">
             {!ready
               ? "카메라를 준비하고 있어요"
