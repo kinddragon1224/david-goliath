@@ -10,8 +10,10 @@
 import { execSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+// fileURLToPath: 윈도우에서 pathname 은 "/C:/…"라 경로가 "C:\C:\…"로 깨졌다
+const root = fileURLToPath(new URL("..", import.meta.url));
 const out = join(root, "dist-offline");
 const pkg = join(out, "DavidGoliath");
 const app = join(pkg, "app");
