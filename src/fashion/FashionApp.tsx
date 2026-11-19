@@ -109,7 +109,8 @@ function computeLayout(W: number, H: number, focus = false): Layout {
     const pad = H * 0.025;
     const stage = { x: pad, y: pad, w: W - pad * 2, h: H - pad * 2 };
     const mw = H * 0.19;
-    const mirror = { x: pad * 2.2, y: H - pad * 2.2 - mw * (4 / 3), w: mw, h: mw * (4 / 3) };
+    // 거울은 왼쪽 '다른 체험' 탭(무대 폭의 12%) 바로 오른쪽: 대기·결과 화면에서 탭에 가리지 않게
+    const mirror = { x: stage.x + stage.w * 0.13, y: H - pad * 2.2 - mw * (4 / 3), w: mw, h: mw * (4 / 3) };
     // 점수는 오른쪽 아래(거울과 마주 보는 자리): 위쪽 구석은 가위질의 작업지시서·오린 조각이 쓴다
     const hud = { x: pad * 2.4, y: H - pad * 2.2 - H * 0.09, w: W - pad * 4.8, h: H * 0.09 };
     return { landscape, focus, mirror, side: { x: 0, y: 0, w: 0, h: 0 }, hud, stage };
@@ -153,7 +154,8 @@ export function FashionApp({ station }: { station: FashionStation }) {
   const [layout, setLayout] = useState<Layout>(() => computeLayout(1920, 1080));
   const layoutRef = useRef(layout);
   // 한 판을 하는 동안(초읽기~결과)은 놀이판만 크게. 대기 화면으로 돌아오면 원래 나눔으로
-  const focus = ui.phase === "countdown" || ui.phase === "play" || ui.phase === "result";
+  // 11/19: 대기 화면도 복잡하다는 지적으로 가로 화면은 늘 놀이판 하나만 보이는 나눔을 쓴다(세로 화면은 예전 나눔)
+  const focus = true;
   const focusRef = useRef(focus);
   const resizeRef = useRef(() => {});
   useEffect(() => {
@@ -398,7 +400,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
         >
           {status.text}
         </span>
-        {ui.phase === "attract" && ready && (
+        {ui.phase === "attract" && ready && !layout.focus && (
           <div className="absolute inset-x-0 top-[38%] flex flex-col items-center">
             <HandsUpRing value={ui.handsUp} />
           </div>
@@ -421,7 +423,15 @@ export function FashionApp({ station }: { station: FashionStation }) {
       {/* 위쪽: 체험 이름 · 진행 줄 · 점수 · 시간. 놀이판만 보이는 동안에는 점수만(시간은 무대 위쪽 줄이 보여 준다) */}
       {layout.focus ? (
         <div className="pointer-events-none absolute z-30 flex items-end justify-end" style={box(layout.hud)}>
-          {ui.phase !== "result" && <ScoreBox score={ui.score} hot={ui.rush} />}
+          {ui.phase !== "result" && ui.phase !== "attract" && <ScoreBox score={ui.score} hot={ui.rush} />}
+          {/* 대기 화면: 체험 이름만 왼쪽 위에(길게 누르면 운영자 화면) */}
+          {ui.phase === "attract" && (
+            <div className="pointer-events-auto fixed" style={{ left: layout.stage.x + 28, top: layout.stage.y + 20 }}>
+              <div className="f-card px-5 py-1.5">
+                <TitleBadge no={info.no} title={info.title} onLong={() => setAdmin(true)} />
+              </div>
+            </div>
+          )}
         </div>
       ) : (
       <div className="absolute z-10 flex items-center gap-4" style={box(layout.hud)}>
@@ -1060,31 +1070,7 @@ function AttractOverlay({
       className={`absolute inset-0 flex flex-col items-center overflow-hidden rounded-[2rem] p-[3%] ${compact ? "gap-3" : ""}`}
     >
       {/* 간판 뒤 어둠 + 무대 조명 빛줄기 + 반짝이: 간판과 함께 나타났다 사라진다 */}
-      <div className={`pointer-events-none absolute inset-0 bg-[#07080c]/75 ${fade}`}>
-        {[8, 30, 52, 74].map((l, i) => (
-          <div
-            key={l}
-            className="f-beam"
-            style={{
-              left: `${l}%`,
-              animationDelay: `${-i * 1.3}s`,
-              animationDuration: `${4 + i}s`,
-            }}
-          />
-        ))}
-        {Array.from({ length: 14 }, (_, i) => (
-          <span
-            key={i}
-            className="f-twinkle text-2xl"
-            style={{
-              left: `${(i * 37) % 96}%`,
-              top: `${(i * 53) % 70}%`,
-              animationDelay: `${-(i * 0.37) % 1.8}s`,
-            }}
-          >
-            ✦
-          </span>
-        ))}
+      <div className={`pointer-events-none absolute inset-0 bg-[#07080c]/45 ${fade}`}>
       </div>
       {/* 간판 한 장: 제목 아래에서 문구만 바뀐다. 가로 화면은 남는 자리의 가운데, 세로 화면은 위쪽 */}
       <div
@@ -1094,20 +1080,10 @@ function AttractOverlay({
         <div
           className={`f-card max-w-full min-w-0 text-center [word-break:keep-all] ${sign ? "pointer-events-auto" : ""} ${compact ? "px-5 py-3" : "px-10 py-5"}`}
         >
-          <div className="flex items-center justify-center gap-3">
-            <img src="/brand/weaveon-logo.webp" alt="위브온 중촌" className="size-12 rounded-xl" />
-            <p className="text-xs tracking-[0.35em] text-[var(--f-muted)]">
-              ×{" "}
-              <span className="f-serif text-base tracking-[0.2em] text-[var(--f-ink)]">바르지음</span>{" "}
-              · AX 패션체험 {info.no}
-            </p>
-          </div>
-          <h1 className={`f-serif f-pearl mt-1 leading-tight ${compact ? "text-5xl" : "text-6xl"}`}>
-            {info.title}
-          </h1>
+          {/* 간판은 문구 한 줄만(11/19 줄임): 체험 이름은 왼쪽 위에 늘 있고, 로고 줄과 포스터 문구는 뺐다 */}
           <p
             key={tn}
-            className={`f-serif animate-pop mt-2 leading-snug text-balance text-[var(--f-ink)] ${compact ? "text-2xl" : "text-3xl"}`}
+            className={`f-serif animate-pop leading-snug text-balance text-[var(--f-ink)] ${compact ? "text-3xl" : "text-5xl"}`}
           >
             {teasers[tn]}
           </p>
@@ -1128,10 +1104,6 @@ function AttractOverlay({
               ))}
             </div>
           )}
-          {/* 포스터 문구 그대로 */}
-          <p className="mt-3 text-sm tracking-[0.2em] text-[var(--f-gold)]">
-            창작에 기술을 더하다 · 2026 WEAVE ON FESTIVAL · 11.20 FRI
-          </p>
         </div>
         {/* 약한 PC는 영상 풀기가 인식 몫의 CPU를 깎아서 뺀다 */}
         {!SLOW_PC && (
@@ -1148,7 +1120,8 @@ function AttractOverlay({
           />
         )}
       </div>
-      <div className="relative w-full max-w-[56rem]">
+      {/* 가로 화면: 왼쪽 아래의 거울과 양옆 탭을 피해 놓는다 */}
+      <div className={`relative ${compact ? "w-full max-w-[56rem]" : "mr-[11%] ml-[26%] self-stretch"}`}>
         <div className="flex items-center gap-4">
           {/* 양손 번쩍을 보여 주는 재단사(GPT로 그린 그림) */}
           <img src="/art/tailor-up.webp" alt="" className="-my-8 h-28 w-auto shrink-0 drop-shadow-lg" />

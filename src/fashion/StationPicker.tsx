@@ -118,10 +118,10 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
   }, []);
   return (
     // 바탕은 남색 원단 + 옷본 모눈(styles.css 의 .f-cloth). 예전의 홀로그램 배경 그림은 쓰지 않는다
-    <div className="f-root f-cloth fixed inset-0 flex flex-col overflow-hidden">
-      {/* 바탕: 맞춤패션거리 풍경(GPT로 그린 그림, scripts/gpt-art.mjs). 위쪽은 제목이 읽히게 군청으로 덮는다 */}
+    <div className="f-root f-day fixed inset-0 flex flex-col overflow-hidden">
+      {/* 바탕: 맞춤패션거리 풍경(GPT로 그린 그림, scripts/gpt-art.mjs). 위쪽은 제목이 읽히게 밝은 광목빛으로 살짝 덮는다(11/19: 군청 덮개와 군청 칸을 걷어 냄) */}
       <img src="/art/street.webp" alt="" className="absolute inset-0 size-full object-cover object-bottom" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,47,76,0.94)_0%,rgba(10,47,76,0.7)_24%,rgba(10,47,76,0.25)_62%,rgba(10,47,76,0.1)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,250,240,0.82)_0%,rgba(255,250,240,0.5)_22%,rgba(255,250,240,0.12)_55%,rgba(255,250,240,0)_100%)]" />
       {/* 머리: 왼쪽 행사 로고 · 가운데 제목과 때·곳 */}
       <header className="relative flex flex-col items-center gap-[1.5vmin] px-[3vmin] pt-[2vmin] text-center landscape:grid landscape:grid-cols-[1fr_auto_1fr]">
         <img
@@ -130,7 +130,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
           className="h-[9.5vmin] w-auto drop-shadow-[0_0.6vmin_1.6vmin_rgba(0,0,0,0.6)] landscape:justify-self-start"
         />
         <div>
-          <h1 className="f-serif f-pearl text-[5.8vmin] leading-tight">몸으로 즐기는 AX 체험</h1>
+          <h1 className="f-serif text-[5.8vmin] leading-tight text-[var(--f-ink)]">몸으로 즐기는 AX 체험</h1>
           <p className="mt-[0.4vmin] text-[1.9vmin] text-[var(--f-muted)]">
             위브온 페스티벌 · 11월 20일(금) 오후 2시~6시 · 대전 중구 중촌동 맞춤패션 플랫폼
           </p>
