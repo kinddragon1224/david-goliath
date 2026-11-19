@@ -1,6 +1,6 @@
 import "@fontsource/gowun-batang/700.css";
 import { useEffect, useRef, useState } from "react";
-import { setMenuHands } from "@/app/HandCursor";
+import { setMenuConfirm, setMenuHands } from "@/app/HandCursor";
 import { PRODUCER } from "@/game/constants";
 import { PoseController } from "@/game/pose";
 import { BRANDS } from "./garments";
@@ -106,6 +106,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         heldAt = now;
       } else if (now - heldAt < HAND_GRACE_MS) hands = held;
       setMenuHands(hands);
+      setMenuConfirm(!!frame?.handsUp); // 한 손으로 가리킨 칸을 양손 번쩍으로 바로 고른다
       setSeen(hands.length > 0);
     };
     raf = requestAnimationFrame(loop);
@@ -113,6 +114,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
       cancelAnimationFrame(raf);
       window.clearInterval(retry);
       setMenuHands([]);
+      setMenuConfirm(false);
       pose.stop();
     };
   }, []);
@@ -222,7 +224,7 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
         <img src="/art/junggu-halmae.webp" alt="" className="absolute bottom-[-13%] left-[1%] hidden h-[112%] w-auto landscape:block" />
         <img src="/art/junggu-son.webp" alt="" className="absolute right-[1%] bottom-[-13%] hidden h-[112%] w-auto landscape:block" />
         <ol className="relative flex flex-wrap items-center justify-center gap-[1.4vmin] text-[2.5vmin]">
-          {["카메라 앞에 서요", "손을 들어 체험 위에 올려요", "주황빛이 다 차면 시작!"].map((s, i) => (
+          {["카메라 앞에 서요", "한 손으로 체험을 가리켜요", "양손 번쩍! 하면 시작"].map((s, i) => (
             <li
               key={s}
               className={`f-step f-serif flex items-center gap-[1.2vmin] rounded-full py-[0.7vmin] pr-[2.4vmin] pl-[0.7vmin] ${(i === 0) !== seen ? "f-step-on" : ""}`}

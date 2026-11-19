@@ -571,3 +571,10 @@
     0 0 3rem rgba(255, 136, 34, 0.6),
     0 1rem 3rem rgba(0, 0, 0, 0.55);
 }
+
+/* 손 커서가 고른 버튼(HandCursor 가 data-hand-focus 를 붙인다): 양손 번쩍 하면 이것이 눌린다 */
+[data-hand-focus] {
+  outline: 0.6vmin solid #ff8822 !important;
+  outline-offset: 0.3vmin;
+  z-index: 2;
+}

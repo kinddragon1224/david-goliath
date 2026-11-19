@@ -27,7 +27,7 @@ import {
 import { BRANDS, garmentByName, type Pt } from "./garments";
 import { FashionSound } from "./sound";
 import { resetStation, stationInfo, type StationId } from "./stations";
-import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
+import { isMenuOpen, setMenuConfirm, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "@/game/tvAudio";
 import { StationMenu } from "./StationMenu";
 import { PlayZoneButton } from "@/app/PlayZoneButton";
@@ -237,6 +237,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
         if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame, now);
       }
       game.update(now);
+      setMenuConfirm(isMenuOpen() && !!frame?.handsUp); // 체험 고르는 판이 열려 있을 때만: 대기 화면의 양손 번쩍은 게임 시작이다
       // 두 팔을 가슴 앞에서 X 로 엇갈려 1.2초 = 체험 고르기로(대기·결과 화면에서만).
       // 양옆 탭까지 팔을 쭉 뻗는 것이 불편하다는 지적(11/19)으로 넣었다. 탭은 그대로 두고 이 동작을 더했다
       if (crossBack(frame?.skeleton, (game.phase === "attract" || game.phase === "result") && !isMenuOpen(), now)) resetStation();

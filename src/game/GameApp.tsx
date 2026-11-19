@@ -10,7 +10,7 @@ import type { UiSnap } from "./types";
 import { VERSES } from "./verses";
 import { isKiosk, setupKiosk } from "./kiosk";
 import { EDITION_ID } from "./edition";
-import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
+import { isMenuOpen, setMenuConfirm, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "./tvAudio";
 import { StationMenu } from "@/fashion/StationMenu";
 import { resetStation } from "@/fashion/stations";
@@ -154,6 +154,7 @@ export function GameApp() {
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
         if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame);
+        setMenuConfirm(isMenuOpen() && frame.handsUp);
         // 위브온판: 두 팔 X 를 유지하면 체험 고르기로(대기·결과 화면에서만)
         if (EDITION_ID === "weaveon" && crossBack(frame.skeleton, pose.poseReady && waiting && !isMenuOpen(), now)) resetStation();
         // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
