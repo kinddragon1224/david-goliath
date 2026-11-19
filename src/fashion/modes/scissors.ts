@@ -885,7 +885,7 @@ function paintCloth(
 
 /** 재단실: 원단 아래 검은 재단 매트(은빛 눈금 + 자 눈금). 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다). */
 function drawMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
-  const key = `mat|${W}x${H}|${artImage("atelier") ? 1 : 0}`;
+  const key = `mat|${W}x${H}|${artImage("atelier") ? 1 : 0}${artImage("table") ? 1 : 0}`;
   if (stampLayer(ctx, key, 0, 0, W, H, (c) => paintMat(c, W, H, 0))) return;
   paintMat(ctx, W, H, t);
 }
@@ -905,7 +905,7 @@ function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number
   ctx.clip();
   const cell = w / 30;
   for (let i = 1; i * cell < Math.max(w, h); i++) {
-    ctx.strokeStyle = i % 5 === 0 ? "rgba(236,255,248,0.26)" : "rgba(236,255,248,0.1)";
+    ctx.strokeStyle = i % 5 === 0 ? "rgba(70,45,20,0.3)" : "rgba(70,45,20,0.13)";
     ctx.lineWidth = i % 5 === 0 ? 2 : 1;
     ctx.beginPath();
     if (i * cell < w) {
@@ -918,7 +918,7 @@ function paintMat(ctx: CanvasRenderingContext2D, W: number, H: number, t: number
     }
     ctx.stroke();
   }
-  ctx.fillStyle = "rgba(236,255,248,0.55)";
+  ctx.fillStyle = "rgba(70,45,20,0.6)";
   ctx.font = `600 ${Math.round(cell * 0.42)}px sans-serif`;
   ctx.textAlign = "center";
   for (let i = 1; i * cell < w; i++) {

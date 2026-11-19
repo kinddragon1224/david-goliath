@@ -892,7 +892,7 @@ function drawBoutique(
     drawPalace(c, W, H, tt, undefined, "atelier");
     drawBoard(c, W, H);
   };
-  if (!stampLayer(ctx, `room|${W}x${H}|${artImage("atelier") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
+  if (!stampLayer(ctx, `room|${W}x${H}|${artImage("atelier") ? 1 : 0}${artImage("table") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
     paintRoom(ctx, t);
   // 은 행거와 완성한 옷(다림판 위에 걸린다)
   const ry = H * 0.075;

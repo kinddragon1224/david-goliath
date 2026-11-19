@@ -1451,15 +1451,16 @@ export function drawArt(
   return true;
 }
 
-/** 무대 공통 색(11/19): 광목 벽 + 쪽빛 작업대 덮개. 다리미·가위질·바느질이 같은 벽, 같은 덮개 위에서 논다.
- * 벽은 밝고 흐리게(눈에 안 걸리게), 덮개는 짙게, 그 위의 옷·원단·자수틀이 가장 밝고 또렷하게. */
+/** 무대 공통 색(11/19): 광목 벽 + 나무 작업대. 다리미·가위질·바느질이 같은 벽, 같은 작업대 위에서 논다.
+ * 벽은 밝고 흐리게(눈에 안 걸리게), 작업대는 그보다 짙게, 그 위의 옷·원단·자수틀이 가장 또렷하게. MAT.ink 는 벽 위 글자색. */
 export const WALL: [string, string] = ["#ebe4d4", "#ddd3bf"];
-export const MAT = { top: "#2c5a7a", bottom: "#1b3f5b", edge: "#f4eee0", ink: "#1d3a52" };
+export const MAT = { top: "#d9b07a", bottom: "#c79b63", edge: "#8f6a3f", ink: "#1d3a52" };
 
-/** 작업대 덮개 한 장: 쪽빛 천(능직 결) + 광목 가장자리 단 + 그 위의 시침 선. path 가 덮개 모양, y0~y1 은 위아래 끝. */
+/** 작업대 한 장: 나무 윗면 그림(public/art/table.webp, GPT로 그림)을 path 모양으로 잘라 깔고 짙은 나무 테를 두른다.
+ * 그림이 아직 안 왔으면 비슷한 나무색으로 칠한다. 처음엔 쪽빛 천 덮개였는데 의상실 그림과 따로 놀아 바꿨다(11/19). y0~y1 은 위아래 끝. */
 export function drawWorkMat(ctx: CanvasRenderingContext2D, path: Path2D, y0: number, y1: number, W: number): void {
   ctx.save();
-  ctx.shadowColor = "rgba(60,45,20,0.35)";
+  ctx.shadowColor = "rgba(60,40,15,0.4)";
   ctx.shadowBlur = 26;
   ctx.shadowOffsetY = 12;
   const g = ctx.createLinearGradient(0, y0, 0, y1);
@@ -1468,23 +1469,21 @@ export function drawWorkMat(ctx: CanvasRenderingContext2D, path: Path2D, y0: num
   ctx.fillStyle = g;
   ctx.fill(path);
   ctx.shadowColor = "transparent";
-  ctx.clip(path);
-  ctx.strokeStyle = "rgba(255,255,255,0.035)";
-  ctx.lineWidth = 6;
-  for (let x = -(y1 - y0); x < W; x += 22) {
-    ctx.beginPath();
-    ctx.moveTo(x, y1);
-    ctx.lineTo(x + (y1 - y0), y0);
-    ctx.stroke();
+  const img = artImage("table");
+  if (img) {
+    ctx.clip(path);
+    const k = Math.max(W / img.naturalWidth, (y1 - y0) / img.naturalHeight);
+    const w = img.naturalWidth * k;
+    const h = img.naturalHeight * k;
+    ctx.drawImage(img, (W - w) / 2, (y0 + y1 - h) / 2, w, h);
   }
   ctx.restore();
   ctx.save();
-  ctx.lineWidth = 9;
+  ctx.lineWidth = 7;
   ctx.strokeStyle = MAT.edge;
   ctx.stroke(path);
   ctx.lineWidth = 2;
-  ctx.setLineDash([10, 8]);
-  ctx.strokeStyle = MAT.ink;
+  ctx.strokeStyle = "rgba(255,240,210,0.5)";
   ctx.stroke(path);
   ctx.restore();
 }
