@@ -204,6 +204,9 @@ export function FashionApp({ station }: { station: FashionStation }) {
     window.addEventListener("resize", resize);
 
     const mirrorState: MirrorState = { cx: 0.5 };
+    const CROSS_SEC = 1.2;
+    let crossT = 0;
+    let crossAt = 0;
     let raf = 0;
     // 한 장면이 터져도 다음 장면은 그린다. 계속 터지면(무인 운영) 대기 화면일 때 새로고침.
     let fails = 0;
@@ -234,6 +237,34 @@ export function FashionApp({ station }: { station: FashionStation }) {
         if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame, now);
       }
       game.update(now);
+      // 두 팔을 가슴 앞에서 X 로 엇갈려 1.2초 = 체험 고르기로(대기·결과 화면에서만).
+      // 양옆 탭까지 팔을 쭉 뻗는 것이 불편하다는 지적(11/19)으로 넣었다. 탭은 그대로 두고 이 동작을 더했다
+      const sk = frame?.skeleton;
+      let crossed = false;
+      if (sk && (game.phase === "attract" || game.phase === "result") && !isMenuOpen()) {
+        const [, ls, rs, , , lw, rw] = sk; // 코, 어깨 둘, 팔꿈치 둘, 손목 둘, 골반 둘
+        const sw = Math.abs(ls.x - rs.x);
+        const cx = (ls.x + rs.x) / 2;
+        const side = Math.sign(ls.x - cx);
+        const chest = (y: number, sy: number) => y > sy - sw * 0.5 && y < sy + sw * 1.2;
+        crossed =
+          lw.v > 0.5 &&
+          rw.v > 0.5 &&
+          sw > 0.03 &&
+          Math.sign(lw.x - cx) === -side &&
+          Math.sign(rw.x - cx) === side &&
+          Math.abs(lw.x - rw.x) > sw * 0.2 &&
+          chest(lw.y, ls.y) &&
+          chest(rw.y, rs.y);
+      }
+      crossT = crossed ? crossT + Math.min(0.3, (now - crossAt) / 1000) : 0;
+      crossAt = now;
+      const xHint = document.getElementById("x-hint");
+      if (xHint) xHint.style.setProperty("--k", String(Math.min(1, crossT / CROSS_SEC)));
+      if (crossT >= CROSS_SEC) {
+        crossT = 0;
+        resetStation();
+      }
       const L = layoutRef.current;
       const hk = L.stage.w / STAGE_W;
       // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
@@ -507,6 +538,19 @@ export function FashionApp({ station }: { station: FashionStation }) {
               </div>
             )}
           </>
+        )}
+        {/* 두 팔 X 안내: 동작을 유지하면 주황이 왼쪽부터 찬다(--k 는 그리는 루프가 넣는다) */}
+        {(ui.phase === "attract" || ui.phase === "result") && (
+          <p
+            id="x-hint"
+            className="f-serif absolute top-[2.5%] right-[2%] z-30 rounded-full border-[0.15rem] border-[var(--f-frame)] px-5 py-1.5 text-xl text-white"
+            style={{
+              background:
+                "linear-gradient(90deg, #ff8822 calc(var(--k, 0) * 100%), rgba(6,33,54,0.88) calc(var(--k, 0) * 100%))",
+            }}
+          >
+            두 팔로 X = 체험 고르기
+          </p>
         )}
         <StationMenu
           current={station}

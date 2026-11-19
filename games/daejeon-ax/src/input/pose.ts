@@ -50,6 +50,8 @@ export class PoseInput {
   tracked: Tracked | null = null;
   /** 마지막으로 사람이 잡힌 시각(performance.now). 한 번도 없으면 0 */
   seenAt = 0;
+  /** 메뉴용 몸짓: up = 양손을 머리 위로, cross = 두 팔을 가슴 앞에서 X 로 엇갈림. 손이 안 보이거나 둘 다 아니면 null */
+  gesture: 'up' | 'cross' | null = null;
   /** 스켈레톤 점을 그릴 캔버스(없으면 그리지 않음) */
   overlay: HTMLCanvasElement | null = null;
 
@@ -199,6 +201,7 @@ export class PoseInput {
     this.draw(best);
     if (!best) {
       this.tracked = null;
+      this.gesture = null;
       this.state.shield = false;
       if (now - this.seenAt > 500) {
         this.mid = null;
@@ -223,6 +226,16 @@ export class PoseInput {
     }
     const lw = best[L_WRIST];
     const rw = best[R_WRIST];
+    // 메뉴용 몸짓. X 는 두 손목이 몸 가운데 선을 넘어 서로 반대쪽 어깨 앞(가슴 높이)에 있을 때
+    const seen = (lw.visibility ?? 0) > P.minVisibility && (rw.visibility ?? 0) > P.minVisibility;
+    const sw = Math.abs(ls.x - rs.x);
+    const cx = (ls.x + rs.x) / 2;
+    const side = Math.sign(ls.x - cx);
+    const chest = (y: number, sy: number) => y > sy - sw * 0.5 && y < sy + sw * 1.2;
+    const crossed =
+      Math.sign(lw.x - cx) === -side && Math.sign(rw.x - cx) === side && Math.abs(lw.x - rw.x) > sw * 0.2 && chest(lw.y, ls.y) && chest(rw.y, rs.y);
+    const nose = best[0];
+    this.gesture = !seen ? null : nose && lw.y < nose.y && rw.y < nose.y ? 'up' : crossed ? 'cross' : null;
     this.state.shield =
       P.enableShield &&
       (lw.visibility ?? 0) > P.minVisibility &&

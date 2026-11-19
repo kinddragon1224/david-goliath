@@ -944,3 +944,20 @@ body:not(.fx-reduced) #btn-fx {
 body[data-screen='loading'] #tools {
   display: none;
 }
+
+/* 몸짓 안내(카메라로 메뉴를 고를 때): 손대지 않고 시작·돌아가기 */
+.gesture-hint {
+  flex-basis: 100%;
+  margin: 0.6em 0 0;
+  padding: 0.5em 1.1em;
+  border-radius: 999px;
+  background: rgba(8, 12, 30, 0.72);
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(15px, 2.4vmin, 26px);
+  text-align: center;
+}
+.gesture-hint.on {
+  background: #ffd54a;
+  color: #1b1526;
+}

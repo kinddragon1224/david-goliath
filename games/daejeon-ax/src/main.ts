@@ -217,6 +217,55 @@ function goTitle(): void {
   $('title-best').textContent = `최고 기록 ${best.toLocaleString('ko-KR')}점`;
   $('title-best').hidden = !best;
   go('title');
+  startGestureCam();
+}
+
+// ── 몸짓으로 메뉴 고르기(체험 고르기에서 들어온 무인 기기: 마우스·터치 없이) ──
+// 양손을 머리 위로 1초 = 시작/다시 하기, 두 팔을 가슴 앞에서 X 로 1.2초 = 체험 고르기로.
+const GESTURE_SEC = { up: 1, cross: 1.2 };
+let gestureT = 0;
+let gestureKind: 'up' | 'cross' | null = null;
+
+/** 타이틀에서 몸짓을 읽으려고 카메라를 미리 켠다(체험 고르기에서 들어왔을 때만: 거기서 이미 카메라를 허락했다) */
+function startGestureCam(): void {
+  if (!HOME || !CAN_CAMERA) return;
+  loadPose();
+  pose
+    .startCamera(video)
+    .then(() => {
+      if (screen !== 'title') return;
+      camwrap.hidden = false;
+      $('title-gesture').hidden = false;
+    })
+    .catch(() => {}); // 카메라가 안 되면 버튼으로 하면 된다
+}
+
+function stepGesture(dt: number, now: number): void {
+  const on = (screen === 'title' && !!HOME) || (screen === 'result' && usePose);
+  if (!on || !pose.cameraOn) return;
+  const hint = $(screen === 'result' ? 'result-gesture' : 'title-gesture');
+  const g = now - pose.seenAt < 400 ? pose.gesture : null;
+  if (pose.tracked) lastActivity = now; // 사람이 서 있으면 방치로 치지 않는다
+  gestureT = g && g === gestureKind ? gestureT + dt : 0;
+  gestureKind = g;
+  hint.hidden = false;
+  hint.classList.toggle('on', !!g);
+  hint.textContent = g
+    ? '좋아요, 그대로!'
+    : `양손을 머리 위로 번쩍 = ${screen === 'result' ? '다시 하기' : '시작'} · 두 팔로 X = ${HOME ? '체험 고르기로' : '처음으로'}`;
+  if (!g || gestureT < GESTURE_SEC[g]) return;
+  gestureT = 0;
+  gestureKind = null;
+  if (g === 'cross') return HOME ? goHome() : goTitle();
+  sfx.start();
+  if (screen === 'result') return $('btn-retry').click();
+  // 타이틀: 난이도 고르기와 조종 방식 고르기를 건너뛰고(손으로 못 고른다) 바로 자리 잡기로
+  usePose = true;
+  camwrap.hidden = false;
+  $('btn-cam').hidden = false;
+  calStable = 0;
+  $('cal-bar').style.width = '0%';
+  go('calibrate');
 }
 
 function stopCamera(): void {
@@ -416,6 +465,7 @@ function frame(now: number): void {
   manual.update(dt);
 
   let running = true;
+  stepGesture(dt, now);
   if (screen === 'calibrate') stepCalibrate(dt, now);
   else if (screen === 'countdown') stepCountdown(dt);
   else if (screen === 'play') {
