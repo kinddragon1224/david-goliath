@@ -4,7 +4,6 @@ import {
   drawGarmentPhoto,
   drawHandGlow,
   drawPalace,
-  drawWorkMat,
   drawSmoke,
   fabricTexture,
   propImage,
@@ -857,29 +856,7 @@ function drawProgress(
   ctx.restore();
 }
 
-/** 다림판: 한쪽이 뾰족한 긴 판 + 덮개 줄무늬. */
-function drawBoard(ctx: CanvasRenderingContext2D, W: number, H: number): void {
-  // 양옆은 의상실 벽(선반·재봉틀)이 보이게 남긴다
-  const x0 = W * 0.13;
-  const x1 = W * 0.87;
-  // 옷(높이 0.82H, 가운데 0.52H)이 판 안에 다 들어오게
-  const cy = H * 0.52;
-  const hh = H * 0.43;
-  const board = new Path2D();
-  board.moveTo(x0 + hh * 0.2, cy);
-  board.bezierCurveTo(x0 + W * 0.08, cy - hh, x0 + W * 0.2, cy - hh, x0 + W * 0.3, cy - hh);
-  board.lineTo(x1 - 40, cy - hh);
-  board.quadraticCurveTo(x1, cy - hh, x1, cy - hh + 40);
-  board.lineTo(x1, cy + hh - 40);
-  board.quadraticCurveTo(x1, cy + hh, x1 - 40, cy + hh);
-  board.lineTo(x0 + W * 0.3, cy + hh);
-  board.bezierCurveTo(x0 + W * 0.2, cy + hh, x0 + W * 0.08, cy + hh, x0 + hh * 0.2, cy);
-  board.closePath();
-  // 가위질·바느질과 같은 쪽빛 작업대 덮개
-  drawWorkMat(ctx, board, cy - hh, cy + hh, W);
-}
-
-/** 의상실: 벽 그림 + 검은 다림판 + 위쪽 은 행거에 완성한 옷이 걸린다. */
+/** 의상실: 벽 그림 + 위쪽 행거에 완성한 옷이 걸린다. 다림판(작업대)은 대표님 지시로 없앴다(11/19): 옷이 의상실 벽 앞에 바로 걸린다. */
 function drawBoutique(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -890,7 +867,6 @@ function drawBoutique(
   // 벽과 다림판은 바뀌지 않는다: 약한 PC는 한 번 그려 둔 것을 찍는다(벽 그림이 오면 한 번 더 그린다)
   const paintRoom = (c: CanvasRenderingContext2D, tt: number) => {
     drawPalace(c, W, H, tt, undefined, "atelier");
-    drawBoard(c, W, H);
   };
   if (!stampLayer(ctx, `room|${W}x${H}|${artImage("atelier") ? 1 : 0}${artImage("table") ? 1 : 0}`, 0, 0, W, H, (c) => paintRoom(c, 0)))
     paintRoom(ctx, t);
