@@ -127,13 +127,21 @@ export class FashionSound {
 
   /** 곡을 받아 풀어 둔다. 못 받으면 playTrack이 false를 준다. */
   loadTrack(url: string): void {
-    if (this.track) return;
+    // 곡을 고를 수 있어(몽글 드럼) 주소가 바뀌면 다시 받는다. 받는 사이 다른 곡으로 바뀌었으면 버린다
+    if (this.trackUrl === url) return;
+    this.trackUrl = url;
+    this.track = null;
     fetch(url)
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
       .then((b) => this.ctx!.decodeAudioData(b))
-      .then((buf) => (this.track = buf))
-      .catch(() => {});
+      .then((buf) => {
+        if (this.trackUrl === url) this.track = buf;
+      })
+      .catch(() => {
+        if (this.trackUrl === url) this.trackUrl = "";
+      });
   }
+  private trackUrl = "";
 
   /** 풀어 둔 곡을 at(오디오 시계 초)부터 튼다. 틀었으면 true. */
   playTrack(at: number): boolean {

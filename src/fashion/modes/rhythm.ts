@@ -1,4 +1,4 @@
-import { chart, smoothClock, StrikeDetector, type Lane } from "../drum";
+import { smoothClock, StrikeDetector, type Lane } from "../drum";
 import { slow } from "@/game/perf";
 import {
   artImage,
@@ -24,15 +24,66 @@ import {
  * 손을 들었다가 점선 아래로 내려친다. 금빛 '양손'은 두 손 같이, 끝은 마음껏 연타.
  * 밤 축제로 시작해 콤보가 쌓일수록 무대가 밝아지고, 10콤보부터 런웨이 피버(점수 1.5배). */
 
-/** 곡: AI 5형제 끝부분(144.26초~끝)을 잘라 첫 소리가 0박이다. */
-export const TRACK = "/audio/mongle-drum.mp3";
-const SONG = 45.58;
-const BPM = 82.5;
-const BEAT = 60 / BPM;
+/** 곡 둘(11/19 대표님이 준 곡. 예전 곡 mongle-drum.mp3 은 뺐다). 대기 화면에서 고른다.
+ * 채보는 scripts/drum-chart.py 가 곡을 분석해 만든다: 첫 박이 0초가 되게 자르고, 음악이 쉬는 곳은 쉬고, 뒤쪽 절반의 뚜렷한 스네어에 반 박을 넣는다.
+ * 두 곡 다 빨라서(분당 131·147박) 게임의 한 박은 음악 두 박이다(bpm 이 그 값).
+ * 중촌 챌린지는 앞부분의 빠르기가 흔들려 39초부터의 뒷부분을 쓴다. */
+type Song = { title: string; track: string; bpm: number; beats: number; roll: number; seconds: number; chart: [number, 0 | 1 | 2][] };
+export const SONGS: Song[] = [
+  {
+    title: "중촌 챌린지",
+    track: "/audio/jungchon-challenge.mp3",
+    bpm: 73.335,
+    beats: 48,
+    roll: 43,
+    seconds: 42.59,
+    // [박, 손]: 0 왼, 1 오, 2 양손. 반 박(.5)은 음악의 스네어 자리
+    chart: [[5,0],[6,1],[7,2],[8,0],[9,1],[10,0],[11,1],[12,1],[13,1],[14,0],[15,2],[16,0],[17,1],[18,0],[19,1],[20,0],[21,0],[21.5,1],[22,1],[23,2],[24,0],[25,1],[25.5,0],[26,0],[27,1],[27.5,0],[28,1],[29,1],[30,0],[31,2],[32,0],[33,1],[33.5,0],[34,0],[35,1],[35.5,0],[36,0],[37,0],[37.5,1],[38,1],[39,2],[40,0],[41,1],[42,0]],
+  },
+  {
+    title: "중촌 비트 팡팡",
+    track: "/audio/jungchon-beat.mp3",
+    bpm: 65.583,
+    beats: 48,
+    roll: 43,
+    seconds: 47.33,
+    // [박, 손]: 0 왼, 1 오, 2 양손. 반 박(.5)은 음악의 스네어 자리
+    chart: [[4,0],[5,0],[6,1],[7,2],[8,0],[9,1],[10,0],[12,1],[13,1],[14,0],[15,2],[16,0],[17,1],[18,0],[19,1],[20,0],[21,0],[21.5,1],[22,1],[23,2],[24,0],[25,1],[25.5,0],[26,0],[27,1],[27.5,0],[28,1],[29,1],[30,0],[31,2],[32,0],[34,0],[36,0],[37,0],[37.5,1],[38,1],[39,2],[40,0],[41,1],[41.5,0],[42,0]],
+  },
+];
+const SONG_KEY = "weaveon-drum-song";
+let song = SONGS[0];
+let SONG = song.seconds;
+let BPM = song.bpm;
+let BEAT = 60 / BPM;
 /** 곡이 잦아들기 전 마지막 박. */
-const LAST_BEAT = 54;
+let LAST_BEAT = song.beats - 1;
 /** 이 박부터 끝까지는 음표 없이 마음껏 치는 연타 구간. */
-const ROLL_BEAT = 49;
+let ROLL_BEAT = song.roll;
+/** 곡을 고른다(대기 화면의 곡 버튼). 기기에 기억해 다음에도 그 곡으로 시작한다. */
+export function pickSong(i: number): void {
+  song = SONGS[i] ?? SONGS[0];
+  SONG = song.seconds;
+  BPM = song.bpm;
+  BEAT = 60 / BPM;
+  LAST_BEAT = song.beats - 1;
+  ROLL_BEAT = song.roll;
+  try {
+    localStorage.setItem(SONG_KEY, String(SONGS.indexOf(song)));
+  } catch {
+    // 저장 못 해도 이번 판은 고른 곡으로 간다
+  }
+}
+export function songIndex(): number {
+  return SONGS.indexOf(song);
+}
+if (typeof localStorage !== "undefined") {
+  try {
+    pickSong(Number(localStorage.getItem(SONG_KEY) ?? 0));
+  } catch {
+    // 기억해 둔 곡을 못 읽으면 첫 곡
+  }
+}
 const ROLL_POINTS = 150;
 /** 음표가 줄 끝에서 판정 원까지 오는 시간(초). */
 const LEAD = 2.3;
@@ -73,13 +124,18 @@ function sectionOf(beat: number): number {
 
 export class RhythmMode implements Mode {
   // 연타가 끝나고(55박 = 40초) 2초 뒤에 판을 끝낸다. 예전에는 곡 끝(45.6초)까지 기다려, 칠 것이 없는 6초가 "막판 2배!" 글자와 함께 흘렀다
-  seconds = Math.ceil((LAST_BEAT + 1) * BEAT + 3);
+  get seconds(): number {
+    return Math.ceil((LAST_BEAT + 1) * BEAT + 3);
+  }
   hint = "손을 들었다가 점선 아래로 내려쳐요";
   tip = "빨강 '왼'은 왼쪽, 파랑 '오'는 오른쪽에서 내려쳐요";
   // 음표 57개 + 끝 연타. 모두 맞히고 연타 24번이면 42k(막판 2배 포함).
-  grades: [number, number, number] = [26000, 13000, 5000];
+  // 새 곡 둘은 음표가 41~44개(예전 57개)라 등급 기준을 그만큼 낮췄다
+  grades: [number, number, number] = [20000, 10000, 4000];
   music = null;
-  track = TRACK;
+  get track(): string {
+    return song.track;
+  }
   /** 막판 2배는 예전과 같이 시작 30초 뒤부터(판이 43초로 줄어 17 → 13). */
   rushAt = 13;
   private W = 1400;
@@ -133,13 +189,16 @@ export class RhythmMode implements Mode {
     this.t0 = fx.sound.now() + 0.25;
     if (!fx.sound.playTrack(this.t0))
       fx.sound.startMusic(BPM, this.t0, Math.ceil(SONG / BEAT / 4));
-    this.notes = chart(ROLL_BEAT - 1).map((c) => ({
-      lane: c.lane,
-      both: c.both,
-      at: this.t0 + c.beat * BEAT,
-      state: "wait",
-      sec: sectionOf(c.beat),
-    }));
+    // 손 2(양손)는 왼·오 음표 둘로 편다
+    this.notes = song.chart.flatMap(([beat, hand]) =>
+      (hand === 2 ? ([0, 1] as Lane[]) : [hand as Lane]).map((lane) => ({
+        lane,
+        both: hand === 2 || undefined,
+        at: this.t0 + beat * BEAT,
+        state: "wait" as const,
+        sec: sectionOf(beat),
+      })),
+    );
     this.end = this.t0 + (LAST_BEAT + 1) * BEAT + 2;
     this.started = true;
     this.strikes.reset();

@@ -3,6 +3,7 @@ import "@fontsource/gowun-batang/700.css";
 import { FRAME_MS, lightCanvas, PoseController, screenDpr, type PoseFrame } from "@/game/pose";
 import { SLOW_PC } from "@/game/perf";
 import { CrossHint, makeCrossBack } from "@/app/CrossBack";
+import { pickSong, songIndex, SONGS } from "./modes/rhythm";
 import {
   isKiosk,
   listCameras,
@@ -473,6 +474,7 @@ export function FashionApp({ station }: { station: FashionStation }) {
             ready={ready}
             compact={!layout.landscape}
             onStart={() => g()?.pressStart()}
+            onSong={(track) => g()?.sound.loadTrack(track)}
           />
         )}
         {ui.phase === "countdown" && (
@@ -1037,12 +1039,15 @@ function AttractOverlay({
   ready,
   compact,
   onStart,
+  onSong,
 }: {
   station: FashionStation;
   ui: FashionUi;
   ready: boolean;
   compact: boolean;
   onStart: () => void;
+  /** 몽글 드럼에서 곡을 골랐을 때: 그 곡을 미리 받아 둔다. */
+  onSong: (track: string) => void;
 }) {
   const info = stationInfo(station);
   // 지나가는 사람을 끌어당기는 문구: 3.5초마다 바뀐다
@@ -1063,6 +1068,7 @@ function AttractOverlay({
   // 시범 차례에는 문구를 바꾸지 않는다(사라지는 도중에 글자가 바뀌어 보이지 않게)
   const tn = (ui.demo ? Math.floor(ti / 4) * 2 + Math.min(ti % 4, 1) : ti) % teasers.length;
   const fade = `transition-opacity duration-500 ${sign ? "" : "opacity-0"}`;
+  const [songNo, setSongNo] = useState(songIndex);
   // 간판 옆 퍼포먼스 필름(브랜드별 쇼츠, 소리 없음): 간판이 보일 때만 돌고, 한 편이 끝나면 다음 브랜드로.
   // 대기 화면이 뜰 때마다(체험을 고르거나 한 판이 끝난 뒤) 아무 편에서나 시작한다: 늘 같은 브랜드만 먼저 나오지 않게
   const [filmNo, setFilmNo] = useState(() => Math.floor(Math.random() * FILMS.length));
@@ -1129,6 +1135,34 @@ function AttractOverlay({
           />
         )}
       </div>
+      {/* 몽글 드럼: 곡 고르기. 손을 올려 두면 바뀐다(터치도 된다) */}
+      {station === "rhythm" && (
+        <div
+          className={`pointer-events-auto relative mb-3 flex items-stretch gap-3 ${compact ? "w-full max-w-[56rem]" : "mr-[11%] ml-[26%] self-stretch"}`}
+        >
+          {SONGS.map((sg, i) => (
+            <button
+              key={sg.track}
+              type="button"
+              onClick={() => {
+                pickSong(i);
+                setSongNo(i);
+                onSong(sg.track);
+              }}
+              className={`hand-fill f-serif relative flex-1 overflow-hidden rounded-2xl border-[0.2rem] px-4 py-2 text-xl ${
+                songNo === i
+                  ? "border-[var(--f-gold)] bg-[var(--f-gold)] text-[#1b1526]"
+                  : "border-[var(--f-frame)] bg-[#0a0d14]/85 text-white"
+              }`}
+            >
+              <span className="relative">
+                {songNo === i ? "♪ " : ""}
+                {sg.title}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       {/* 가로 화면: 왼쪽 아래의 거울과 양옆 탭을 피해 놓는다 */}
       <div className={`relative ${compact ? "w-full max-w-[56rem]" : "mr-[11%] ml-[26%] self-stretch"}`}>
         <div className="flex items-center gap-4">
