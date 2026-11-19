@@ -409,7 +409,7 @@ export function GameApp() {
           <StationMenu current="goliath" onSame={() => gameRef.current?.goHome()} />
         )}
         {EDITION_ID === "weaveon" && (ui.phase === "attract" || ui.phase === "start" || ui.phase === "result") && (
-          <CrossHint className="absolute top-[1.5%] right-[2%] z-30" />
+          <CrossHint className="absolute top-[11.5%] right-[2%] z-30 !px-3 !py-1 !text-base" />
         )}
       </div>
       {wide && (
