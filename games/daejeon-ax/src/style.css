@@ -961,3 +961,10 @@ body[data-screen='loading'] #tools {
   background: #ffd54a;
   color: #1b1526;
 }
+
+/* 몸으로 고른 난이도 카드 */
+.card.body-pick {
+  outline: 0.5vmin solid #ffd54a;
+  outline-offset: 0.4vmin;
+  transform: scale(1.07);
+}

@@ -240,10 +240,39 @@ function startGestureCam(): void {
     .catch(() => {}); // 카메라가 안 되면 버튼으로 하면 된다
 }
 
+/** 난이도 고르는 화면의 몸짓 안내(카드 아래). 처음 쓸 때 만든다. */
+let selectHint: HTMLElement | null = null;
+/** 몸으로 고른 난이도 카드. */
+let pickedCard = -1;
+
+/** 난이도 고르기를 몸으로: 몸을 왼쪽·가운데·오른쪽으로 옮겨 카드를 고른다(게임에서 운석을 피하는 것과 같은 동작). */
+function pickDifficultyByBody(): void {
+  const cards = [...$('choices').querySelectorAll<HTMLButtonElement>('.card')];
+  const t = pose.tracked;
+  if (!t || !cards.length) return;
+  // 화면 가운데에서 어깨너비의 0.45배 이상 벗어나면 옆 카드. 한 번 고른 카드는 조금 더 벗어나야 바뀐다(경계에서 떨리지 않게)
+  const off = (t.x - 0.5) / Math.max(0.05, t.width);
+  const edge = pickedCard === 1 || pickedCard < 0 ? 0.45 : 0.3;
+  const want = off < -edge ? 0 : off > edge ? cards.length - 1 : Math.floor(cards.length / 2);
+  if (want === pickedCard) return;
+  pickedCard = want;
+  cards.forEach((c, i) => c.classList.toggle('body-pick', i === want));
+  difficulty = cards[want].dataset.difficulty as DifficultyId;
+}
+
 function stepGesture(dt: number, now: number): void {
-  const on = (screen === 'title' && !!HOME) || (screen === 'result' && usePose);
+  const picking = screen === 'select' && !!HOME;
+  const on = (screen === 'title' && !!HOME) || picking || (screen === 'result' && usePose);
   if (!on || !pose.cameraOn) return;
-  const hint = $(screen === 'result' ? 'result-gesture' : 'title-gesture');
+  if (picking) {
+    if (!selectHint) {
+      selectHint = document.createElement('p');
+      selectHint.className = 'gesture-hint';
+      $('choices').after(selectHint);
+    }
+    pickDifficultyByBody();
+  }
+  const hint = picking ? selectHint! : $(screen === 'result' ? 'result-gesture' : 'title-gesture');
   const g = now - pose.seenAt < 400 ? pose.gesture : null;
   if (pose.tracked) lastActivity = now; // 사람이 서 있으면 방치로 치지 않는다
   gestureT = g && g === gestureKind ? gestureT + dt : 0;
@@ -252,14 +281,21 @@ function stepGesture(dt: number, now: number): void {
   hint.classList.toggle('on', !!g);
   hint.textContent = g
     ? '좋아요, 그대로!'
-    : `양손을 머리 위로 번쩍 = ${screen === 'result' ? '다시 하기' : '시작'} · 두 팔로 X = ${HOME ? '체험 고르기로' : '처음으로'}`;
+    : picking
+      ? '몸을 왼쪽·가운데·오른쪽으로 옮겨 고르기 · 양손 번쩍 = 결정 · 두 팔로 X = 뒤로'
+      : `양손을 머리 위로 번쩍 = ${screen === 'result' ? '다시 하기' : '시작'} · 두 팔로 X = ${HOME ? '체험 고르기로' : '처음으로'}`;
   if (!g || gestureT < GESTURE_SEC[g]) return;
   gestureT = 0;
   gestureKind = null;
-  if (g === 'cross') return HOME ? goHome() : goTitle();
+  if (g === 'cross') return picking ? goTitle() : HOME ? goHome() : goTitle();
   sfx.start();
   if (screen === 'result') return $('btn-retry').click();
-  // 타이틀: 난이도 고르기와 조종 방식 고르기를 건너뛰고(손으로 못 고른다) 바로 자리 잡기로
+  if (screen === 'title') {
+    // 타이틀 → 난이도 고르기(몸으로 고른다). 카메라는 켜 둔 채로
+    pickedCard = -1;
+    return go('select');
+  }
+  // 난이도를 골랐다: 조종 방식 고르기는 건너뛰고(카메라가 이미 켜져 있다) 바로 자리 잡기로
   usePose = true;
   camwrap.hidden = false;
   $('btn-cam').hidden = false;
@@ -505,6 +541,8 @@ const TONES = ['mint', 'gold', 'rose']; // 쉬운 것부터 차례로
   b.onclick = () => {
     difficulty = id;
     sfx.start();
+    // 체험 고르기에서 들어온 부스 기기: 키보드·터치로 조종하는 방식은 없앴다(11/19 대표님). 조종 방식 고르기를 건너뛰고 바로 카메라로
+    if (HOME) return void startWithCamera();
     enterPermission();
   };
   $('choices').append(b);
@@ -538,6 +576,7 @@ $('btn-retry').onclick = () => {
 $('btn-home').onclick = HOME ? goHome : goTitle;
 if (HOME) $('btn-home').textContent = '체험 고르기로';
 $('btn-exit').hidden = !HOME;
+$('btn-skip').hidden = !!HOME; // 부스 기기: 자리 잡기 화면의 "키보드/터치로 하기"도 숨긴다
 $('btn-exit').onclick = goHome;
 $('btn-mute').onclick = () => {
   sfx.setMuted(!sfx.muted);
