@@ -149,7 +149,6 @@ export function StationPicker({ onPick }: { onPick: (id: StationId) => void }) {
             <button
               key={t.key}
               type="button"
-              autoFocus={i === 1}
               disabled={t.off}
               onClick={t.go}
               data-hold={PICK_HOLD}
