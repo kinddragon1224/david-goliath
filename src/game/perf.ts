@@ -4,12 +4,18 @@ import { isTv } from "./kiosk";
  * 인식이 초당 5~8번·0.2초쯤 늦으므로 인식(pose.ts)은 가볍게, 게임 판정은 넉넉하게 바꾼다. */
 // 주소에 ?lite=1 이면 강제로 켜고 ?lite=0 이면 끈다(현장 조정·시험용)
 const forced = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("lite");
+// 11/19: 기준을 4스레드 이하 → 8스레드 이하 + 태블릿·휴대폰으로 넓혔다.
+// 스레드 수만 보면 i5-8257U 미니 PC(4코어 8스레드, 내장 그래픽)와 태블릿(약한 코어 8개)이 '보통 PC'로 잡혀
+// 가장 무거운 설정(카메라 1280×960·30장, 세 사람 동시 인식, 화면 2배 해상도, 그림자 전부)으로 돌며 버벅였다.
+// 잰 값(개발 PC, 그래픽을 CPU 로 흉내): 보통 설정의 인식 한 번이 약한 PC 설정의 약 3배(600ms 대 200ms).
+// 8스레드를 넘는 PC 만 보통 설정을 쓴다. 좋은 PC 인데 화면이 흐리면 주소에 ?lite=0.
+const handheld = typeof navigator !== "undefined" && /Android|iPad|iPhone|Mobile|Tablet/i.test(navigator.userAgent);
 export const SLOW_PC =
   forced === "1" ||
   (forced !== "0" &&
     typeof navigator !== "undefined" &&
     !isTv() &&
-    (navigator.hardwareConcurrency || 8) <= 4);
+    (handheld || (navigator.hardwareConcurrency || 8) <= 8));
 
 // 화면 글자·버튼의 움직임·그림자·필터를 CSS에서 끈다(styles.css의 .lite)
 if (SLOW_PC && typeof document !== "undefined") document.documentElement.classList.add("lite");
