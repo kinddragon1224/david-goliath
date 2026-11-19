@@ -13,6 +13,8 @@ import { EDITION_ID } from "./edition";
 import { isMenuOpen, setMenuHands } from "@/app/HandCursor";
 import { keepAudioAwake } from "./tvAudio";
 import { StationMenu } from "@/fashion/StationMenu";
+import { resetStation } from "@/fashion/stations";
+import { CrossHint, makeCrossBack } from "@/app/CrossBack";
 
 function syncPose(g: Game | null | undefined, pose: PoseController): void {
   if (!g) return;
@@ -136,6 +138,7 @@ export function GameApp() {
     let lastPhase = game.phase;
     let throwFlashUntil = 0;
     let drawn = 0;
+    const crossBack = makeCrossBack();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (now - drawn < FRAME_MS) return;
@@ -151,6 +154,8 @@ export function GameApp() {
       if (video && (pose.status === "live" || pose.hasStream())) {
         const frame = pose.status === "live" ? pose.tick(now) : pose.lastFrame;
         if (pose.poseReady) game.notePose(isMenuOpen() ? { ...frame, handsUp: false } : frame);
+        // 위브온판: 두 팔 X 를 유지하면 체험 고르기로(대기·결과 화면에서만)
+        if (EDITION_ID === "weaveon" && crossBack(frame.skeleton, pose.poseReady && waiting && !isMenuOpen(), now)) resetStation();
         // 손 커서는 대기·결과 화면에서만. 양손 번쩍(시작 동작)일 때는 버튼을 누르지 않는다
         const wr = wrap.getBoundingClientRect();
         setMenuHands(
@@ -402,6 +407,9 @@ export function GameApp() {
         {/* 경기 중에는 숨긴다: 시계를 가리고, 던지는 손이 머물면 체험 판이 열린다 */}
         {EDITION_ID === "weaveon" && !pipLow && (
           <StationMenu current="goliath" onSame={() => gameRef.current?.goHome()} />
+        )}
+        {EDITION_ID === "weaveon" && (ui.phase === "attract" || ui.phase === "start" || ui.phase === "result") && (
+          <CrossHint className="absolute top-[1.5%] right-[2%] z-30" />
         )}
       </div>
       {wide && (
