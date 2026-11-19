@@ -1,4 +1,5 @@
 import { slow } from "@/game/perf";
+import { DRESS, JACKET, PANTS, SHIRT, SKIRT, type Garment } from "../garments";
 import {
   drawFlare,
   drawHandGlow,
@@ -44,47 +45,31 @@ function poly(pts: P2[]): (k: number) => P2 {
   };
 }
 
-const STAR: P2[] = Array.from({ length: 10 }, (_, i) => {
-  const a = (i / 10) * TAU - Math.PI / 2;
-  const r = i % 2 ? 0.42 : 1;
-  return [Math.cos(a) * r, Math.sin(a) * r];
-});
+/** 옷 윤곽(garments.ts 의 pts, 0~1 상자)을 틀 좌표(-1~1)의 닫힌 선으로. 구멍이 고르게 놓이도록 선 길이를 따라 같은 간격으로 걷는다. */
+function outline(g: Garment): (k: number) => P2 {
+  const ax = g.aspect >= 1 ? 1 : g.aspect;
+  const ay = g.aspect >= 1 ? 1 / g.aspect : 1;
+  const pts: P2[] = g.pts.map(([u, v]) => [(u - 0.5) * 2 * ax, (v - 0.5) * 2 * ay]);
+  const seg = pts.map((q, i) => Math.hypot(pts[(i + 1) % pts.length][0] - q[0], pts[(i + 1) % pts.length][1] - q[1]));
+  const total = seg.reduce((x, y) => x + y, 0);
+  return (k) => {
+    let d = (((k % 1) + 1) % 1) * total;
+    let i = 0;
+    while (i < seg.length - 1 && d > seg[i]) d -= seg[i++];
+    const [q, r] = [pts[i], pts[(i + 1) % pts.length]];
+    const f = seg[i] ? d / seg[i] : 0;
+    return [q[0] + (r[0] - q[0]) * f, q[1] + (r[1] - q[1]) * f];
+  };
+}
 
+// 11/19 대표님: 하트·별 같은 도형 대신 맞춤옷 거리답게 **옷 모양**을 따라 꿰맨다. 다 꿰매면 그 옷이 실 색으로 채워져 완성된다.
+// (poly·polar 는 예전 도형 무늬가 쓰던 것. 옷은 outline 으로 만든다)
 const PATTERNS: Pattern[] = [
-  {
-    name: "하트",
-    thread: "#e8505b",
-    cloth: "#fff6ea",
-    at: (k) => {
-      const a = k * TAU;
-      return [
-        (16 * Math.sin(a) ** 3) / 17,
-        -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 17,
-      ];
-    },
-  },
-  { name: "별", thread: "#e0a91f", cloth: "#eef3ff", at: poly(STAR) },
-  {
-    name: "꽃",
-    thread: "#d9539a",
-    cloth: "#f3fbf0",
-    at: polar((a) => 0.72 + 0.26 * Math.cos(5 * a + Math.PI / 2)),
-  },
-  {
-    name: "네잎클로버",
-    thread: "#2e8b57",
-    cloth: "#fff9e6",
-    at: polar((a) => 0.5 + 0.46 * Math.abs(Math.cos(2 * a))),
-  },
-  {
-    name: "나뭇잎",
-    thread: "#2f6fb5",
-    cloth: "#fdf1f4",
-    at: (k) => {
-      const a = k * TAU;
-      return [Math.sin(a) * 0.62 * (0.7 + 0.3 * Math.cos(a)), -Math.cos(a) * 0.98];
-    },
-  },
+  { name: "티셔츠", thread: "#e8505b", cloth: "#fff6ea", at: outline(SHIRT) },
+  { name: "원피스", thread: "#d9539a", cloth: "#eef3ff", at: outline(DRESS) },
+  { name: "바지", thread: "#2f6fb5", cloth: "#fff9e6", at: outline(PANTS) },
+  { name: "치마", thread: "#e0a91f", cloth: "#f3fbf0", at: outline(SKIRT) },
+  { name: "재킷", thread: "#2e8b57", cloth: "#fdf1f4", at: outline(JACKET) },
 ];
 
 const HOLES = 12;
@@ -104,7 +89,7 @@ type Hole = { x: number; y: number; done: boolean; gold: boolean; at?: number };
 
 export class SewingMode implements Mode {
   seconds = 35;
-  hint = "빛나는 구멍에 바늘 손을 콕! 무늬를 따라 수놓아요";
+  hint = "빛나는 구멍에 바늘 손을 콕! 옷 모양을 따라 꿰매요";
   tip = "빛나는 구멍을 쉬지 않고 콕콕! 5번 이으면 2배";
   grades: [number, number, number] = [11000, 6000, 2000];
   music = "lofi" as const;
@@ -188,7 +173,7 @@ export class SewingMode implements Mode {
     const left = HOLES - this.next;
     this.hint = this.fever()
       ? `황금실 피버! 점수 2배 · ${this.pattern().name} ${left}땀 남았어요`
-      : `${this.pattern().name} 수놓기 · 빛나는 구멍을 콕! ${left}땀 남았어요`;
+      : `${this.pattern().name} 꿰매기 · 빛나는 구멍을 콕! ${left}땀 남았어요`;
   }
 
   private stitch(hole: Hole, hi: number, t: number, fx: Fx): void {
@@ -221,8 +206,8 @@ export class SewingMode implements Mode {
     this.next++;
     if (this.next < HOLES) return;
     const p = this.pattern();
-    fx.score(PATTERN_BONUS, this.cx, this.cy, `자수 완성 +${PATTERN_BONUS}`, "pink");
-    fx.celebrate(`${p.name} 자수 완성!`, "pink");
+    fx.score(PATTERN_BONUS, this.cx, this.cy, `옷 완성 +${PATTERN_BONUS}`, "pink");
+    fx.celebrate(`${p.name} 완성!`, "pink");
     fx.sfx("complete");
     fx.hitstop(0.12);
     fx.shake(0.5);
@@ -521,7 +506,7 @@ export class SewingMode implements Mode {
     return [
       { label: "바늘땀", value: `${this.stitches}땀` },
       { label: "최고 콤보", value: `${this.maxCombo}` },
-      { label: "완성한 자수", value: `${this.sewn.length}개` },
+      { label: "완성한 옷", value: `${this.sewn.length}개` },
     ];
   }
 
@@ -562,7 +547,7 @@ export class SewingMode implements Mode {
 
   collection(): Item[] {
     return this.sewn.map((p) => ({
-      label: `${p.name} 자수`,
+      label: p.name,
       shape: this.shape(p),
       aspect: 1,
       color: p.thread,

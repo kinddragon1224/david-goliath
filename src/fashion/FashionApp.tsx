@@ -1197,7 +1197,7 @@ const FILMS = ["tailoring", "silua", "restitch", "eco", "seolbaek", "lumino"];
 const TEASER: Record<FashionStation, string> = {
   iron: "세탁소 손님 옷의 주름을 쫙 펴 주세요!",
   scissors: "옷본 따라 싹둑싹둑! 진짜 재단사처럼",
-  sewing: "하트·별·꽃을 수놓아요!",
+  sewing: "티셔츠·원피스·바지를 한 땀 한 땀!",
   rhythm: "두 손으로 큰 북을 쿵쿵! 10콤보면 피버!",
 };
 

@@ -393,6 +393,7 @@ export class FashionGame implements Fx {
     this.sound.stopMusic();
     if (this.mode.track) this.sound.loadTrack(this.mode.track);
     this.phase = "countdown";
+    this.saidComplete = false;
     this.countT = COUNTDOWN;
     this.lastTick = COUNTDOWN + 1;
     this.points = 0;
@@ -617,10 +618,15 @@ export class FashionGame implements Fx {
     if (this.sparks.length > 400) this.sparks.splice(0, this.sparks.length - 400);
   }
 
+  private saidComplete = false;
   celebrate(text: string, tone: Tone = "gold"): void {
     if (this.phase !== "play" && this.phase !== "attract") return;
     this.cele = { text, tone, t: 0 };
-    this.say("complete");
+    // "우와, 옷이 완성됐어요" 음성은 한 판에 한 번만(11/19: 바느질은 자수 하나마다 나와 계속 반복됐다). 효과음과 꽃가루는 매번
+    if (!this.saidComplete) {
+      this.saidComplete = true;
+      this.say("complete");
+    }
     this.rain(this.phase === "play" ? 140 : 50);
     this.burst(this.W / 2, this.H * 0.45, 40, tone);
   }
