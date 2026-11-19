@@ -1123,8 +1123,8 @@ function AttractOverlay({
       {/* 가로 화면: 왼쪽 아래의 거울과 양옆 탭을 피해 놓는다 */}
       <div className={`relative ${compact ? "w-full max-w-[56rem]" : "mr-[11%] ml-[26%] self-stretch"}`}>
         <div className="flex items-center gap-4">
-          {/* 양손 번쩍을 보여 주는 재단사(GPT로 그린 그림) */}
-          <img src="/art/tailor-up.webp" alt="" className="-my-8 h-28 w-auto shrink-0 drop-shadow-lg" />
+          {/* 양손 번쩍을 보여 주는 중구할매와 손자 중구(대전 중구 SNS 캐릭터). 그림 둘레에 빈 자리가 많아 크게 놓는다 */}
+          <img src="/art/junggu-cheer.webp" alt="" className="-mx-8 -my-16 h-48 w-auto shrink-0" />
           <p className="f-serif f-cta flex-1 rounded-full border-[0.2rem] border-[var(--f-frame)] bg-[#0a0d14]/90 px-5 py-2.5 text-center text-2xl">
             {!ready
               ? "카메라를 준비하고 있어요"
@@ -1224,6 +1224,12 @@ function ResultOverlay({
           : "다시 도전해 보세요!";
   return (
     <div className="absolute inset-0 flex items-center justify-center rounded-[2rem] bg-black/55 p-[3%]">
+      {/* 엄지 척 하는 중구할매와 손자 중구: 카드 왼쪽 위 귀퉁이에 걸친다 */}
+      <img
+        src="/art/junggu-good.webp"
+        alt=""
+        className="animate-pop pointer-events-none absolute top-1/2 left-1/2 z-10 h-56 w-auto -translate-x-[25rem] -translate-y-[19rem]"
+      />
       {/* 결과는 세 가지만: 등급 · 점수 · 다시 하기(11/19 줄임. 통계 네 칸과 컬렉션은 뺐다) */}
       <div className="f-card animate-pop pointer-events-auto flex max-h-full w-full max-w-[38rem] flex-col items-stretch gap-5 overflow-hidden px-9 py-7 text-center">
         <div className="f-slam flex flex-col items-center">
