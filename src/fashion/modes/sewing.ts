@@ -2,8 +2,10 @@ import { slow } from "@/game/perf";
 import {
   drawFlare,
   drawHandGlow,
+  artImage,
   drawPalace,
   drawWorkMat,
+  stampLayer,
   fabricTexture,
   propImage,
   TONE,
@@ -232,11 +234,16 @@ export class SewingMode implements Mode {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number, hands: Hand[], phase: Phase): void {
-    drawPalace(ctx, this.W, this.H, t, undefined, "atelier");
-    // 다리미·가위질과 같은 쪽빛 작업대 덮개 위에 자수틀을 둔다
-    const mat = new Path2D();
-    mat.roundRect(this.W * 0.15, this.H * 0.03, this.W * 0.7, this.H * 0.94, 18);
-    drawWorkMat(ctx, mat, this.H * 0.03, this.H * 0.97, this.W);
+    // 벽과 작업대는 바뀌지 않는다: 약한 PC는 한 번 그려 둔 것을 찍는다(11/19 재 보니 매 장면 다시 그리며 인식이 초당 5번으로 떨어져 있었다)
+    const paintRoom = (c: CanvasRenderingContext2D, tt: number) => {
+      drawPalace(c, this.W, this.H, tt, undefined, "atelier");
+      // 다리미·가위질과 같은 나무 작업대 위에 자수틀을 둔다
+      const mat = new Path2D();
+      mat.roundRect(this.W * 0.15, this.H * 0.03, this.W * 0.7, this.H * 0.94, 18);
+      drawWorkMat(c, mat, this.H * 0.03, this.H * 0.97, this.W);
+    };
+    const key = `sew|${this.W}x${this.H}|${artImage("atelier") ? 1 : 0}${artImage("table") ? 1 : 0}`;
+    if (!stampLayer(ctx, key, 0, 0, this.W, this.H, (c) => paintRoom(c, 0))) paintRoom(ctx, t);
     this.drawSpools(ctx, t);
     this.drawSewn(ctx);
     const shown = this.bloom?.p ?? this.pattern();

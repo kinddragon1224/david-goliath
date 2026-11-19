@@ -42,13 +42,18 @@ const VOLUME = 0.45;
 /** 음악·효과음 위로 또렷하게. */
 const VOICE_GAIN = 1.8;
 /** 몽글 드럼 곡 크기. 북소리가 곡 위로 들리는 정도는 현장 스피커에서 맞춘다. */
-const TRACK_GAIN = 1.3;
+// 11/19: 곡이 효과음(특히 피버)에 묻힌다는 지적으로 1.3 → 1.9. 곡 파일은 -14 LUFS 로 맞춰 둔다(scripts/drum-chart.py)
+const TRACK_GAIN = 1.9;
+/** 곡이 도는 동안 효과음(북·콤보·피버)을 이만큼 줄인다. 안내 음성은 줄이지 않는다. */
+const SFX_UNDER_TRACK = 0.4;
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
 export class FashionSound {
   ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** 효과음이 지나가는 길. 곡이 돌 때만 줄인다. */
+  private sfx: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   muted = false;
   private musicTimer: ReturnType<typeof setInterval> | null = null;
@@ -70,6 +75,8 @@ export class FashionSound {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : VOLUME;
       this.master.connect(this.ctx.destination);
+    this.sfx = this.ctx.createGain();
+    this.sfx.connect(this.master);
       void routeSpeaker(this.ctx);
       const len = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -155,6 +162,7 @@ export class FashionSound {
     src.connect(g).connect(this.master);
     src.start(at);
     this.trackSrc = src;
+    this.sfx?.gain.setTargetAtTime(SFX_UNDER_TRACK, ctx.currentTime, 0.05);
     return true;
   }
 
@@ -182,7 +190,7 @@ export class FashionSound {
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(gain, at + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.sfx ?? this.master);
     o.start(at);
     o.stop(at + dur + 0.02);
   }
@@ -200,7 +208,7 @@ export class FashionSound {
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(gain, at + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    src.connect(f).connect(g).connect(this.master);
+    src.connect(f).connect(g).connect(this.sfx ?? this.master);
     src.start(at, Math.random() * 0.5);
     src.stop(at + dur + 0.02);
   }
@@ -369,5 +377,6 @@ export class FashionSound {
     this.musicTimer = null;
     this.trackSrc?.stop();
     this.trackSrc = null;
+    if (this.ctx) this.sfx?.gain.setTargetAtTime(1, this.ctx.currentTime, 0.05);
   }
 }

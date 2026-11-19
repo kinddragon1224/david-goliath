@@ -1,11 +1,12 @@
 import { smoothClock, StrikeDetector, type Lane } from "../drum";
-import { slow } from "@/game/perf";
+import { slow, SLOW_PC } from "@/game/perf";
 import {
   artImage,
   drawArt,
   drawFlare,
   drawHandGlow,
   roundRect,
+  stampLayer,
   TONE,
   type DemoHand,
   type Fx,
@@ -24,31 +25,32 @@ import {
  * 손을 들었다가 점선 아래로 내려친다. 금빛 '양손'은 두 손 같이, 끝은 마음껏 연타.
  * 밤 축제로 시작해 콤보가 쌓일수록 무대가 밝아지고, 10콤보부터 런웨이 피버(점수 1.5배). */
 
-/** 곡 둘(11/19 대표님이 준 곡. 예전 곡 mongle-drum.mp3 은 뺐다). 대기 화면에서 고른다.
+/** 곡 둘(11/19 대표님이 준 곡. 예전 곡 mongle-drum.mp3 은 뺐다). 대기 화면에서 고른다. 곡을 거의 끝까지 친다(74초·84초).
  * 채보는 scripts/drum-chart.py 가 곡을 분석해 만든다: 첫 박이 0초가 되게 자르고, 음악이 쉬는 곳은 쉬고, 뒤쪽 절반의 뚜렷한 스네어에 반 박을 넣는다.
- * 두 곡 다 빨라서(분당 131·147박) 게임의 한 박은 음악 두 박이다(bpm 이 그 값).
- * 중촌 챌린지는 앞부분의 빠르기가 흔들려 39초부터의 뒷부분을 쓴다. */
-type Song = { title: string; track: string; bpm: number; beats: number; roll: number; seconds: number; chart: [number, 0 | 1 | 2][] };
+ * 곡의 빠르기가 조금씩 변해서(중촌 챌린지) 음표는 "몇 번째 박"이 아니라 박자 추적이 찾은 "몇 초"로 적는다.
+ * 두 곡 다 빨라서(분당 131·147박) 게임의 한 박은 음악 두 박이다. bpm 은 그 평균(박 줄·들썩임 같은 그림에만 쓴다. 판정은 chart 의 초).
+ * rollAt 부터 endAt 까지는 음표 없이 마음껏 치는 연타. */
+type Song = { title: string; track: string; bpm: number; rollAt: number; endAt: number; seconds: number; chart: [number, 0 | 1 | 2][] };
 export const SONGS: Song[] = [
   {
     title: "중촌 챌린지",
     track: "/audio/jungchon-challenge.mp3",
-    bpm: 73.335,
-    beats: 48,
-    roll: 43,
-    seconds: 42.59,
-    // [박, 손]: 0 왼, 1 오, 2 양손. 반 박(.5)은 음악의 스네어 자리
-    chart: [[5,0],[6,1],[7,2],[8,0],[9,1],[10,0],[11,1],[12,1],[13,1],[14,0],[15,2],[16,0],[17,1],[18,0],[19,1],[20,0],[21,0],[21.5,1],[22,1],[23,2],[24,0],[25,1],[25.5,0],[26,0],[27,1],[27.5,0],[28,1],[29,1],[30,0],[31,2],[32,0],[33,1],[33.5,0],[34,0],[35,1],[35.5,0],[36,0],[37,0],[37.5,1],[38,1],[39,2],[40,0],[41,1],[42,0]],
+    bpm: 73.468,
+    rollAt: 77.584,
+    endAt: 81.676,
+    seconds: 84.18,
+    // [초, 손]: 0 왼, 1 오, 2 양손
+    chart: [[3.965,0],[4.807,1],[7.291,1],[8.121,0],[8.945,1],[9.758,1],[11.221,0],[12.045,2],[12.875,0],[13.706,1],[14.53,0],[15.354,1],[16.074,0],[16.805,0],[17.63,1],[18.454,2],[19.278,0],[20.114,1],[20.939,0],[21.775,1],[22.599,1],[23.412,1],[24.236,0],[25.06,2],[25.884,0],[26.715,1],[27.533,0],[28.357,1],[29.182,0],[30.006,0],[30.83,1],[31.66,2],[32.479,0],[33.303,1],[34.139,0],[34.952,1],[35.776,1],[36.6,1],[37.425,0],[38.249,2],[39.073,0],[39.886,1],[40.304,0],[40.716,0],[41.546,1],[41.953,0],[42.365,0],[43.183,0],[43.59,1],[44.008,1],[44.832,2],[45.65,0],[46.469,1],[46.887,0],[47.293,0],[48.118,1],[48.53,0],[48.942,1],[49.766,1],[50.173,0],[50.579,0],[51.397,2],[52.227,0],[53.052,1],[53.458,0],[54.689,1],[55.095,0],[55.501,0],[56.326,0],[56.732,1],[57.139,1],[57.963,2],[58.776,0],[59.6,1],[60.006,0],[60.413,0],[61.237,1],[61.643,0],[62.05,1],[62.874,1],[63.687,0],[64.511,2],[65.329,0],[66.148,1],[66.554,0],[66.961,0],[67.779,1],[68.191,0],[68.598,0],[69.41,0],[69.828,1],[70.229,1],[71.047,2],[71.872,0],[72.684,1],[74.31,1],[75.134,1],[75.958,1],[76.365,0],[76.765,0]],
   },
   {
     title: "중촌 비트 팡팡",
     track: "/audio/jungchon-beat.mp3",
-    bpm: 65.583,
-    beats: 48,
-    roll: 43,
-    seconds: 47.33,
-    // [박, 손]: 0 왼, 1 오, 2 양손. 반 박(.5)은 음악의 스네어 자리
-    chart: [[4,0],[5,0],[6,1],[7,2],[8,0],[9,1],[10,0],[12,1],[13,1],[14,0],[15,2],[16,0],[17,1],[18,0],[19,1],[20,0],[21,0],[21.5,1],[22,1],[23,2],[24,0],[25,1],[25.5,0],[26,0],[27,1],[27.5,0],[28,1],[29,1],[30,0],[31,2],[32,0],[34,0],[36,0],[37,0],[37.5,1],[38,1],[39,2],[40,0],[41,1],[41.5,0],[42,0]],
+    bpm: 66.001,
+    rollAt: 67.239,
+    endAt: 71.819,
+    seconds: 74.32,
+    // [초, 손]: 0 왼, 1 오, 2 양손
+    chart: [[3.28,0],[4.226,0],[5.143,1],[6.066,2],[6.989,0],[7.895,1],[8.824,0],[9.729,1],[10.652,1],[12.452,0],[13.398,2],[14.315,0],[15.232,1],[16.149,0],[17.055,1],[17.972,0],[18.889,0],[19.807,1],[20.724,2],[21.635,0],[22.558,1],[23.475,0],[24.387,1],[25.304,1],[26.215,1],[27.109,0],[28.05,2],[28.926,0],[29.872,1],[30.79,0],[32.624,0],[34.453,1],[35.358,2],[36.241,0],[37.187,1],[37.64,0],[38.075,0],[39.01,1],[39.468,0],[39.927,1],[40.844,1],[41.749,0],[42.678,2],[43.584,0],[44.501,1],[44.954,0],[45.407,0],[46.324,1],[46.777,0],[47.229,0],[49.052,1],[50.887,0],[51.798,1],[52.251,0],[52.709,0],[53.621,1],[54.073,0],[54.532,1],[55.443,1],[55.896,0],[56.355,0],[57.272,2],[58.178,0],[59.095,1],[60,0],[60.918,1],[61.817,0],[62.729,0],[63.181,1],[63.64,1],[64.551,2],[65.445,0]],
   },
 ];
 const SONG_KEY = "weaveon-drum-song";
@@ -57,17 +59,17 @@ let SONG = song.seconds;
 let BPM = song.bpm;
 let BEAT = 60 / BPM;
 /** 곡이 잦아들기 전 마지막 박. */
-let LAST_BEAT = song.beats - 1;
+let LAST_BEAT = song.endAt / BEAT - 1;
 /** 이 박부터 끝까지는 음표 없이 마음껏 치는 연타 구간. */
-let ROLL_BEAT = song.roll;
+let ROLL_BEAT = song.rollAt / BEAT;
 /** 곡을 고른다(대기 화면의 곡 버튼). 기기에 기억해 다음에도 그 곡으로 시작한다. */
 export function pickSong(i: number): void {
   song = SONGS[i] ?? SONGS[0];
   SONG = song.seconds;
   BPM = song.bpm;
   BEAT = 60 / BPM;
-  LAST_BEAT = song.beats - 1;
-  ROLL_BEAT = song.roll;
+  LAST_BEAT = song.endAt / BEAT - 1;
+  ROLL_BEAT = song.rollAt / BEAT;
   try {
     localStorage.setItem(SONG_KEY, String(SONGS.indexOf(song)));
   } catch {
@@ -190,13 +192,13 @@ export class RhythmMode implements Mode {
     if (!fx.sound.playTrack(this.t0))
       fx.sound.startMusic(BPM, this.t0, Math.ceil(SONG / BEAT / 4));
     // 손 2(양손)는 왼·오 음표 둘로 편다
-    this.notes = song.chart.flatMap(([beat, hand]) =>
+    this.notes = song.chart.flatMap(([sec, hand]) =>
       (hand === 2 ? ([0, 1] as Lane[]) : [hand as Lane]).map((lane) => ({
         lane,
         both: hand === 2 || undefined,
-        at: this.t0 + beat * BEAT,
+        at: this.t0 + sec,
         state: "wait" as const,
-        sec: sectionOf(beat),
+        sec: sectionOf(sec / BEAT),
       })),
     );
     this.end = this.t0 + (LAST_BEAT + 1) * BEAT + 2;
@@ -367,10 +369,14 @@ export class RhythmMode implements Mode {
     const pump = Math.pow(1 - beatPhase, 3);
     const lineY = H * LINE;
 
-    if (!drawArt(ctx, W, H, "mongle-forest", 0.08)) {
-      ctx.fillStyle = "#58b6e8";
-      ctx.fillRect(0, 0, W, H);
-    }
+    // 약한 PC: 숲 그림을 화면 크기로 한 번만 늘려 두고 찍는다(매 장면 큰 그림을 다시 늘리던 것)
+    const paintForest = (c: CanvasRenderingContext2D) => {
+      if (!drawArt(c, W, H, "mongle-forest", 0.08)) {
+        c.fillStyle = "#58b6e8";
+        c.fillRect(0, 0, W, H);
+      }
+    };
+    if (!stampLayer(ctx, `forest|${W}x${H}|${artImage("mongle-forest") ? 1 : 0}`, 0, 0, W, H, paintForest)) paintForest(ctx);
     drawNight(ctx, W, H, t, pump, this.glow, this.fever());
 
     // 두 손 자리: 몸 가운데를 기준으로 왼쪽 빨강, 오른쪽 파랑
@@ -678,7 +684,8 @@ function drawNight(
   ctx.fillRect(0, 0, W, H);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  const beams = fever ? 6 : 4;
+  // 약한 PC: 빛줄기(화면 전체를 더하기로 여러 번 칠한다)는 뺀다
+  const beams = SLOW_PC ? 0 : fever ? 6 : 4;
   for (let i = 0; i < beams; i++) {
     const ox = W * ((i + 0.5) / beams);
     const tipX = W / 2 + Math.sin(t * (0.7 + i * 0.17) + i * 1.7) * W * 0.34;
