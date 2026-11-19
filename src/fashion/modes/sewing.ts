@@ -88,10 +88,12 @@ const SPOOLS = ["#e8505b", "#e0a91f", "#2e8b57", "#2f6fb5"];
 type Hole = { x: number; y: number; done: boolean; gold: boolean; at?: number };
 
 export class SewingMode implements Mode {
-  seconds = 35;
+  // 11/19 대표님: 게임 시간을 더 길게(35 → 50초)
+  seconds = 50;
   hint = "빛나는 구멍에 바늘 손을 콕! 옷 모양을 따라 꿰매요";
   tip = "빛나는 구멍을 쉬지 않고 콕콕! 5번 이으면 2배";
-  grades: [number, number, number] = [11000, 6000, 2000];
+  // 시간이 35 → 50초로 늘어난 만큼 등급 기준도 올렸다
+  grades: [number, number, number] = [15500, 8500, 2800];
   music = "lofi" as const;
   private W = 1400;
   private H = 860;

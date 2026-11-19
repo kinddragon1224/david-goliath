@@ -103,6 +103,10 @@ const LAG =
 const LINE = 0.72;
 const STRIKE_SPEED = slow(0.5, 0.35);
 const FEVER_AT = 10;
+/** 고수 모드(11/19 대표님: 한두 판 하면 너무 쉽다). 이 콤보가 되면 음표 사이사이(음악의 2·4박)에 덤 음표가 끼어 두 배로 촘촘해지고,
+ * 이만큼 연달아 놓치면 다시 보통으로 돌아온다. 처음 하는 아이는 보통으로 끝까지 가고, 잘 치는 사람만 어려워진다. */
+const HARD_AT = 12;
+const HARD_OFF_MISSES = 3;
 
 const LANE_COLOR = ["#f16e60", "#559fdc"];
 const LANE_TONE: Tone[] = ["pink", "gold"];
@@ -114,7 +118,10 @@ type Note = {
   lane: Lane;
   both?: boolean;
   at: number;
-  state: "wait" | "perfect" | "good" | "miss";
+  /** off = 고수 모드에서만 켜지는 덤 음표가 아직 꺼져 있다(그리지도 판정하지도 않는다). */
+  state: "wait" | "perfect" | "good" | "miss" | "off";
+  /** 고수 모드의 덤 음표(음악의 2·4박 자리). */
+  extra?: boolean;
   sec: number;
 };
 
@@ -164,6 +171,9 @@ export class RhythmMode implements Mode {
   private missT = 0;
   private roll = 0;
   private rollOn = false;
+  /** 고수 모드인가, 연달아 놓친 수. */
+  private hard = false;
+  private missRun = 0;
 
   reset(W: number, H: number): void {
     this.W = W;
@@ -201,6 +211,19 @@ export class RhythmMode implements Mode {
         sec: sectionOf(sec / BEAT),
       })),
     );
+    // 덤 음표: 한 박 간격으로 이어진 두 음표의 한가운데에, 앞 음표와 반대 손으로. 꺼 둔 채 넣어 두고 고수 모드일 때만 켠다
+    const base = [...new Set(this.notes.map((n) => n.at))].sort((a, b) => a - b);
+    const extras: Note[] = [];
+    for (let i = 0; i + 1 < base.length; i++) {
+      const gap = base[i + 1] - base[i];
+      if (gap < BEAT * 0.75 || gap > BEAT * 1.3) continue; // 이미 반 박이 끼어 있거나, 쉬는 자리
+      const prev = this.notes.find((n) => n.at === base[i])!;
+      const mid = base[i] + gap / 2;
+      extras.push({ lane: prev.both ? 1 : ((1 - prev.lane) as Lane), at: mid, state: "off", extra: true, sec: sectionOf((mid - this.t0) / BEAT) });
+    }
+    this.notes = [...this.notes, ...extras].sort((a, b) => a.at - b.at);
+    this.hard = false;
+    this.missRun = 0;
     this.end = this.t0 + (LAST_BEAT + 1) * BEAT + 2;
     this.started = true;
     this.strikes.reset();
@@ -263,10 +286,21 @@ export class RhythmMode implements Mode {
     for (const x of this.taps) this.strike(x < this.W / 2 ? 0 : 1, now, true, fx);
     this.taps = [];
 
+    // 고수 모드 켜고 끄기. 덤 음표는 줄 끝에서 들어올 때만 켠다(이미 지나가는 자리에 갑자기 생기지 않게)
+    if (this.started && !this.hard && this.combo >= HARD_AT) {
+      this.hard = true;
+      fx.stamp("고수 모드! 음표가 늘어나요", this.W / 2, this.H * 0.44, "gold");
+    } else if (this.hard && this.missRun >= HARD_OFF_MISSES) this.hard = false;
+    if (this.hard)
+      for (const n of this.notes) {
+        const left = n.at - now;
+        if (n.state === "off" && left > LEAD - 0.15 && left < LEAD + 0.6) n.state = "wait";
+      }
     for (const n of this.notes) {
       if (n.state === "wait" && now - (this.started ? LAG : 0) - n.at > GOOD_W) {
         n.state = "miss";
         this.miss++;
+        this.missRun++;
         this.combo = 0;
         this.missT = 0.35;
         fx.score(0, this.targetX(), this.railY() + this.R() * 3, "놓침", "white");
@@ -313,6 +347,7 @@ export class RhythmMode implements Mode {
     if (!n) return;
     const kind = Math.abs(n.at - at) <= PERFECT_W ? "perfect" : "good";
     n.state = kind;
+    this.missRun = 0;
     this.combo++;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     let pts = (kind === "perfect" ? 300 : 150) + Math.min(20, this.combo) * 10;
@@ -541,7 +576,7 @@ export class RhythmMode implements Mode {
   }
 
   private secRatio(i: number): { hit: number; all: number } {
-    const ns = this.notes.filter((n) => n.sec === i);
+    const ns = this.notes.filter((n) => n.sec === i && n.state !== "off");
     return {
       hit: ns.filter((n) => n.state === "perfect" || n.state === "good").length,
       all: ns.length,
